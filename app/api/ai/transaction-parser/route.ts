@@ -7,10 +7,17 @@ type GeminiResponse = {
 };
 
 type ParsedIntent = {
+  action?: "transaction" | "reminder" | "todo" | "command";
   type?: "income" | "expense";
   amount?: number;
   note?: string;
   date?: string;
+  remind_type?: string;
+  remind_value?: string;
+  remind_text?: string;
+  todo_text?: string;
+  keyword?: string;
+  response?: string;
   confidence?: number;
 };
 
@@ -20,6 +27,58 @@ function extractJson(text: string) {
 }
 
 function validateIntent(value: ParsedIntent) {
+  const action = value.action ?? "transaction";
+  if (!["transaction", "reminder", "todo", "command"].includes(action)) {
+    return null;
+  }
+
+  if (action === "reminder") {
+    const remindText = String(value.remind_text ?? value.note ?? "").trim();
+    const remindValue = String(value.remind_value ?? "").trim();
+    if (!remindText || !remindValue) return null;
+    return {
+      action,
+      type: "expense" as const,
+      amount: 0,
+      note: remindText,
+      remind_type: String(value.remind_type ?? "time"),
+      remind_value: remindValue,
+      remind_text: remindText,
+      date: value.date,
+      confidence: Number(value.confidence ?? 0.7),
+    };
+  }
+
+  if (action === "todo") {
+    const todoText = String(value.todo_text ?? value.note ?? "").trim();
+    if (!todoText) return null;
+    return {
+      action,
+      type: "expense" as const,
+      amount: 0,
+      note: todoText,
+      todo_text: todoText,
+      date: value.date,
+      confidence: Number(value.confidence ?? 0.7),
+    };
+  }
+
+  if (action === "command") {
+    const keyword = String(value.keyword ?? "").trim();
+    const response = String(value.response ?? value.note ?? "").trim();
+    if (!keyword || !response) return null;
+    return {
+      action,
+      type: "expense" as const,
+      amount: 0,
+      note: response,
+      keyword,
+      response,
+      date: value.date,
+      confidence: Number(value.confidence ?? 0.7),
+    };
+  }
+
   const amount = Number(value.amount ?? 0);
   const type = value.type === "income" ? "income" : "expense";
 
@@ -28,6 +87,7 @@ function validateIntent(value: ParsedIntent) {
   }
 
   return {
+    action: "transaction" as const,
     type,
     amount,
     note: String(value.note ?? "").slice(0, 180) || "Transaksi",
@@ -62,11 +122,15 @@ export async function POST(request: Request) {
 
   const today = new Date().toISOString().slice(0, 10);
   const prompt = [
-    "Ubah teks transaksi kas grup Indonesia menjadi JSON valid saja.",
-    "Schema: {\"type\":\"income|expense\",\"amount\":number,\"note\":\"string\",\"date\":\"YYYY-MM-DD\",\"confidence\":number}",
+    "Ubah perintah natural BotUang bahasa Indonesia menjadi JSON valid saja.",
+    "Pilih action: transaction, reminder, todo, atau command.",
+    "Schema umum: {\"action\":\"transaction|reminder|todo|command\",\"type\":\"income|expense\",\"amount\":number,\"note\":\"string\",\"date\":\"YYYY-MM-DD\",\"remind_type\":\"time|date|datetime|daily|weekly\",\"remind_value\":\"string\",\"remind_text\":\"string\",\"todo_text\":\"string\",\"keyword\":\"string\",\"response\":\"string\",\"confidence\":number}",
     "Aturan nominal: k/rb/ribu = x1000, jt/juta = x1000000.",
     "Jika kata mengarah keluar uang seperti pengeluaran, beli, bayar, konsumsi, minus, gunakan expense.",
     "Jika kata mengarah uang masuk seperti pemasukan, iuran, donasi, masuk, plus, gunakan income.",
+    "Jika user minta ingatkan/reminder/jadwal, gunakan action reminder dan isi remind_value.",
+    "Jika user minta tambah tugas/todo, gunakan action todo.",
+    "Jika user minta buat command/keyword/respon otomatis, gunakan action command.",
     `Tanggal hari ini: ${today}.`,
     `Teks: ${text}`,
   ].join("\n");

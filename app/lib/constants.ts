@@ -16,4 +16,5 @@ export const TRUSTED_BOT_API_ORIGINS = [
 ];
 
 export const DASHBOARD_SESSION_KEY = "botuang.dashboard.session";
+export const DASHBOARD_SECTION_KEY = "botuang.dashboard.section";
 export const AUTH_REDIRECT_KEY = "botuang.auth.redirect";

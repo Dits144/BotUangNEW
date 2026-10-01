@@ -45,7 +45,7 @@ import {
   YAxis,
 } from "recharts";
 import { toast } from "sonner";
-import { DASHBOARD_SESSION_KEY } from "@/app/lib/constants";
+import { DASHBOARD_SECTION_KEY, DASHBOARD_SESSION_KEY } from "@/app/lib/constants";
 import { resolveTrustedBotApiUrl } from "@/app/lib/bot-api";
 import { daysLeft, formatDate, formatRupiah } from "@/app/lib/format";
 import { supabase } from "@/app/lib/supabase";
@@ -217,13 +217,13 @@ type BotCommandPayload = {
 };
 
 const navItems = [
-  { key: "overview", label: "Overview", href: "/dashboard", icon: Home },
-  { key: "participants", label: "Anggota", href: "/dashboard/participants", icon: Users },
-  { key: "todos", label: "Todo", href: "/dashboard/todos", icon: ListTodo },
-  { key: "reminders", label: "Reminder", href: "/dashboard/reminders", icon: Bell },
-  { key: "commands", label: "Command", href: "/dashboard/commands", icon: Bot },
-  { key: "settings", label: "Setting", href: "/dashboard/settings", icon: Settings },
-  { key: "owner", label: "Owner", href: "/dashboard/owner", icon: ShieldCheck },
+  { key: "overview", label: "Overview", icon: Home },
+  { key: "participants", label: "Anggota", icon: Users },
+  { key: "todos", label: "Todo", icon: ListTodo },
+  { key: "reminders", label: "Reminder", icon: Bell },
+  { key: "commands", label: "Command", icon: Bot },
+  { key: "settings", label: "Setting", icon: Settings },
+  { key: "owner", label: "Owner", icon: ShieldCheck },
 ] as const;
 
 function normalizeBotReminders(data: unknown, groupId: string): Reminder[] | null {
@@ -403,8 +403,28 @@ async function fetchBotGroupData({
   }
 }
 
-export function DashboardPage({ section }: { section: DashboardSection }) {
+const sectionKeys = new Set<DashboardSection>([
+  "overview",
+  "participants",
+  "todos",
+  "reminders",
+  "commands",
+  "settings",
+  "owner",
+]);
+
+function isDashboardSection(value: string | null): value is DashboardSection {
+  return Boolean(value && sectionKeys.has(value as DashboardSection));
+}
+
+export function DashboardPage({
+  initialSection = "overview",
+}: {
+  initialSection?: DashboardSection;
+}) {
   const router = useRouter();
+  const [activeSection, setActiveSection] =
+    useState<DashboardSection>(initialSection);
   const [groupId, setGroupId] = useState("");
   const [sessionToken, setSessionToken] = useState("");
   const [botApiUrl, setBotApiUrl] = useState("");
@@ -431,8 +451,21 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
     authToken = sessionToken,
     apiUrl = botApiUrl,
   ) {
-    if (!targetGroupId) return;
-    setLoading(true);
+    if (!targetGroupId) {
+      setBotStatus({ ok: false, message: "Pilih atau hubungkan grup dulu" });
+      setLoading(false);
+      return;
+    }
+    const hasExistingData =
+      transactions.length > 0 ||
+      participants.length > 0 ||
+      todos.length > 0 ||
+      reminders.length > 0 ||
+      commands.length > 0 ||
+      Boolean(rental) ||
+      Boolean(settings);
+
+    if (!hasExistingData) setLoading(true);
     const [
       txResult,
       participantResult,
@@ -500,61 +533,36 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
       )
         .then((response) => response.json())
         .catch(() => ({ ok: false, message: "Status bot tidak tersedia" })),
-      authToken
-        ? fetchBotGroupData({
-            resource: "transactions",
-            groupId: targetGroupId,
-            apiUrl,
-            token: authToken,
-          })
-        : Promise.resolve({
-            ok: false,
-            message: "Transaksi bot tidak tersedia",
-          } satisfies BotGroupDataResponse),
-      authToken
-        ? fetchBotGroupData({
-            resource: "participants",
-            groupId: targetGroupId,
-            apiUrl,
-            token: authToken,
-          })
-        : Promise.resolve({
-            ok: false,
-            message: "Peserta bot tidak tersedia",
-          } satisfies BotGroupDataResponse),
-      authToken
-        ? fetchBotGroupData({
-            resource: "todos",
-            groupId: targetGroupId,
-            apiUrl,
-            token: authToken,
-          })
-        : Promise.resolve({
-            ok: false,
-            message: "Todo bot tidak tersedia",
-          } satisfies BotGroupDataResponse),
-      authToken
-        ? fetchBotGroupData({
-            resource: "reminders",
-            groupId: targetGroupId,
-            apiUrl,
-            token: authToken,
-          })
-        : Promise.resolve({
-            ok: false,
-            message: "Reminder bot tidak tersedia",
-          } satisfies BotGroupDataResponse),
-      authToken
-        ? fetchBotGroupData({
-            resource: "commands",
-            groupId: targetGroupId,
-            apiUrl,
-            token: authToken,
-          })
-        : Promise.resolve({
-            ok: false,
-            message: "Command bot tidak tersedia",
-          } satisfies BotGroupDataResponse),
+      fetchBotGroupData({
+        resource: "transactions",
+        groupId: targetGroupId,
+        apiUrl,
+        token: authToken,
+      }),
+      fetchBotGroupData({
+        resource: "participants",
+        groupId: targetGroupId,
+        apiUrl,
+        token: authToken,
+      }),
+      fetchBotGroupData({
+        resource: "todos",
+        groupId: targetGroupId,
+        apiUrl,
+        token: authToken,
+      }),
+      fetchBotGroupData({
+        resource: "reminders",
+        groupId: targetGroupId,
+        apiUrl,
+        token: authToken,
+      }),
+      fetchBotGroupData({
+        resource: "commands",
+        groupId: targetGroupId,
+        apiUrl,
+        token: authToken,
+      }),
     ]);
 
     if (txResult.error) toast.error(txResult.error.message);
@@ -660,6 +668,15 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
     window.localStorage.setItem(DASHBOARD_SESSION_KEY, JSON.stringify(nextSession));
     setGroupId(group.group_id);
     setGroupName(group.group_name ?? group.group_id);
+    setTransactions([]);
+    setParticipants([]);
+    setTodos([]);
+    setReminders([]);
+    setCommands([]);
+    setRental(null);
+    setSettings(null);
+    setBotStatus(null);
+    setLoading(true);
     loadData(group.group_id, sessionToken, botApiUrl);
   }
 
@@ -671,6 +688,12 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
     const selected = storedTheme ?? "dark";
     setTheme(selected);
     document.documentElement.dataset.theme = selected;
+
+    const storedSection = window.sessionStorage.getItem(DASHBOARD_SECTION_KEY);
+    const requestedSection = isDashboardSection(storedSection)
+      ? storedSection
+      : initialSection;
+    setActiveSection(requestedSection);
 
     const stored = window.localStorage.getItem(DASHBOARD_SESSION_KEY);
     if (!stored) {
@@ -712,12 +735,13 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
 
       setRole(platformRole);
 
-      if (section === "owner") {
+      if (requestedSection === "owner") {
         if (platformRole !== "owner") {
-          router.push("/dashboard");
+          changeSection("overview");
           return;
         }
         setGroupName("Owner Control");
+        setBotStatus({ ok: false, message: "Pilih grup untuk status bot" });
         setLoading(false);
         return;
       }
@@ -728,7 +752,14 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
           : undefined) ?? accessibleGroups[0];
 
       if (!activeGroup) {
-        router.push(platformRole === "owner" ? "/dashboard/owner" : "/connect");
+        if (platformRole === "owner") {
+          changeSection("owner");
+          setGroupName("Owner Control");
+          setBotStatus({ ok: false, message: "Pilih grup untuk status bot" });
+          setLoading(false);
+        } else {
+          router.push("/connect");
+        }
         return;
       }
 
@@ -752,6 +783,12 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
 
     bootDashboard();
   }, []);
+
+  function changeSection(nextSection: DashboardSection) {
+    setActiveSection(nextSection);
+    window.sessionStorage.setItem(DASHBOARD_SECTION_KEY, nextSection);
+    setMenuOpen(false);
+  }
 
   function toggleTheme() {
     const next = theme === "dark" ? "light" : "dark";
@@ -848,7 +885,12 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
           />
           <nav className="mt-8 grid gap-1">
             {visibleNavItems.map((item) => (
-              <NavLink key={item.key} item={item} active={section === item.key} />
+              <NavLink
+                key={item.key}
+                item={item}
+                active={activeSection === item.key}
+                onSelect={() => changeSection(item.key)}
+              />
             ))}
           </nav>
         </aside>
@@ -861,9 +903,9 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
                   {groupName}
                 </p>
                 <h1 className="truncate text-xl font-semibold md:text-2xl">
-                  {visibleNavItems.find((item) => item.key === section)?.label}
+                  {visibleNavItems.find((item) => item.key === activeSection)?.label}
                 </h1>
-                {section !== "owner" && groups.length > 1 ? (
+                {activeSection !== "owner" && groups.length > 1 ? (
                   <select
                     value={groupId}
                     onChange={(event) => {
@@ -892,7 +934,7 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
                 >
                   {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                 </Button>
-                {groupId && section !== "owner" ? (
+                {groupId && activeSection !== "owner" ? (
                   <TransactionSheet groupId={groupId} onSaved={() => loadData()} />
                 ) : null}
                 <Button
@@ -918,14 +960,14 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
 
           <AnimatePresence mode="wait">
             <motion.div
-              key={section}
+              key={activeSection}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.18 }}
               className="mx-auto max-w-7xl px-4 py-5 md:px-8 md:py-8"
             >
-              {section === "overview" ? (
+              {activeSection === "overview" ? (
                 <Overview
                   loading={loading}
                   groupId={groupId}
@@ -943,7 +985,7 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
                   onChanged={() => loadData()}
                 />
               ) : null}
-              {section === "participants" ? (
+              {activeSection === "participants" ? (
                 <ParticipantsPage
                   loading={loading}
                   groupId={groupId}
@@ -951,7 +993,7 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
                   onChanged={() => loadData()}
                 />
               ) : null}
-              {section === "todos" ? (
+              {activeSection === "todos" ? (
                 <TodosPage
                   loading={loading}
                   groupId={groupId}
@@ -959,7 +1001,7 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
                   onChanged={() => loadData()}
                 />
               ) : null}
-              {section === "reminders" ? (
+              {activeSection === "reminders" ? (
                 <RemindersPage
                   loading={loading}
                   groupId={groupId}
@@ -969,7 +1011,7 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
                   onChanged={() => loadData()}
                 />
               ) : null}
-              {section === "commands" ? (
+              {activeSection === "commands" ? (
                 <CommandsPage
                   loading={loading}
                   groupId={groupId}
@@ -977,7 +1019,7 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
                   onChanged={() => loadData()}
                 />
               ) : null}
-              {section === "settings" ? (
+              {activeSection === "settings" ? (
                 <SettingsPage
                   loading={loading}
                   groupId={groupId}
@@ -987,19 +1029,28 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
                   onChanged={() => loadData()}
                 />
               ) : null}
-              {section === "owner" ? <OwnerDashboardPage embedded /> : null}
+              {activeSection === "owner" ? <OwnerDashboardPage embedded /> : null}
             </motion.div>
           </AnimatePresence>
         </div>
       </div>
 
-      <MobileNav section={section} items={visibleNavItems} />
+      <MobileNav
+        section={activeSection}
+        items={visibleNavItems}
+        onSelect={changeSection}
+      />
       <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
         <SheetContent>
           <SheetTitle>Menu BotUang</SheetTitle>
           <div className="mt-5 grid gap-2">
             {visibleNavItems.map((item) => (
-              <NavLink key={item.key} item={item} active={section === item.key} />
+              <NavLink
+                key={item.key}
+                item={item}
+                active={activeSection === item.key}
+                onSelect={() => changeSection(item.key)}
+              />
             ))}
           </div>
         </SheetContent>
@@ -1071,10 +1122,18 @@ function Brand({
           <span
             className={cn(
               "h-2.5 w-2.5 rounded-full",
-              botStatus?.ok ? "bg-emerald-400" : "bg-amber-400",
+              botStatus === null
+                ? "bg-amber-400"
+                : botStatus.ok
+                  ? "bg-emerald-400"
+                  : "bg-rose-400",
             )}
           />
-          {botStatus?.ok ? "Terhubung" : "Menunggu status"}
+          {botStatus === null
+            ? "Memuat status"
+            : botStatus.ok
+              ? "Terhubung"
+              : botStatus.message ?? "Tidak terhubung"}
         </p>
       </div>
     </div>
@@ -1084,16 +1143,19 @@ function Brand({
 function NavLink({
   item,
   active,
+  onSelect,
 }: {
   item: (typeof navItems)[number];
   active: boolean;
+  onSelect: () => void;
 }) {
   const Icon = item.icon;
   return (
-    <Link
-      href={item.href}
+    <button
+      type="button"
+      onClick={onSelect}
       className={cn(
-        "flex min-h-11 items-center gap-3 rounded-[12px] px-3 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400",
+        "flex min-h-11 w-full items-center gap-3 rounded-[12px] px-3 text-left text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400",
         active
           ? "bg-emerald-500 text-slate-950"
           : "text-[var(--muted)] hover:bg-[var(--panel)] hover:text-[var(--foreground)]",
@@ -1101,16 +1163,18 @@ function NavLink({
     >
       <Icon className="h-4 w-4" />
       {item.label}
-    </Link>
+    </button>
   );
 }
 
 function MobileNav({
   section,
   items,
+  onSelect,
 }: {
   section: DashboardSection;
   items: ReadonlyArray<(typeof navItems)[number]>;
+  onSelect: (section: DashboardSection) => void;
 }) {
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--line)] bg-[var(--background)]/95 px-2 py-2 backdrop-blur md:hidden">
@@ -1119,9 +1183,10 @@ function MobileNav({
           const Icon = item.icon;
           const active = section === item.key;
           return (
-            <Link
+            <button
+              type="button"
               key={item.key}
-              href={item.href}
+              onClick={() => onSelect(item.key)}
               className={cn(
                 "flex min-h-14 min-w-16 flex-col items-center justify-center gap-1 rounded-[12px] text-[11px] font-semibold transition",
                 active
@@ -1132,7 +1197,7 @@ function MobileNav({
             >
               <Icon className="h-4 w-4" />
               <span className="max-w-full truncate">{item.label}</span>
-            </Link>
+            </button>
           );
         })}
       </div>
@@ -1282,11 +1347,18 @@ function Overview({
   );
 }
 
-type ParsedTransactionIntent = {
+type BotAiIntent = {
+  action: "transaction" | "reminder" | "todo" | "command";
   type: "income" | "expense";
   amount: number;
   note: string;
   date?: string;
+  remind_type?: string;
+  remind_value?: string;
+  remind_text?: string;
+  todo_text?: string;
+  keyword?: string;
+  response?: string;
   confidence?: number;
 };
 
@@ -1300,11 +1372,9 @@ function FinancialTools({
   onExport: () => void;
 }) {
   const [prompt, setPrompt] = useState("");
-  const [intent, setIntent] = useState<ParsedTransactionIntent | null>(null);
+  const [intent, setIntent] = useState<BotAiIntent | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [calc, setCalc] = useState("");
-  const calcResult = useMemo(() => calculateMoneyExpression(calc), [calc]);
 
   async function parseWithAi(event: FormEvent) {
     event.preventDefault();
@@ -1318,7 +1388,7 @@ function FinancialTools({
     }).then((item) => item.json() as Promise<{
       ok?: boolean;
       message?: string;
-      intent?: ParsedTransactionIntent;
+      intent?: BotAiIntent;
     }>);
     setAiLoading(false);
 
@@ -1333,16 +1403,37 @@ function FinancialTools({
   async function saveIntent() {
     if (!intent || !groupId) return;
     setSaving(true);
-    const { error } = await supabase.from("transactions").insert({
-      group_id: groupId,
-      type: intent.type,
-      amount: intent.amount,
-      note: intent.note,
-      sender_name: "AI Dashboard",
-      created_at: intent.date
-        ? new Date(`${intent.date}T12:00:00`).toISOString()
-        : new Date().toISOString(),
-    });
+
+    const { error } =
+      intent.action === "transaction"
+        ? await supabase.from("transactions").insert({
+            group_id: groupId,
+            type: intent.type,
+            amount: intent.amount,
+            note: intent.note,
+            sender_name: "AI Dashboard",
+            created_at: intent.date
+              ? new Date(`${intent.date}T12:00:00`).toISOString()
+              : new Date().toISOString(),
+          })
+        : intent.action === "reminder"
+          ? await supabase.from("reminders").insert({
+              group_id: groupId,
+              remind_type: intent.remind_type ?? "time",
+              remind_value: intent.remind_value ?? "",
+              remind_text: intent.remind_text ?? intent.note,
+              created_by: "AI Dashboard",
+            })
+          : intent.action === "todo"
+            ? await supabase.from("todos").insert({
+                group_id: groupId,
+                todo_text: intent.todo_text ?? intent.note,
+              })
+            : await supabase.from("custom_commands").insert({
+                group_id: groupId,
+                keyword: intent.keyword ?? "",
+                response: intent.response ?? intent.note,
+              });
     setSaving(false);
 
     if (error) {
@@ -1350,7 +1441,7 @@ function FinancialTools({
       return;
     }
 
-    toast.success("Transaksi AI disimpan.");
+    toast.success("Aksi AI disimpan.");
     setPrompt("");
     setIntent(null);
     onSaved();
@@ -1364,9 +1455,9 @@ function FinancialTools({
             <Sparkles className="h-5 w-5" />
           </span>
           <div>
-            <h2 className="font-semibold">AI Catat Transaksi</h2>
+            <h2 className="font-semibold">AI Assistant BotUang</h2>
             <p className="mt-1 text-sm text-[var(--muted)]">
-              Tulis natural, cek hasilnya, lalu konfirmasi simpan.
+              Bisa catat transaksi, buat reminder, todo, atau custom command.
             </p>
           </div>
         </div>
@@ -1374,7 +1465,7 @@ function FinancialTools({
           <Input
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
-            placeholder="Contoh: pengeluaran 5k beli pop ice"
+            placeholder="Contoh: pengeluaran 5k pop ice / reminder besok 08:00 rapat"
           />
           <Button disabled={aiLoading || !prompt.trim()}>
             {aiLoading ? "Membaca..." : "Parse"}
@@ -1383,11 +1474,11 @@ function FinancialTools({
         {intent ? (
           <div className="mt-4 rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-3">
             <div className="grid gap-2 text-sm sm:grid-cols-3">
-              <InfoPill label="Jenis" value={intent.type === "income" ? "Pemasukan" : "Pengeluaran"} />
-              <InfoPill label="Nominal" value={formatRupiah(intent.amount)} />
+              <InfoPill label="Aksi" value={formatAiAction(intent.action)} />
+              <InfoPill label="Detail" value={formatAiPrimaryValue(intent)} />
               <InfoPill label="Tanggal" value={intent.date ?? "Hari ini"} />
             </div>
-            <p className="mt-3 text-sm text-[var(--muted)]">{intent.note}</p>
+            <p className="mt-3 text-sm text-[var(--muted)]">{formatAiDescription(intent)}</p>
             <div className="mt-3 flex gap-2">
               <Button size="sm" onClick={saveIntent} disabled={saving}>
                 {saving ? "Menyimpan..." : "Simpan"}
@@ -1402,22 +1493,7 @@ function FinancialTools({
 
       <Card className="p-4">
         <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <div className="flex items-center gap-2">
-              <Calculator className="h-5 w-5 text-emerald-500" />
-              <h2 className="font-semibold">Kalkulator</h2>
-            </div>
-            <Input
-              className="mt-3 font-mono"
-              value={calc}
-              onChange={(event) => setCalc(event.target.value)}
-              placeholder="150k * 3 - 25rb"
-              inputMode="decimal"
-            />
-            <p className="mt-3 min-h-7 font-mono text-lg font-semibold tabular-nums">
-              {calcResult.ok ? formatRupiah(calcResult.value) : "Rp 0"}
-            </p>
-          </div>
+          <MoneyCalculator />
           <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-3">
             <div className="flex items-center gap-2">
               <FileSpreadsheet className="h-5 w-5 text-emerald-500" />
@@ -1433,6 +1509,127 @@ function FinancialTools({
         </div>
       </Card>
     </section>
+  );
+}
+
+function formatAiAction(action: BotAiIntent["action"]) {
+  const labels: Record<BotAiIntent["action"], string> = {
+    transaction: "Transaksi",
+    reminder: "Reminder",
+    todo: "Todo",
+    command: "Command",
+  };
+  return labels[action];
+}
+
+function formatAiPrimaryValue(intent: BotAiIntent) {
+  if (intent.action === "transaction") {
+    return `${intent.type === "income" ? "Pemasukan" : "Pengeluaran"} ${formatRupiah(intent.amount)}`;
+  }
+  if (intent.action === "reminder") {
+    return `${intent.remind_type ?? "time"} ${intent.remind_value ?? ""}`.trim();
+  }
+  if (intent.action === "todo") {
+    return intent.todo_text ?? intent.note;
+  }
+  return intent.keyword ?? "Command";
+}
+
+function formatAiDescription(intent: BotAiIntent) {
+  if (intent.action === "reminder") return intent.remind_text ?? intent.note;
+  if (intent.action === "todo") return intent.todo_text ?? intent.note;
+  if (intent.action === "command") return intent.response ?? intent.note;
+  return intent.note;
+}
+
+function MoneyCalculator() {
+  const [expression, setExpression] = useState("");
+  const result = useMemo(() => calculateMoneyExpression(expression), [expression]);
+  const buttons = [
+    "C",
+    "⌫",
+    "(",
+    ")",
+    "7",
+    "8",
+    "9",
+    "÷",
+    "4",
+    "5",
+    "6",
+    "×",
+    "1",
+    "2",
+    "3",
+    "-",
+    "0",
+    ".",
+    "=",
+    "+",
+  ];
+
+  function press(value: string) {
+    if (value === "C") {
+      setExpression("");
+      return;
+    }
+    if (value === "⌫") {
+      setExpression((current) => current.slice(0, -1));
+      return;
+    }
+    if (value === "=") {
+      if (result.ok) setExpression(String(Math.round(result.value)));
+      return;
+    }
+    setExpression((current) => `${current}${value === "×" ? "*" : value === "÷" ? "/" : value}`);
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-2">
+        <Calculator className="h-5 w-5 text-emerald-500" />
+        <h2 className="font-semibold">Kalkulator</h2>
+      </div>
+      <div className="mt-3 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-3">
+        <Input
+          className="font-mono text-right text-base"
+          value={expression}
+          onChange={(event) => setExpression(event.target.value)}
+          placeholder="150k*3-25rb"
+          inputMode="decimal"
+          aria-label="Input kalkulator"
+        />
+        <p className="mt-3 text-right font-mono text-xl font-semibold tabular-nums">
+          {result.ok ? formatRupiah(result.value) : "Format salah"}
+        </p>
+        <div className="mt-3 grid grid-cols-4 gap-2">
+          {buttons.map((button) => (
+            <Button
+              key={button}
+              type="button"
+              variant={button === "=" ? "default" : "outline"}
+              className="min-h-11 px-0 font-mono"
+              onClick={() => press(button)}
+            >
+              {button}
+            </Button>
+          ))}
+        </div>
+        <div className="mt-2 grid grid-cols-3 gap-2">
+          {["k", "rb", "jt"].map((suffix) => (
+            <Button
+              key={suffix}
+              type="button"
+              variant="ghost"
+              className="min-h-10 font-mono"
+              onClick={() => setExpression((current) => `${current}${suffix}`)}
+            >
+              {suffix}
+            </Button>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1980,7 +2177,7 @@ function RemindersPage({
     setSaving(true);
 
     try {
-      if (sessionToken && botApiUrl) {
+      if (botApiUrl) {
         const data = await fetchBotGroupData({
           resource: "reminders",
           groupId,

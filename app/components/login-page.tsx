@@ -4,7 +4,11 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Mail, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
-import { AUTH_REDIRECT_KEY, DASHBOARD_SESSION_KEY } from "@/app/lib/constants";
+import {
+  AUTH_REDIRECT_KEY,
+  DASHBOARD_SECTION_KEY,
+  DASHBOARD_SESSION_KEY,
+} from "@/app/lib/constants";
 import { supabase } from "@/app/lib/supabase";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
@@ -29,40 +33,81 @@ export function LoginPage() {
       return;
     }
 
-    if (role === "owner") {
-      const stored = window.localStorage.getItem(DASHBOARD_SESSION_KEY);
-      const previousSession = stored
-        ? (JSON.parse(stored) as {
-            groupId?: string;
-            groupName?: string;
-            apiUrl?: string;
-          })
-        : {};
+    const authSession = await supabase.auth.getSession();
+    const accessToken = authSession.data.session?.access_token ?? "";
+    const accessResult = accessToken
+      ? await fetch("/api/access/groups", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        })
+          .then(
+            (response) =>
+              response.json() as Promise<{
+                ok?: boolean;
+                groups?: Array<{
+                  group_id: string;
+                  group_name?: string | null;
+                  role?: "admin" | "owner";
+                }>;
+                platform_role?: "admin" | "owner";
+              }>,
+          )
+          .catch(() => ({
+            ok: false,
+            groups: [],
+            platform_role: undefined as "admin" | "owner" | undefined,
+          }))
+      : {
+          ok: false,
+          groups: [],
+          platform_role: undefined as "admin" | "owner" | undefined,
+        };
+
+    const platformRole = accessResult.platform_role ?? role;
+    const firstGroup = accessResult.groups?.[0];
+    const stored = window.localStorage.getItem(DASHBOARD_SESSION_KEY);
+    const previousSession = stored
+      ? (JSON.parse(stored) as {
+          groupId?: string;
+          groupName?: string;
+          apiUrl?: string;
+          token?: string;
+        })
+      : {};
+    const targetGroup =
+      groupId ||
+      userGroupId ||
+      previousSession.groupId ||
+      firstGroup?.group_id ||
+      "";
+
+    if (platformRole === "owner") {
+      window.sessionStorage.setItem(DASHBOARD_SECTION_KEY, targetGroup ? "overview" : "owner");
       window.localStorage.setItem(
         DASHBOARD_SESSION_KEY,
         JSON.stringify({
-          groupId: groupId || userGroupId || previousSession.groupId,
-          groupName: previousSession.groupName,
+          ...previousSession,
+          groupId: targetGroup || undefined,
+          groupName:
+            firstGroup?.group_name ?? previousSession.groupName ?? targetGroup,
           apiUrl: previousSession.apiUrl,
-          role: "owner",
+          role: "owner" as const,
           ownerEmail: email.trim().toLowerCase(),
           connectedAt: new Date().toISOString(),
         }),
       );
-      router.push("/dashboard/owner");
+      router.push("/dashboard");
       return;
     }
-
-    const stored = window.localStorage.getItem(DASHBOARD_SESSION_KEY);
-    const localGroup = stored ? JSON.parse(stored).groupId : "";
-    const targetGroup = userGroupId || groupId || localGroup;
 
     if (targetGroup) {
       window.localStorage.setItem(
         DASHBOARD_SESSION_KEY,
         JSON.stringify({
+          ...previousSession,
           groupId: targetGroup,
-          role: "admin",
+          groupName:
+            firstGroup?.group_name ?? previousSession.groupName ?? targetGroup,
+          role: platformRole,
           connectedAt: new Date().toISOString(),
         }),
       );

@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import { DashboardPage } from "../../components/dashboard-page";
+import { LegacyDashboardRedirect } from "../../components/legacy-dashboard-redirect";
 
 export const metadata: Metadata = {
   title: "Kas Anggota",
 };
 
 export default function Page() {
-  return <DashboardPage section="participants" />;
+  return <LegacyDashboardRedirect section="participants" />;
 }
