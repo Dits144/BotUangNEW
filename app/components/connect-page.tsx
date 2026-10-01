@@ -193,6 +193,7 @@ export function ConnectPage() {
         token,
         apiUrl,
         groupName: rental.group_name,
+        role: "admin",
         connectedAt: new Date().toISOString(),
       }),
     );

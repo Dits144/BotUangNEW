@@ -10,6 +10,8 @@ import { Card } from "./ui/card";
 import { Input } from "./ui/input";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 
+const ownerEmails = new Set(["dits144@gmail.com"]);
+
 export function LoginPage() {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
@@ -17,7 +19,20 @@ export function LoginPage() {
   const [groupId, setGroupId] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function routeToDashboard(userGroupId?: string) {
+  async function routeToDashboard(userGroupId?: string, role: "admin" | "owner" = "admin") {
+    if (role === "owner") {
+      window.localStorage.setItem(
+        DASHBOARD_SESSION_KEY,
+        JSON.stringify({
+          role: "owner",
+          ownerEmail: email.trim().toLowerCase(),
+          connectedAt: new Date().toISOString(),
+        }),
+      );
+      window.location.href = "/dashboard/owner";
+      return;
+    }
+
     const stored = window.localStorage.getItem(DASHBOARD_SESSION_KEY);
     const localGroup = stored ? JSON.parse(stored).groupId : "";
     const targetGroup = userGroupId || groupId || localGroup;
@@ -25,7 +40,11 @@ export function LoginPage() {
     if (targetGroup) {
       window.localStorage.setItem(
         DASHBOARD_SESSION_KEY,
-        JSON.stringify({ groupId: targetGroup, connectedAt: new Date().toISOString() }),
+        JSON.stringify({
+          groupId: targetGroup,
+          role: "admin",
+          connectedAt: new Date().toISOString(),
+        }),
       );
       window.location.href = "/dashboard";
       return;
@@ -44,6 +63,7 @@ export function LoginPage() {
         JSON.stringify({
           groupId: data.group_id,
           groupName: data.group_name,
+          role: "admin",
           connectedAt: new Date().toISOString(),
         }),
       );
@@ -74,8 +94,13 @@ export function LoginPage() {
     }
 
     const userGroupId = auth.data.user?.user_metadata?.group_id as string | undefined;
+    const userRole =
+      auth.data.user?.user_metadata?.role === "owner" ||
+      ownerEmails.has((auth.data.user?.email ?? email).trim().toLowerCase())
+        ? "owner"
+        : "admin";
     toast.success(mode === "login" ? "Login berhasil." : "Akun admin dibuat.");
-    await routeToDashboard(userGroupId);
+    await routeToDashboard(userGroupId, userRole);
   }
 
   return (

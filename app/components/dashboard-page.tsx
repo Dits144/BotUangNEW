@@ -12,11 +12,13 @@ import {
   Download,
   Home,
   ListTodo,
+  LogOut,
   Menu,
   Moon,
   Plus,
   Search,
   Settings,
+  ShieldCheck,
   Sun,
   Users,
   WalletCards,
@@ -271,6 +273,7 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
   const [rental, setRental] = useState<Rental | null>(null);
   const [settings, setSettings] = useState<GroupSettings | null>(null);
   const [botStatus, setBotStatus] = useState<BotStatus | null>(null);
+  const [role, setRole] = useState<"admin" | "owner">("admin");
   const [query, setQuery] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -400,11 +403,14 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
       groupName?: string;
       token?: string;
       apiUrl?: string;
+      role?: "admin" | "owner";
     };
     if (!session.groupId) {
-      window.location.href = "/connect";
+      window.location.href =
+        session.role === "owner" ? "/dashboard/owner" : "/connect";
       return;
     }
+    setRole(session.role ?? "admin");
     setGroupId(session.groupId);
     setSessionToken(session.token ?? "");
     setBotApiUrl(session.apiUrl ?? "");
@@ -417,6 +423,13 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
     setTheme(next);
     document.documentElement.dataset.theme = next;
     window.localStorage.setItem("botuang.theme", next);
+  }
+
+  async function logout() {
+    window.localStorage.removeItem(DASHBOARD_SESSION_KEY);
+    await supabase.auth.signOut().catch(() => undefined);
+    toast.success("Logout berhasil.");
+    window.location.href = "/login";
   }
 
   const summary = useMemo(() => {
@@ -515,7 +528,23 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
                 >
                   {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                 </Button>
+                {role === "owner" ? (
+                  <Button asChildLike="true" variant="outline" className="hidden sm:inline-flex">
+                    <a href="/dashboard/owner">
+                      <ShieldCheck className="h-4 w-4" />
+                      Owner
+                    </a>
+                  </Button>
+                ) : null}
                 <TransactionSheet groupId={groupId} onSaved={() => loadData()} />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={logout}
+                  aria-label="Logout"
+                >
+                  <LogOut className="h-5 w-5" />
+                </Button>
                 <Button
                   variant="ghost"
                   size="icon"
