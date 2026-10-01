@@ -4,7 +4,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Mail, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
-import { DASHBOARD_SESSION_KEY } from "@/app/lib/constants";
+import { AUTH_REDIRECT_KEY, DASHBOARD_SESSION_KEY } from "@/app/lib/constants";
 import { supabase } from "@/app/lib/supabase";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
@@ -22,6 +22,13 @@ export function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   async function routeToDashboard(userGroupId?: string, role: "admin" | "owner" = "admin") {
+    const redirectTo = window.sessionStorage.getItem(AUTH_REDIRECT_KEY);
+    if (redirectTo?.startsWith("/connect")) {
+      window.sessionStorage.removeItem(AUTH_REDIRECT_KEY);
+      router.push(redirectTo);
+      return;
+    }
+
     if (role === "owner") {
       const stored = window.localStorage.getItem(DASHBOARD_SESSION_KEY);
       const previousSession = stored

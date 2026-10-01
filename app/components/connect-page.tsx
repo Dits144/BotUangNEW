@@ -3,9 +3,9 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LockKeyhole, MessageCircle, ShieldCheck } from "lucide-react";
+import { LockKeyhole, LogIn, MessageCircle, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
-import { DASHBOARD_SESSION_KEY } from "@/app/lib/constants";
+import { AUTH_REDIRECT_KEY, DASHBOARD_SESSION_KEY } from "@/app/lib/constants";
 import { resolveTrustedBotApiUrl } from "@/app/lib/bot-api";
 import { supabase } from "@/app/lib/supabase";
 import { Button } from "./ui/button";
@@ -37,6 +37,7 @@ export function ConnectPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [needsLogin, setNeedsLogin] = useState(false);
 
   const hasPin = botGate.enabled ? botGate.hasPin : Boolean(rental?.password);
   const title = useMemo(() => {
@@ -58,6 +59,17 @@ export function ConnectPage() {
     async function load() {
       if (!queryGroup || !queryToken) {
         setError("Link dashboard belum lengkap. Ketik dashboard di WhatsApp grup untuk membuat link baru.");
+        setLoading(false);
+        return;
+      }
+
+      const auth = await supabase.auth.getSession();
+      if (!auth.data.session?.access_token) {
+        window.sessionStorage.setItem(
+          AUTH_REDIRECT_KEY,
+          `${window.location.pathname}${window.location.search}`,
+        );
+        setNeedsLogin(true);
         setLoading(false);
         return;
       }
@@ -141,6 +153,18 @@ export function ConnectPage() {
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if (!rental) return;
+    const auth = await supabase.auth.getSession();
+    const accessToken = auth.data.session?.access_token;
+    if (!accessToken) {
+      window.sessionStorage.setItem(
+        AUTH_REDIRECT_KEY,
+        `${window.location.pathname}${window.location.search}`,
+      );
+      toast.error("Login dulu agar grup tersimpan ke akun.");
+      router.push("/login");
+      return;
+    }
+
     if (pin.length < 4) {
       toast.error("PIN minimal 4 digit.");
       return;
@@ -189,37 +213,34 @@ export function ConnectPage() {
       .eq("token", token)
       .eq("group_id", groupId);
 
-    const auth = await supabase.auth.getSession();
-    const accessToken = auth.data.session?.access_token;
     let linkedGroupName = rental.group_name;
 
-    if (accessToken) {
-      const linked = await fetch("/api/access/groups", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          group_id: groupId,
-          group_name: rental.group_name ?? botGate.groupName,
-          token,
-          password: pin,
-          api_url: apiUrl,
-          role: "admin",
-        }),
-      }).then((response) => response.json() as Promise<{
-        ok?: boolean;
-        message?: string;
-        group?: { group_name?: string | null };
-      }>);
+    const linked = await fetch("/api/access/groups", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        group_id: groupId,
+        group_name: rental.group_name ?? botGate.groupName,
+        token,
+        password: pin,
+        api_url: apiUrl,
+        role: "admin",
+      }),
+    }).then((response) => response.json() as Promise<{
+      ok?: boolean;
+      message?: string;
+      group?: { group_name?: string | null };
+    }>);
 
-      if (!linked.ok) {
-        toast.error(linked.message ?? "Akses grup belum bisa disimpan ke akun.");
-      } else {
-        linkedGroupName = linked.group?.group_name ?? linkedGroupName;
-      }
+    if (!linked.ok) {
+      setSaving(false);
+      toast.error(linked.message ?? "Akses grup belum bisa disimpan ke akun.");
+      return;
     }
+    linkedGroupName = linked.group?.group_name ?? linkedGroupName;
 
     window.localStorage.setItem(
       DASHBOARD_SESSION_KEY,
@@ -254,6 +275,18 @@ export function ConnectPage() {
             <Skeleton className="h-12" />
             <Skeleton className="h-12" />
             <Skeleton className="h-20" />
+          </div>
+        ) : needsLogin ? (
+          <div className="rounded-2xl border border-white/[0.08] bg-white/[0.035] p-4">
+            <p className="font-semibold">Login admin diperlukan</p>
+            <p className="mt-2 text-sm text-zinc-400">
+              Masuk ke akun terlebih dahulu supaya grup ini tersimpan di akun Anda
+              dan muncul di Group Switcher.
+            </p>
+            <Button className="mt-4 w-full" onClick={() => router.push("/login")}>
+              <LogIn className="h-4 w-4" />
+              Login Admin
+            </Button>
           </div>
         ) : error ? (
           <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 p-4 text-sm text-rose-100">
