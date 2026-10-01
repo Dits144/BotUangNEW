@@ -155,6 +155,44 @@ type BotReminderPayload = {
   deleted_at?: string | null;
 };
 
+type BotTransactionPayload = {
+  id?: string | number;
+  group_id?: string;
+  type?: "income" | "expense";
+  amount?: number | string;
+  note?: string | null;
+  date?: string;
+  created_at?: string;
+  sender_name?: string | null;
+};
+
+type BotParticipantPayload = {
+  id?: string | number;
+  group_id?: string;
+  name?: string;
+  phone?: string;
+  note?: string;
+  data?: Record<string, unknown> | null;
+};
+
+type BotTodoPayload = {
+  id?: string | number;
+  group_id?: string;
+  title?: string;
+  todo_text?: string;
+  done?: boolean;
+  is_done?: boolean;
+};
+
+type BotCommandPayload = {
+  id?: string | number;
+  group_id?: string;
+  keyword?: string;
+  response?: string;
+  image_url?: string | null;
+  media_path?: string | null;
+};
+
 const navItems = [
   { key: "overview", label: "Overview", href: "/dashboard", icon: Home },
   { key: "participants", label: "Anggota", href: "/dashboard/participants", icon: Users },
@@ -181,6 +219,88 @@ function normalizeBotReminders(data: unknown, groupId: string): Reminder[] | nul
       created_by: reminder.created_by ?? "BotUang",
       created_at: createdAt,
       deleted_at: reminder.deleted_at ?? null,
+    };
+  });
+}
+
+function normalizeBotTransactions(data: unknown, groupId: string): Transaction[] | null {
+  if (!Array.isArray(data)) return null;
+
+  return data.map((item) => {
+    const transaction = item as BotTransactionPayload;
+    const createdAt =
+      transaction.created_at ?? transaction.date ?? new Date().toISOString();
+
+    return {
+      id: String(transaction.id ?? `${groupId}-${createdAt}`),
+      group_id: transaction.group_id ?? groupId,
+      type: transaction.type === "expense" ? "expense" : "income",
+      amount: Number(transaction.amount ?? 0),
+      note: transaction.note ?? "",
+      sender_id: "bot",
+      sender_name: transaction.sender_name ?? "BotUang",
+      created_at: createdAt,
+      edited_at: null,
+      deleted_at: null,
+    };
+  });
+}
+
+function normalizeBotParticipants(data: unknown, groupId: string): Participant[] | null {
+  if (!Array.isArray(data)) return null;
+
+  return data.map((item) => {
+    const participant = item as BotParticipantPayload;
+    return {
+      id: String(participant.id ?? `${groupId}-${participant.name}`),
+      group_id: participant.group_id ?? groupId,
+      name: participant.name ?? "Anggota",
+      data:
+        participant.data ??
+        ({
+          phone: participant.phone ?? "",
+          note: participant.note ?? "",
+          status: "unpaid",
+        } satisfies Record<string, unknown>),
+      created_at: new Date().toISOString(),
+      updated_at: null,
+      deleted_at: null,
+    };
+  });
+}
+
+function normalizeBotTodos(data: unknown, groupId: string): Todo[] | null {
+  if (!Array.isArray(data)) return null;
+
+  return data.map((item) => {
+    const todo = item as BotTodoPayload;
+    return {
+      id: String(todo.id ?? `${groupId}-${todo.title ?? todo.todo_text}`),
+      group_id: todo.group_id ?? groupId,
+      todo_text: todo.todo_text ?? todo.title ?? "Todo",
+      is_done: Boolean(todo.is_done ?? todo.done),
+      created_at: new Date().toISOString(),
+      updated_at: null,
+      deleted_at: null,
+    };
+  });
+}
+
+function normalizeBotCommands(data: unknown, groupId: string): Command[] | null {
+  if (!Array.isArray(data)) return null;
+
+  return data.map((item) => {
+    const command = item as BotCommandPayload;
+    return {
+      id: String(command.id ?? `${groupId}-${command.keyword}`),
+      group_id: command.group_id ?? groupId,
+      keyword: command.keyword ?? "",
+      response: command.response ?? "",
+      media_path: command.media_path ?? command.image_url ?? null,
+      media_type: command.image_url || command.media_path ? "image" : null,
+      caption_text: null,
+      created_at: new Date().toISOString(),
+      deleted_at: null,
     };
   });
 }
@@ -296,7 +416,11 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
       rentalResult,
       settingResult,
       botResult,
+      botTransactionResult,
+      botParticipantResult,
+      botTodoResult,
       botReminderResult,
+      botCommandResult,
     ] = await Promise.all([
       supabase
         .from("transactions")
@@ -352,6 +476,39 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
         .catch(() => ({ ok: false, message: "Status bot tidak tersedia" })),
       authToken
         ? fetchBotGroupData({
+            resource: "transactions",
+            groupId: targetGroupId,
+            apiUrl,
+            token: authToken,
+          })
+        : Promise.resolve({
+            ok: false,
+            message: "Transaksi bot tidak tersedia",
+          } satisfies BotGroupDataResponse),
+      authToken
+        ? fetchBotGroupData({
+            resource: "participants",
+            groupId: targetGroupId,
+            apiUrl,
+            token: authToken,
+          })
+        : Promise.resolve({
+            ok: false,
+            message: "Peserta bot tidak tersedia",
+          } satisfies BotGroupDataResponse),
+      authToken
+        ? fetchBotGroupData({
+            resource: "todos",
+            groupId: targetGroupId,
+            apiUrl,
+            token: authToken,
+          })
+        : Promise.resolve({
+            ok: false,
+            message: "Todo bot tidak tersedia",
+          } satisfies BotGroupDataResponse),
+      authToken
+        ? fetchBotGroupData({
             resource: "reminders",
             groupId: targetGroupId,
             apiUrl,
@@ -361,20 +518,47 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
             ok: false,
             message: "Reminder bot tidak tersedia",
           } satisfies BotGroupDataResponse),
+      authToken
+        ? fetchBotGroupData({
+            resource: "commands",
+            groupId: targetGroupId,
+            apiUrl,
+            token: authToken,
+          })
+        : Promise.resolve({
+            ok: false,
+            message: "Command bot tidak tersedia",
+          } satisfies BotGroupDataResponse),
     ]);
 
     if (txResult.error) toast.error(txResult.error.message);
+    const botTransactions = botTransactionResult.ok
+      ? normalizeBotTransactions(botTransactionResult.data, targetGroupId)
+      : null;
+    const botParticipants = botParticipantResult.ok
+      ? normalizeBotParticipants(botParticipantResult.data, targetGroupId)
+      : null;
+    const botTodos = botTodoResult.ok
+      ? normalizeBotTodos(botTodoResult.data, targetGroupId)
+      : null;
     const botReminders = botReminderResult.ok
       ? normalizeBotReminders(botReminderResult.data, targetGroupId)
       : null;
+    const botCommands = botCommandResult.ok
+      ? normalizeBotCommands(botCommandResult.data, targetGroupId)
+      : null;
 
-    setTransactions((txResult.data ?? []) as Transaction[]);
-    setParticipants((participantResult.data ?? []) as Participant[]);
-    setTodos((todoResult.data ?? []) as Todo[]);
+    setTransactions(
+      botTransactions ?? ((txResult.data ?? []) as Transaction[]),
+    );
+    setParticipants(
+      botParticipants ?? ((participantResult.data ?? []) as Participant[]),
+    );
+    setTodos(botTodos ?? ((todoResult.data ?? []) as Todo[]));
     setReminders(
       botReminders ?? ((reminderResult.data ?? []) as Reminder[]),
     );
-    setCommands((commandResult.data ?? []) as Command[]);
+    setCommands(botCommands ?? ((commandResult.data ?? []) as Command[]));
     setRental((rentalResult.data as Rental | null) ?? null);
     setSettings((settingResult.data as GroupSettings | null) ?? null);
     setBotStatus(botResult as BotStatus);

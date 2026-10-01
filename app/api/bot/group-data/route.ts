@@ -1,7 +1,14 @@
 import { BOT_API_TOKEN, BOT_API_URL } from "@/app/lib/constants";
 import { resolveTrustedBotApiUrl } from "@/app/lib/bot-api";
 
-const allowedResources = new Set(["reminders", "todos", "commands", "participants"]);
+const allowedResources = new Set([
+  "transactions",
+  "participants",
+  "todos",
+  "reminders",
+  "commands",
+  "settings",
+]);
 
 function getRequestContext(request: Request) {
   const url = new URL(request.url);
