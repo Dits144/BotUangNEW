@@ -598,6 +598,10 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
       window.location.href = "/dashboard";
       return;
     }
+    if (sessionRole === "owner" && section !== "owner") {
+      window.location.href = "/dashboard/owner";
+      return;
+    }
     if (!session.groupId) {
       if (sessionRole === "owner" && section === "owner") {
         setGroupName("Owner SaaS");
@@ -691,9 +695,10 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
   }
 
   const days = daysLeft(rental?.expire_at);
-  const visibleNavItems = navItems.filter(
-    (item) => item.key !== "owner" || role === "owner",
-  );
+  const visibleNavItems =
+    role === "owner"
+      ? navItems.filter((item) => item.key === "owner")
+      : navItems.filter((item) => item.key !== "owner");
 
   return (
     <main className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
