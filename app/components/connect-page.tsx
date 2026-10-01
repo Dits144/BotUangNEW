@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { LockKeyhole, MessageCircle, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { DASHBOARD_SESSION_KEY } from "@/app/lib/constants";
+import { resolveTrustedBotApiUrl } from "@/app/lib/bot-api";
 import { supabase } from "@/app/lib/supabase";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
@@ -21,14 +22,20 @@ type RentalRow = {
 export function ConnectPage() {
   const [groupId, setGroupId] = useState("");
   const [token, setToken] = useState("");
+  const [apiUrl, setApiUrl] = useState("");
   const [rental, setRental] = useState<RentalRow | null>(null);
+  const [botGate, setBotGate] = useState<{
+    enabled: boolean;
+    hasPin: boolean;
+    groupName?: string;
+  }>({ enabled: false, hasPin: false });
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const hasPin = Boolean(rental?.password);
+  const hasPin = botGate.enabled ? botGate.hasPin : Boolean(rental?.password);
   const title = useMemo(() => {
     if (!rental) return "Hubungkan grup";
     return hasPin ? "Masukkan PIN grup" : "Buat PIN dashboard";
@@ -38,12 +45,54 @@ export function ConnectPage() {
     const params = new URLSearchParams(window.location.search);
     const queryGroup = params.get("group_id") ?? "";
     const queryToken = params.get("token") ?? "";
+    const queryApiUrl = resolveTrustedBotApiUrl(
+      params.get("apiUrl") ?? params.get("api_url"),
+    );
     setGroupId(queryGroup);
     setToken(queryToken);
+    setApiUrl(queryApiUrl);
 
     async function load() {
       if (!queryGroup || !queryToken) {
         setError("Link dashboard belum lengkap. Ketik dashboard di WhatsApp grup untuk membuat link baru.");
+        setLoading(false);
+        return;
+      }
+
+      if (queryApiUrl) {
+        const validation = await validateViaBotApi({
+          apiUrl: queryApiUrl,
+          groupId: queryGroup,
+          token: queryToken,
+        });
+
+        if (!validation.ok) {
+          setError(validation.error);
+          setLoading(false);
+          return;
+        }
+
+        setBotGate({
+          enabled: true,
+          hasPin: Boolean(validation.hasPin),
+          groupName: validation.groupName,
+        });
+
+        const { data } = await supabase
+          .from("group_rentals")
+          .select("group_id, group_name, password, is_active, expire_at")
+          .eq("group_id", queryGroup)
+          .maybeSingle();
+
+        setRental(
+          (data as RentalRow | null) ?? {
+            group_id: queryGroup,
+            group_name: validation.groupName ?? queryGroup,
+            password: validation.hasPin ? "protected" : null,
+            is_active: null,
+            expire_at: null,
+          },
+        );
         setLoading(false);
         return;
       }
@@ -95,7 +144,20 @@ export function ConnectPage() {
     }
 
     setSaving(true);
-    if (hasPin) {
+    if (botGate.enabled) {
+      const validation = await validateViaBotApi({
+        apiUrl,
+        groupId,
+        token,
+        password: pin,
+      });
+
+      if (!validation.ok) {
+        setSaving(false);
+        toast.error(validation.error);
+        return;
+      }
+    } else if (hasPin) {
       if (pin !== rental.password) {
         setSaving(false);
         toast.error("PIN tidak sesuai.");
@@ -129,6 +191,7 @@ export function ConnectPage() {
       JSON.stringify({
         groupId,
         token,
+        apiUrl,
         groupName: rental.group_name,
         connectedAt: new Date().toISOString(),
       }),
@@ -207,4 +270,49 @@ export function ConnectPage() {
       </Card>
     </main>
   );
+}
+
+async function validateViaBotApi({
+  apiUrl,
+  groupId,
+  token,
+  password,
+}: {
+  apiUrl: string;
+  groupId: string;
+  token: string;
+  password?: string;
+}) {
+  try {
+    const response = await fetch(
+      `${apiUrl.replace(/\/$/, "")}/api/groups/${encodeURIComponent(groupId)}/connect/validate`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ token, password }),
+      },
+    );
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      return {
+        ok: false,
+        error: data.error ?? "Token dashboard tidak valid.",
+        hasPin: false,
+      };
+    }
+    return {
+      ok: true,
+      error: "",
+      hasPin: Boolean(data.has_pin),
+      groupName: data.group?.name as string | undefined,
+    };
+  } catch {
+    return {
+      ok: false,
+      error: "Bot API belum bisa dihubungi.",
+      hasPin: false,
+    };
+  }
 }

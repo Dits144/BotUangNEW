@@ -144,6 +144,8 @@ const navItems = [
 
 export function DashboardPage({ section }: { section: DashboardSection }) {
   const [groupId, setGroupId] = useState("");
+  const [sessionToken, setSessionToken] = useState("");
+  const [botApiUrl, setBotApiUrl] = useState("");
   const [groupName, setGroupName] = useState("BotUang Group");
   const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -160,7 +162,11 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [menuOpen, setMenuOpen] = useState(false);
 
-  async function loadData(targetGroupId = groupId) {
+  async function loadData(
+    targetGroupId = groupId,
+    authToken = sessionToken,
+    apiUrl = botApiUrl,
+  ) {
     if (!targetGroupId) return;
     setLoading(true);
     const [
@@ -213,7 +219,9 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
         .select("*")
         .eq("group_id", targetGroupId)
         .maybeSingle(),
-      fetch(`/api/bot/status?group_id=${encodeURIComponent(targetGroupId)}`)
+      fetch(
+        `/api/bot/status?group_id=${encodeURIComponent(targetGroupId)}&token=${encodeURIComponent(authToken)}&api_url=${encodeURIComponent(apiUrl)}`,
+      )
         .then((response) => response.json())
         .catch(() => ({ ok: false, message: "Status bot tidak tersedia" })),
     ]);
@@ -247,14 +255,21 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
       window.location.href = "/connect";
       return;
     }
-    const session = JSON.parse(stored) as { groupId?: string; groupName?: string };
+    const session = JSON.parse(stored) as {
+      groupId?: string;
+      groupName?: string;
+      token?: string;
+      apiUrl?: string;
+    };
     if (!session.groupId) {
       window.location.href = "/connect";
       return;
     }
     setGroupId(session.groupId);
+    setSessionToken(session.token ?? "");
+    setBotApiUrl(session.apiUrl ?? "");
     setGroupName(session.groupName || session.groupId);
-    loadData(session.groupId);
+    loadData(session.groupId, session.token ?? "", session.apiUrl ?? "");
   }, []);
 
   function toggleTheme() {

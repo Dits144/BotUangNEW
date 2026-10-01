@@ -1,26 +1,31 @@
 import { BOT_API_TOKEN, BOT_API_URL } from "@/app/lib/constants";
+import { resolveTrustedBotApiUrl } from "@/app/lib/bot-api";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const groupId = url.searchParams.get("group_id") ?? "";
+  const sessionToken = url.searchParams.get("token") ?? "";
+  const queryApiUrl = url.searchParams.get("api_url") ?? "";
+  const baseUrl = resolveTrustedBotApiUrl(queryApiUrl || BOT_API_URL);
+  const authToken = BOT_API_TOKEN || sessionToken;
 
-  if (!BOT_API_TOKEN) {
+  if (!baseUrl || !authToken) {
     return Response.json(
-      { ok: false, message: "BOT_API_TOKEN belum dikonfigurasi" },
+      { ok: false, message: "Bot API belum dikonfigurasi" },
       { status: 200 },
     );
   }
 
   try {
-    const base = BOT_API_URL.replace(/\/$/, "");
     const paths = ["/status", "/api/status", "/health", "/api/health", "/"];
 
     for (const path of paths) {
       const response = await fetch(
-        `${base}${path}${path === "/" ? "" : `?group_id=${encodeURIComponent(groupId)}`}`,
+        `${baseUrl}${path}${path === "/" ? "" : `?group_id=${encodeURIComponent(groupId)}`}`,
         {
           headers: {
-            Authorization: `Bearer ${BOT_API_TOKEN}`,
+            Authorization: `Bearer ${authToken}`,
+            "X-Group-Id": groupId,
           },
         },
       );

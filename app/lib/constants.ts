@@ -7,4 +7,9 @@ export const BOT_API_URL =
   "https://shoppers-rebates-font-headphones.trycloudflare.com";
 export const BOT_API_TOKEN = process.env.BOT_API_TOKEN ?? "";
 
+export const TRUSTED_BOT_API_ORIGINS = [
+  "https://shoppers-rebates-font-headphones.trycloudflare.com",
+  "https://api.dashboardits.tech",
+];
+
 export const DASHBOARD_SESSION_KEY = "botuang.dashboard.session";
