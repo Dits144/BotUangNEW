@@ -16,3 +16,18 @@ export function createSupabaseServerClient(accessToken?: string) {
     },
   });
 }
+
+export function createSupabaseAdminClient() {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!serviceRoleKey) {
+    return null;
+  }
+
+  return createClient(SUPABASE_URL, serviceRoleKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  });
+}

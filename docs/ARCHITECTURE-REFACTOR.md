@@ -64,7 +64,8 @@ Add a durable access table:
 user_group_access
   id uuid primary key
   user_id uuid references auth.users(id)
-  group_id text references group_rentals(group_id)
+  group_id text
+  group_name text
   role text check ('owner','admin')
   created_at timestamptz
   updated_at timestamptz
@@ -75,9 +76,10 @@ WhatsApp `/connect` flow should:
 
 1. Validate `group_id` and dashboard `token` against the Bot API.
 2. Verify or set PIN.
-3. Require a Supabase account session when linking persistent access.
-4. Upsert `user_group_access`.
-5. Set active group in client state.
+3. If a Supabase session exists, call `/api/access/groups`.
+4. The server route revalidates the token/PIN with the Bot API.
+5. The server route upserts `user_profiles` and `user_group_access`.
+6. Set active group in client state.
 
 During transition, the app may keep the existing localStorage session for WhatsApp token compatibility, but it must not be the long-term authorization source.
 
@@ -122,6 +124,16 @@ Required additive migration:
 
 - `user_group_access`: persistent multi-group account access.
 - `user_profiles`: platform role metadata for server-side role checks.
+
+The current migration is `supabase/migrations/202610020001_multi_group_access.sql`.
+It intentionally stores `group_id` and `group_name` directly in
+`user_group_access` instead of requiring a foreign key to `group_rentals`,
+because the WhatsApp Bot API / SQLite may still be the source of truth while
+Supabase mirrors catch up.
+
+Server-side writes to this access model require `SUPABASE_SERVICE_ROLE_KEY` in
+the Vercel/server environment. This key must never use `NEXT_PUBLIC_` and must
+never be exposed to browser bundles.
 
 Future additive migrations:
 

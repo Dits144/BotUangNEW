@@ -15,7 +15,8 @@ create table if not exists public.user_profiles (
 create table if not exists public.user_group_access (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  group_id text not null references public.group_rentals(group_id) on delete cascade,
+  group_id text not null,
+  group_name text,
   role text not null default 'admin'
     check (role in ('owner', 'admin')),
   created_at timestamptz not null default now(),

@@ -1,6 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { LockKeyhole, MessageCircle, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { DASHBOARD_SESSION_KEY } from "@/app/lib/constants";
@@ -20,6 +22,7 @@ type RentalRow = {
 };
 
 export function ConnectPage() {
+  const router = useRouter();
   const [groupId, setGroupId] = useState("");
   const [token, setToken] = useState("");
   const [apiUrl, setApiUrl] = useState("");
@@ -186,19 +189,51 @@ export function ConnectPage() {
       .eq("token", token)
       .eq("group_id", groupId);
 
+    const auth = await supabase.auth.getSession();
+    const accessToken = auth.data.session?.access_token;
+    let linkedGroupName = rental.group_name;
+
+    if (accessToken) {
+      const linked = await fetch("/api/access/groups", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          group_id: groupId,
+          group_name: rental.group_name ?? botGate.groupName,
+          token,
+          password: pin,
+          api_url: apiUrl,
+          role: "admin",
+        }),
+      }).then((response) => response.json() as Promise<{
+        ok?: boolean;
+        message?: string;
+        group?: { group_name?: string | null };
+      }>);
+
+      if (!linked.ok) {
+        toast.error(linked.message ?? "Akses grup belum bisa disimpan ke akun.");
+      } else {
+        linkedGroupName = linked.group?.group_name ?? linkedGroupName;
+      }
+    }
+
     window.localStorage.setItem(
       DASHBOARD_SESSION_KEY,
       JSON.stringify({
         groupId,
         token,
         apiUrl,
-        groupName: rental.group_name,
+        groupName: linkedGroupName,
         role: "admin",
         connectedAt: new Date().toISOString(),
       }),
     );
     toast.success("Dashboard terhubung.");
-    window.location.href = "/dashboard";
+    router.push("/dashboard");
   }
 
   return (
@@ -224,7 +259,7 @@ export function ConnectPage() {
           <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 p-4 text-sm text-rose-100">
             {error}
             <Button asChildLike="true" className="mt-4 w-full">
-              <a href="/">Kembali ke Beranda</a>
+              <Link href="/">Kembali ke Beranda</Link>
             </Button>
           </div>
         ) : (

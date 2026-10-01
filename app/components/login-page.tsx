@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Mail, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { DASHBOARD_SESSION_KEY } from "@/app/lib/constants";
@@ -13,6 +14,7 @@ import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 const ownerEmails = new Set(["dits144@gmail.com"]);
 
 export function LoginPage() {
+  const router = useRouter();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -40,7 +42,7 @@ export function LoginPage() {
           connectedAt: new Date().toISOString(),
         }),
       );
-      window.location.href = "/dashboard/owner";
+      router.push("/dashboard/owner");
       return;
     }
 
@@ -57,7 +59,7 @@ export function LoginPage() {
           connectedAt: new Date().toISOString(),
         }),
       );
-      window.location.href = "/dashboard";
+      router.push("/dashboard");
       return;
     }
 
@@ -78,12 +80,12 @@ export function LoginPage() {
           connectedAt: new Date().toISOString(),
         }),
       );
-      window.location.href = "/dashboard";
+      router.push("/dashboard");
       return;
     }
 
     toast.message("Login berhasil. Hubungkan grup dari WhatsApp untuk membuka dashboard.");
-    window.location.href = "/connect";
+    router.push("/connect");
   }
 
   async function handleSubmit(event: FormEvent) {

@@ -156,7 +156,7 @@ export function OwnerDashboardPage({ embedded = false }: { embedded?: boolean })
       ? (JSON.parse(stored) as { role?: string; apiUrl?: string })
       : null;
     if (session?.role !== "owner") {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
@@ -168,7 +168,7 @@ export function OwnerDashboardPage({ embedded = false }: { embedded?: boolean })
       const token = auth.data.session?.access_token ?? "";
       if (!token) {
         toast.error("Login owner sudah habis. Silakan masuk lagi.");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
       setAccessToken(token);
@@ -228,7 +228,7 @@ export function OwnerDashboardPage({ embedded = false }: { embedded?: boolean })
   async function logout() {
     window.localStorage.removeItem(DASHBOARD_SESSION_KEY);
     await supabase.auth.signOut().catch(() => undefined);
-    window.location.href = "/login";
+    router.push("/login");
   }
 
   function openGroupDashboard(group: OwnerGroup) {
