@@ -133,6 +133,25 @@ type BotStatus = {
   message?: string;
 };
 
+type BotGroupDataResponse = {
+  ok?: boolean;
+  data?: unknown;
+  message?: string;
+};
+
+type BotReminderPayload = {
+  id?: string | number;
+  group_id?: string;
+  remind_type?: string;
+  remind_value?: string;
+  remind_text?: string;
+  message?: string;
+  schedule?: string;
+  created_by?: string | null;
+  created_at?: string;
+  deleted_at?: string | null;
+};
+
 const navItems = [
   { key: "overview", label: "Overview", href: "/dashboard", icon: Home },
   { key: "participants", label: "Anggota", href: "/dashboard/participants", icon: Users },
@@ -141,6 +160,40 @@ const navItems = [
   { key: "commands", label: "Command", href: "/dashboard/commands", icon: Bot },
   { key: "settings", label: "Setting", href: "/dashboard/settings", icon: Settings },
 ] as const;
+
+function normalizeBotReminders(data: unknown, groupId: string): Reminder[] | null {
+  if (!Array.isArray(data)) return null;
+
+  return data.map((item) => {
+    const reminder = item as BotReminderPayload;
+    const parsedSchedule = parseReminderSchedule(reminder.schedule);
+    const createdAt = reminder.created_at ?? new Date().toISOString();
+
+    return {
+      id: String(reminder.id ?? `${groupId}-${reminder.message ?? createdAt}`),
+      group_id: reminder.group_id ?? groupId,
+      remind_type: reminder.remind_type ?? parsedSchedule.type,
+      remind_value: reminder.remind_value ?? parsedSchedule.value,
+      remind_text: reminder.remind_text ?? reminder.message ?? "Reminder",
+      created_by: reminder.created_by ?? "BotUang",
+      created_at: createdAt,
+      deleted_at: reminder.deleted_at ?? null,
+    };
+  });
+}
+
+function parseReminderSchedule(schedule?: string) {
+  const fallback = { type: "time", value: "" };
+  if (!schedule) return fallback;
+
+  const [type, ...rest] = schedule.trim().split(/\s+/);
+  if (!type || !rest.length) return fallback;
+
+  return {
+    type,
+    value: rest.join(" "),
+  };
+}
 
 export function DashboardPage({ section }: { section: DashboardSection }) {
   const [groupId, setGroupId] = useState("");
@@ -178,6 +231,7 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
       rentalResult,
       settingResult,
       botResult,
+      botReminderResult,
     ] = await Promise.all([
       supabase
         .from("transactions")
@@ -231,13 +285,36 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
       )
         .then((response) => response.json())
         .catch(() => ({ ok: false, message: "Status bot tidak tersedia" })),
+      fetch(
+        `/api/bot/group-data?resource=reminders&group_id=${encodeURIComponent(targetGroupId)}&api_url=${encodeURIComponent(apiUrl)}`,
+        {
+          headers: authToken
+            ? {
+                Authorization: `Bearer ${authToken}`,
+              }
+            : undefined,
+        },
+      )
+        .then((response) => response.json() as Promise<BotGroupDataResponse>)
+        .catch(
+          (): BotGroupDataResponse => ({
+            ok: false,
+            message: "Reminder bot tidak tersedia",
+          }),
+        ),
     ]);
 
     if (txResult.error) toast.error(txResult.error.message);
+    const botReminders = botReminderResult.ok
+      ? normalizeBotReminders(botReminderResult.data, targetGroupId)
+      : null;
+
     setTransactions((txResult.data ?? []) as Transaction[]);
     setParticipants((participantResult.data ?? []) as Participant[]);
     setTodos((todoResult.data ?? []) as Todo[]);
-    setReminders((reminderResult.data ?? []) as Reminder[]);
+    setReminders(
+      botReminders ?? ((reminderResult.data ?? []) as Reminder[]),
+    );
     setCommands((commandResult.data ?? []) as Command[]);
     setRental((rentalResult.data as Rental | null) ?? null);
     setSettings((settingResult.data as GroupSettings | null) ?? null);
@@ -441,6 +518,8 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
                 <RemindersPage
                   loading={loading}
                   groupId={groupId}
+                  sessionToken={sessionToken}
+                  botApiUrl={botApiUrl}
                   reminders={reminders}
                   onChanged={() => loadData()}
                 />
@@ -1185,33 +1264,69 @@ function parseTodo(value: string) {
 function RemindersPage({
   loading,
   groupId,
+  sessionToken,
+  botApiUrl,
   reminders,
   onChanged,
 }: {
   loading: boolean;
   groupId: string;
+  sessionToken: string;
+  botApiUrl: string;
   reminders: Reminder[];
   onChanged: () => void;
 }) {
-  const [type, setType] = useState("daily");
+  const [type, setType] = useState("time");
   const [value, setValue] = useState("");
   const [text, setText] = useState("");
+  const [saving, setSaving] = useState(false);
 
   async function add(event: FormEvent) {
     event.preventDefault();
-    const { error } = await supabase.from("reminders").insert({
-      group_id: groupId,
-      remind_type: type,
-      remind_value: value,
-      remind_text: text,
-      created_by: "Dashboard",
-    });
-    if (error) toast.error(error.message);
-    else {
+    setSaving(true);
+
+    try {
+      if (sessionToken && botApiUrl) {
+        const response = await fetch(
+          `/api/bot/group-data?resource=reminders&group_id=${encodeURIComponent(groupId)}&api_url=${encodeURIComponent(botApiUrl)}`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${sessionToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              remind_type: type,
+              remind_value: value,
+              remind_text: text,
+            }),
+          },
+        );
+        const data = (await response.json()) as BotGroupDataResponse;
+        if (!data.ok) {
+          throw new Error(data.message ?? "Reminder bot tidak bisa disimpan");
+        }
+      } else {
+        const { error } = await supabase.from("reminders").insert({
+          group_id: groupId,
+          remind_type: type,
+          remind_value: value,
+          remind_text: text,
+          created_by: "Dashboard",
+        });
+        if (error) throw error;
+      }
+
       toast.success("Reminder disimpan.");
       setText("");
       setValue("");
       onChanged();
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Reminder gagal disimpan.",
+      );
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -1221,13 +1336,15 @@ function RemindersPage({
         <h2 className="font-semibold">Reminder Baru</h2>
         <form onSubmit={add} className="mt-4 space-y-3">
           <select value={type} onChange={(event) => setType(event.target.value)} className="min-h-11 w-full rounded-[11px] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm">
-            <option value="daily">Harian</option>
-            <option value="weekly">Mingguan</option>
+            <option value="time">Jam harian</option>
             <option value="date">Tanggal khusus</option>
+            <option value="datetime">Tanggal dan jam</option>
           </select>
-          <Input value={value} onChange={(event) => setValue(event.target.value)} placeholder="Jam, hari, atau tanggal" required />
+          <Input value={value} onChange={(event) => setValue(event.target.value)} placeholder="08:00, 29/01/2027, atau 08:00&29/01/2027" required />
           <Textarea value={text} onChange={(event) => setText(event.target.value)} placeholder="Isi reminder" required />
-          <Button className="w-full">Simpan Reminder</Button>
+          <Button className="w-full" disabled={saving}>
+            {saving ? "Menyimpan..." : "Simpan Reminder"}
+          </Button>
         </form>
       </Card>
       <Card className="p-4">
