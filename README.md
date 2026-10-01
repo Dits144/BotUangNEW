@@ -19,3 +19,5 @@ BOT_API_TOKEN=your_bot_api_token
 ```
 
 The production dashboard domain can be pointed to `dashboardits.tech`.
+
+Deployment trigger: 2026-10-01.
