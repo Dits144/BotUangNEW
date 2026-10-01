@@ -98,7 +98,7 @@ function validateIntent(value: ParsedIntent) {
 
 export async function POST(request: Request) {
   const apiKey = process.env.GOOGLE_AI_API_KEY;
-  const model = process.env.GOOGLE_AI_MODEL ?? "gemini-2.0-flash";
+  const model = process.env.GOOGLE_AI_MODEL ?? "gemini-3.8-flash";
 
   if (!apiKey) {
     return Response.json(
