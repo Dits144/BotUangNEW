@@ -1,6 +1,9 @@
-export const SUPABASE_URL = "https://bxsqszakzwjnfxxmjmxl.supabase.co";
+export const SUPABASE_URL =
+  process.env.NEXT_PUBLIC_SUPABASE_URL ??
+  "https://xauwlfhlrtwblstgptyk.supabase.co";
 export const SUPABASE_ANON_KEY =
-  "sb_publishable_NLrUY339-c__z4d2lQwbTA_4IzLknO8";
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+  "sb_publishable_qBDNFMAgvB_MjhgqF8PCGg_rO-9bo42";
 
 export const BOT_API_URL =
   process.env.BOT_API_URL ??
