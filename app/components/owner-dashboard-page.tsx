@@ -121,7 +121,7 @@ const featureGroups = [
   },
 ];
 
-export function OwnerDashboardPage() {
+export function OwnerDashboardPage({ embedded = false }: { embedded?: boolean }) {
   const [apiUrl, setApiUrl] = useState("");
   const [accessToken, setAccessToken] = useState("");
   const [loading, setLoading] = useState(true);
@@ -272,20 +272,25 @@ export function OwnerDashboardPage() {
   }
 
   if (loading) {
-    return (
-      <main className="min-h-screen bg-[var(--background)] p-4 text-[var(--foreground)] md:p-8">
-        <div className="mx-auto max-w-7xl space-y-4">
+    const loadingContent = (
+        <div className={embedded ? "space-y-4" : "mx-auto max-w-7xl space-y-4"}>
           <Skeleton className="h-20" />
           <Skeleton className="h-36" />
           <Skeleton className="h-96" />
         </div>
+    );
+
+    if (embedded) return loadingContent;
+
+    return (
+      <main className="min-h-screen bg-[var(--background)] p-4 text-[var(--foreground)] md:p-8">
+        {loadingContent}
       </main>
     );
   }
 
-  return (
-    <main className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
-      <div className="mx-auto max-w-7xl px-4 py-5 md:px-8 md:py-8">
+  const content = (
+      <div className={embedded ? "space-y-5" : "mx-auto max-w-7xl px-4 py-5 md:px-8 md:py-8"}>
         <header className="flex flex-col gap-4 border-b border-[var(--line)] pb-5 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-emerald-500">
@@ -534,6 +539,13 @@ export function OwnerDashboardPage() {
           </div>
         </Card>
       </div>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <main className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
+      {content}
     </main>
   );
 }

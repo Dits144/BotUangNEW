@@ -41,6 +41,7 @@ import { resolveTrustedBotApiUrl } from "@/app/lib/bot-api";
 import { daysLeft, formatDate, formatRupiah } from "@/app/lib/format";
 import { supabase } from "@/app/lib/supabase";
 import { cn } from "@/app/lib/utils";
+import { OwnerDashboardPage } from "./owner-dashboard-page";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
@@ -55,7 +56,8 @@ type DashboardSection =
   | "todos"
   | "reminders"
   | "commands"
-  | "settings";
+  | "settings"
+  | "owner";
 
 type Transaction = {
   id: string;
@@ -200,6 +202,7 @@ const navItems = [
   { key: "reminders", label: "Reminder", href: "/dashboard/reminders", icon: Bell },
   { key: "commands", label: "Command", href: "/dashboard/commands", icon: Bot },
   { key: "settings", label: "Setting", href: "/dashboard/settings", icon: Settings },
+  { key: "owner", label: "Owner", href: "/dashboard/owner", icon: ShieldCheck },
 ] as const;
 
 function normalizeBotReminders(data: unknown, groupId: string): Reminder[] | null {
@@ -589,12 +592,21 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
       apiUrl?: string;
       role?: "admin" | "owner";
     };
-    if (!session.groupId) {
-      window.location.href =
-        session.role === "owner" ? "/dashboard/owner" : "/connect";
+    const sessionRole = session.role ?? "admin";
+    setRole(sessionRole);
+    if (section === "owner" && sessionRole !== "owner") {
+      window.location.href = "/dashboard";
       return;
     }
-    setRole(session.role ?? "admin");
+    if (!session.groupId) {
+      if (sessionRole === "owner" && section === "owner") {
+        setGroupName("Owner SaaS");
+        setLoading(false);
+        return;
+      }
+      window.location.href = sessionRole === "owner" ? "/dashboard/owner" : "/connect";
+      return;
+    }
     setGroupId(session.groupId);
     setSessionToken(session.token ?? "");
     setBotApiUrl(session.apiUrl ?? "");
@@ -679,6 +691,9 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
   }
 
   const days = daysLeft(rental?.expire_at);
+  const visibleNavItems = navItems.filter(
+    (item) => item.key !== "owner" || role === "owner",
+  );
 
   return (
     <main className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
@@ -686,7 +701,7 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
         <aside className="hidden w-72 shrink-0 border-r border-[var(--line)] bg-[var(--surface)] p-5 md:block">
           <Brand groupName={groupName} botStatus={botStatus} />
           <nav className="mt-8 grid gap-1">
-            {navItems.map((item) => (
+            {visibleNavItems.map((item) => (
               <NavLink key={item.key} item={item} active={section === item.key} />
             ))}
           </nav>
@@ -700,7 +715,7 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
                   {groupName}
                 </p>
                 <h1 className="truncate text-xl font-semibold md:text-2xl">
-                  {navItems.find((item) => item.key === section)?.label}
+                  {visibleNavItems.find((item) => item.key === section)?.label}
                 </h1>
               </div>
               <div className="flex items-center gap-2">
@@ -712,15 +727,9 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
                 >
                   {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                 </Button>
-                {role === "owner" ? (
-                  <Button asChildLike="true" variant="outline" className="hidden sm:inline-flex">
-                    <a href="/dashboard/owner">
-                      <ShieldCheck className="h-4 w-4" />
-                      Owner
-                    </a>
-                  </Button>
+                {groupId && section !== "owner" ? (
+                  <TransactionSheet groupId={groupId} onSaved={() => loadData()} />
                 ) : null}
-                <TransactionSheet groupId={groupId} onSaved={() => loadData()} />
                 <Button
                   variant="ghost"
                   size="icon"
@@ -811,17 +820,18 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
                   onChanged={() => loadData()}
                 />
               ) : null}
+              {section === "owner" ? <OwnerDashboardPage embedded /> : null}
             </motion.div>
           </AnimatePresence>
         </div>
       </div>
 
-      <MobileNav section={section} />
+      <MobileNav section={section} items={visibleNavItems} />
       <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
         <SheetContent>
           <SheetTitle>Menu BotUang</SheetTitle>
           <div className="mt-5 grid gap-2">
-            {navItems.map((item) => (
+            {visibleNavItems.map((item) => (
               <NavLink key={item.key} item={item} active={section === item.key} />
             ))}
           </div>
@@ -889,11 +899,17 @@ function NavLink({
   );
 }
 
-function MobileNav({ section }: { section: DashboardSection }) {
+function MobileNav({
+  section,
+  items,
+}: {
+  section: DashboardSection;
+  items: Array<(typeof navItems)[number]>;
+}) {
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--line)] bg-[var(--background)]/95 px-2 py-2 backdrop-blur md:hidden">
-      <div className="grid grid-cols-6 gap-1">
-        {navItems.map((item) => {
+      <div className="flex gap-1 overflow-x-auto">
+        {items.map((item) => {
           const Icon = item.icon;
           const active = section === item.key;
           return (
@@ -901,7 +917,7 @@ function MobileNav({ section }: { section: DashboardSection }) {
               key={item.key}
               href={item.href}
               className={cn(
-                "flex min-h-14 flex-col items-center justify-center gap-1 rounded-[12px] text-[11px] font-semibold transition",
+                "flex min-h-14 min-w-16 flex-col items-center justify-center gap-1 rounded-[12px] text-[11px] font-semibold transition",
                 active
                   ? "bg-emerald-500 text-slate-950"
                   : "text-[var(--muted)] active:bg-[var(--panel)]",
