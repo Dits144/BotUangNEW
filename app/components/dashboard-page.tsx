@@ -1,6 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Bell,
   Bot,
@@ -130,6 +132,12 @@ type GroupSettings = {
   weather_location: string | null;
   typo_enabled: boolean | null;
   updated_at: string | null;
+};
+
+type AccessibleGroup = {
+  group_id: string;
+  group_name: string | null;
+  role: "admin" | "owner";
 };
 
 type BotStatus = {
@@ -383,10 +391,12 @@ async function fetchBotGroupData({
 }
 
 export function DashboardPage({ section }: { section: DashboardSection }) {
+  const router = useRouter();
   const [groupId, setGroupId] = useState("");
   const [sessionToken, setSessionToken] = useState("");
   const [botApiUrl, setBotApiUrl] = useState("");
   const [groupName, setGroupName] = useState("BotUang Group");
+  const [groups, setGroups] = useState<AccessibleGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
@@ -571,6 +581,86 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
     setLoading(false);
   }
 
+  async function loadAccessibleGroups(session: {
+    groupId?: string;
+    groupName?: string;
+    role?: "admin" | "owner";
+  }) {
+    const auth = await supabase.auth.getSession();
+    const userId = auth.data.session?.user.id;
+    const role = session.role ?? "admin";
+    const collected = new Map<string, AccessibleGroup>();
+
+    if (session.groupId) {
+      collected.set(session.groupId, {
+        group_id: session.groupId,
+        group_name: session.groupName ?? session.groupId,
+        role,
+      });
+    }
+
+    if (userId) {
+      const accessGroups = await fetch("/api/access/groups", {
+        headers: {
+          Authorization: `Bearer ${auth.data.session?.access_token ?? ""}`,
+        },
+      })
+        .then(
+          (response) =>
+            response.json() as Promise<{
+              ok?: boolean;
+              groups?: AccessibleGroup[];
+            }>,
+        )
+        .catch(() => ({ ok: false, groups: [] as AccessibleGroup[] }));
+
+      if (accessGroups.ok) {
+        for (const group of accessGroups.groups ?? []) {
+          collected.set(group.group_id, group);
+        }
+      }
+    }
+
+    if (role === "owner") {
+      const rentals = await supabase
+        .from("group_rentals")
+        .select("group_id, group_name")
+        .order("is_active", { ascending: false })
+        .order("expire_at", { ascending: false })
+        .limit(50);
+
+      if (!rentals.error) {
+        for (const rental of rentals.data ?? []) {
+          collected.set(rental.group_id, {
+            group_id: rental.group_id,
+            group_name: rental.group_name ?? rental.group_id,
+            role: "owner",
+          });
+        }
+      }
+    }
+
+    const nextGroups = Array.from(collected.values());
+    setGroups(nextGroups);
+    return nextGroups;
+  }
+
+  function selectGroup(group: AccessibleGroup) {
+    const stored = window.localStorage.getItem(DASHBOARD_SESSION_KEY);
+    const session = stored ? JSON.parse(stored) : {};
+    const nextSession = {
+      ...session,
+      groupId: group.group_id,
+      groupName: group.group_name ?? group.group_id,
+      role,
+    };
+
+    window.localStorage.setItem(DASHBOARD_SESSION_KEY, JSON.stringify(nextSession));
+    setGroupId(group.group_id);
+    setGroupName(group.group_name ?? group.group_id);
+    loadData(group.group_id, sessionToken, botApiUrl);
+  }
+
   useEffect(() => {
     const storedTheme = window.localStorage.getItem("botuang.theme") as
       | "dark"
@@ -582,7 +672,7 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
 
     const stored = window.localStorage.getItem(DASHBOARD_SESSION_KEY);
     if (!stored) {
-      window.location.href = "/connect";
+      router.push("/connect");
       return;
     }
     const session = JSON.parse(stored) as {
@@ -595,27 +685,23 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
     const sessionRole = session.role ?? "admin";
     setRole(sessionRole);
     if (section === "owner" && sessionRole !== "owner") {
-      window.location.href = "/dashboard";
+      router.push("/dashboard");
       return;
     }
     if (!session.groupId) {
       if (sessionRole === "owner" && section === "owner") {
         setGroupName("Owner SaaS");
+        loadAccessibleGroups(session);
         setLoading(false);
         return;
       }
       if (sessionRole === "owner") {
         async function loadDefaultOwnerGroup() {
-          const { data } = await supabase
-            .from("group_rentals")
-            .select("group_id, group_name")
-            .order("is_active", { ascending: false })
-            .order("expire_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
+          const accessibleGroups = await loadAccessibleGroups(session);
+          const data = accessibleGroups[0];
 
-          if (!data?.group_id) {
-            window.location.href = "/dashboard/owner";
+          if (!data) {
+            router.push("/dashboard/owner");
             return;
           }
 
@@ -640,9 +726,10 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
         loadDefaultOwnerGroup();
         return;
       }
-      window.location.href = "/connect";
+      router.push("/connect");
       return;
     }
+    loadAccessibleGroups(session);
     setGroupId(session.groupId);
     setSessionToken(session.token ?? "");
     setBotApiUrl(session.apiUrl ?? "");
@@ -661,7 +748,7 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
     window.localStorage.removeItem(DASHBOARD_SESSION_KEY);
     await supabase.auth.signOut().catch(() => undefined);
     toast.success("Logout berhasil.");
-    window.location.href = "/login";
+    router.push("/login");
   }
 
   const summary = useMemo(() => {
@@ -729,14 +816,20 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
   const days = daysLeft(rental?.expire_at);
   const visibleNavItems =
     role === "owner"
-      ? navItems.filter((item) => item.key === "owner")
+      ? navItems
       : navItems.filter((item) => item.key !== "owner");
 
   return (
     <main className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
       <div className="flex min-h-screen">
         <aside className="hidden w-72 shrink-0 border-r border-[var(--line)] bg-[var(--surface)] p-5 md:block">
-          <Brand groupName={groupName} botStatus={botStatus} />
+          <Brand
+            groupId={groupId}
+            groupName={groupName}
+            groups={groups}
+            botStatus={botStatus}
+            onSelectGroup={selectGroup}
+          />
           <nav className="mt-8 grid gap-1">
             {visibleNavItems.map((item) => (
               <NavLink key={item.key} item={item} active={section === item.key} />
@@ -754,6 +847,25 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
                 <h1 className="truncate text-xl font-semibold md:text-2xl">
                   {visibleNavItems.find((item) => item.key === section)?.label}
                 </h1>
+                {section !== "owner" && groups.length > 1 ? (
+                  <select
+                    value={groupId}
+                    onChange={(event) => {
+                      const selected = groups.find(
+                        (group) => group.group_id === event.target.value,
+                      );
+                      if (selected) selectGroup(selected);
+                    }}
+                    className="mt-2 min-h-10 w-full max-w-xs rounded-[11px] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm md:hidden"
+                    aria-label="Pilih grup aktif"
+                  >
+                    {groups.map((group) => (
+                      <option key={group.group_id} value={group.group_id}>
+                        {group.group_name ?? group.group_id}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
               </div>
               <div className="flex items-center gap-2">
                 <Button
@@ -879,11 +991,17 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
 }
 
 function Brand({
+  groupId,
   groupName,
+  groups,
   botStatus,
+  onSelectGroup,
 }: {
+  groupId: string;
   groupName: string;
+  groups: AccessibleGroup[];
   botStatus: BotStatus | null;
+  onSelectGroup: (group: AccessibleGroup) => void;
 }) {
   return (
     <div>
@@ -895,6 +1013,39 @@ function Brand({
           <p className="font-semibold">BotUang</p>
           <p className="truncate text-sm text-[var(--muted)]">{groupName}</p>
         </div>
+      </div>
+      <div className="mt-5">
+        <label className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+          Your Groups
+          <select
+            value={groupId}
+            onChange={(event) => {
+              const selected = groups.find(
+                (group) => group.group_id === event.target.value,
+              );
+              if (selected) onSelectGroup(selected);
+            }}
+            className="mt-2 min-h-11 w-full rounded-[11px] border border-[var(--line)] bg-[var(--background)] px-3 text-sm font-medium text-[var(--foreground)]"
+            disabled={!groups.length}
+            aria-label="Pilih grup aktif"
+          >
+            {groups.length ? (
+              groups.map((group) => (
+                <option key={group.group_id} value={group.group_id}>
+                  {group.group_name ?? group.group_id}
+                </option>
+              ))
+            ) : (
+              <option value={groupId}>{groupName}</option>
+            )}
+          </select>
+        </label>
+        <Link
+          href="/connect"
+          className="mt-2 block text-sm font-semibold text-emerald-500 hover:text-emerald-400"
+        >
+          + Connect Group
+        </Link>
       </div>
       <div className="mt-5 rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-3">
         <p className="text-xs text-[var(--muted)]">Status Bot</p>
@@ -921,7 +1072,7 @@ function NavLink({
 }) {
   const Icon = item.icon;
   return (
-    <a
+    <Link
       href={item.href}
       className={cn(
         "flex min-h-11 items-center gap-3 rounded-[12px] px-3 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400",
@@ -932,7 +1083,7 @@ function NavLink({
     >
       <Icon className="h-4 w-4" />
       {item.label}
-    </a>
+    </Link>
   );
 }
 
@@ -941,7 +1092,7 @@ function MobileNav({
   items,
 }: {
   section: DashboardSection;
-  items: Array<(typeof navItems)[number]>;
+  items: ReadonlyArray<(typeof navItems)[number]>;
 }) {
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--line)] bg-[var(--background)]/95 px-2 py-2 backdrop-blur md:hidden">
@@ -950,7 +1101,7 @@ function MobileNav({
           const Icon = item.icon;
           const active = section === item.key;
           return (
-            <a
+            <Link
               key={item.key}
               href={item.href}
               className={cn(
@@ -963,7 +1114,7 @@ function MobileNav({
             >
               <Icon className="h-4 w-4" />
               <span className="max-w-full truncate">{item.label}</span>
-            </a>
+            </Link>
           );
         })}
       </div>

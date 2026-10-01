@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Activity,
   Database,
@@ -122,6 +123,7 @@ const featureGroups = [
 ];
 
 export function OwnerDashboardPage({ embedded = false }: { embedded?: boolean }) {
+  const router = useRouter();
   const [apiUrl, setApiUrl] = useState("");
   const [accessToken, setAccessToken] = useState("");
   const [loading, setLoading] = useState(true);
@@ -246,7 +248,7 @@ export function OwnerDashboardPage({ embedded = false }: { embedded?: boolean })
         connectedAt: new Date().toISOString(),
       }),
     );
-    window.location.href = "/dashboard";
+    router.push("/dashboard");
   }
 
   async function runOwnerAction(
