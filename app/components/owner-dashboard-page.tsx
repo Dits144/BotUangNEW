@@ -18,10 +18,12 @@ import { toast } from "sonner";
 import { DASHBOARD_SESSION_KEY } from "@/app/lib/constants";
 import { resolveTrustedBotApiUrl } from "@/app/lib/bot-api";
 import { formatDate } from "@/app/lib/format";
+import { resolveDashboardImage, uploadDashboardImage } from "@/app/lib/image-upload";
 import { supabase } from "@/app/lib/supabase";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
+import { ImageDropzone } from "./ui/image-dropzone";
 import { Input, Textarea } from "./ui/input";
 import { Skeleton } from "./ui/skeleton";
 
@@ -138,6 +140,8 @@ export function OwnerDashboardPage({ embedded = false }: { embedded?: boolean })
   const [broadcast, setBroadcast] = useState("");
   const [numbers, setNumbers] = useState("");
   const [qrisUrl, setQrisUrl] = useState("");
+  const [qrisPreviewUrl, setQrisPreviewUrl] = useState("");
+  const [qrisFile, setQrisFile] = useState<File | null>(null);
   const [busy, setBusy] = useState("");
 
   const filteredGroups = useMemo(() => {
@@ -235,15 +239,36 @@ export function OwnerDashboardPage({ embedded = false }: { embedded?: boolean })
       .eq("id", "default")
       .maybeSingle();
     const row = data as { qris_image_url?: string | null } | null;
-    setQrisUrl(row?.qris_image_url ?? "");
+    const value = row?.qris_image_url ?? "";
+    setQrisUrl(value);
+    setQrisPreviewUrl(await resolveDashboardImage(value));
   }
 
   async function saveQris(event: FormEvent) {
     event.preventDefault();
     setBusy("qris");
+
+    let nextQrisUrl = qrisUrl;
+    let nextPreviewUrl = qrisPreviewUrl;
+    if (qrisFile) {
+      const upload = await uploadDashboardImage({
+        bucket: "owner-assets",
+        file: qrisFile,
+      });
+
+      if (!upload.ok || !upload.storagePath) {
+        setBusy("");
+        toast.error(upload.message ?? "Upload QRIS gagal.");
+        return;
+      }
+
+      nextQrisUrl = upload.storagePath;
+      nextPreviewUrl = upload.signedUrl ?? "";
+    }
+
     const { error } = await supabase.from("owner_settings").upsert({
       id: "default",
-      qris_image_url: qrisUrl,
+      qris_image_url: nextQrisUrl,
       updated_at: new Date().toISOString(),
     });
     setBusy("");
@@ -254,6 +279,9 @@ export function OwnerDashboardPage({ embedded = false }: { embedded?: boolean })
     }
 
     toast.success("QRIS owner disimpan.");
+    setQrisUrl(nextQrisUrl);
+    setQrisPreviewUrl(nextPreviewUrl);
+    setQrisFile(null);
   }
 
   async function logout() {
@@ -440,18 +468,18 @@ export function OwnerDashboardPage({ embedded = false }: { embedded?: boolean })
                 <h2 className="font-semibold">QRIS Perpanjangan</h2>
               </div>
               <form className="mt-4 space-y-3" onSubmit={saveQris}>
-                <Input
-                  value={qrisUrl}
-                  onChange={(event) => setQrisUrl(event.target.value)}
-                  placeholder="https://.../qris.png"
+                <ImageDropzone
+                  label="Upload QRIS Owner"
+                  description="Drag and drop QRIS ke sini atau klik untuk memilih gambar."
+                  file={qrisFile}
+                  previewUrl={qrisPreviewUrl}
+                  disabled={busy === "qris"}
+                  onFileChange={setQrisFile}
+                  onClear={() => {
+                    setQrisUrl("");
+                    setQrisPreviewUrl("");
+                  }}
                 />
-                {qrisUrl ? (
-                  <img
-                    src={qrisUrl}
-                    alt="QRIS owner"
-                    className="max-h-56 w-full rounded-[14px] border border-[var(--line)] object-contain"
-                  />
-                ) : null}
                 <Button className="w-full" disabled={busy === "qris"}>
                   {busy === "qris" ? "Menyimpan..." : "Simpan QRIS"}
                 </Button>

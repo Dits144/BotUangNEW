@@ -48,12 +48,14 @@ import { toast } from "sonner";
 import { DASHBOARD_SECTION_KEY, DASHBOARD_SESSION_KEY } from "@/app/lib/constants";
 import { resolveTrustedBotApiUrl } from "@/app/lib/bot-api";
 import { daysLeft, formatDate, formatRupiah } from "@/app/lib/format";
+import { resolveDashboardImage, uploadDashboardImage } from "@/app/lib/image-upload";
 import { supabase } from "@/app/lib/supabase";
 import { cn } from "@/app/lib/utils";
 import { OwnerDashboardPage } from "./owner-dashboard-page";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
+import { ImageDropzone } from "./ui/image-dropzone";
 import { Input, Textarea } from "./ui/input";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "./ui/sheet";
 import { Skeleton } from "./ui/skeleton";
@@ -2414,7 +2416,7 @@ function SettingsPage({
   const [emergencyEnabled, setEmergencyEnabled] = useState(false);
   const [typoEnabled, setTypoEnabled] = useState(true);
   const [spreadsheetUrl, setSpreadsheetUrl] = useState("");
-  const [qrisUrl, setQrisUrl] = useState("");
+  const [qrisPreviewUrl, setQrisPreviewUrl] = useState("");
   const [newPin, setNewPin] = useState("");
   const [months, setMonths] = useState("1");
   const [proof, setProof] = useState<File | null>(null);
@@ -2437,9 +2439,10 @@ function SettingsPage({
       .select("qris_image_url")
       .eq("id", "default")
       .maybeSingle()
-      .then(({ data }) => {
+      .then(async ({ data }) => {
         const row = data as { qris_image_url?: string | null } | null;
-        setQrisUrl(row?.qris_image_url ?? "");
+        const value = row?.qris_image_url ?? "";
+        setQrisPreviewUrl(await resolveDashboardImage(value));
       });
   }, []);
 
@@ -2507,13 +2510,16 @@ function SettingsPage({
     event.preventDefault();
     let proofPath = "";
     if (proof) {
-      const path = `${groupId}/${Date.now()}-${proof.name}`;
-      const upload = await supabase.storage.from("rental-proofs").upload(path, proof);
-      if (upload.error) {
-        toast.error(upload.error.message);
+      const upload = await uploadDashboardImage({
+        bucket: "rental-proofs",
+        file: proof,
+        groupId,
+      });
+      if (!upload.ok || !upload.storagePath) {
+        toast.error(upload.message ?? "Upload bukti pembayaran gagal.");
         return;
       }
-      proofPath = upload.data.path;
+      proofPath = upload.storagePath;
     }
     const { error } = await supabase.from("rental_requests").insert({
       group_id: groupId,
@@ -2553,14 +2559,14 @@ function SettingsPage({
 
         <form onSubmit={requestExtension} className="mt-5 space-y-3">
           <h3 className="font-semibold">Request Perpanjangan</h3>
-          {qrisUrl ? (
+          {qrisPreviewUrl ? (
             <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-3">
               <div className="mb-3 flex items-center gap-2">
                 <QrCode className="h-5 w-5 text-emerald-500" />
                 <p className="font-semibold">QRIS Owner</p>
               </div>
               <img
-                src={qrisUrl}
+                src={qrisPreviewUrl}
                 alt="QRIS pembayaran owner"
                 className="max-h-72 w-full rounded-[14px] object-contain"
               />
@@ -2571,7 +2577,12 @@ function SettingsPage({
             </div>
           )}
           <Input value={months} onChange={(event) => setMonths(event.target.value)} type="number" min="1" placeholder="Jumlah bulan" />
-          <Input type="file" accept="image/*" onChange={(event) => setProof(event.target.files?.[0] ?? null)} />
+          <ImageDropzone
+            label="Upload Bukti Pembayaran"
+            description="Drag and drop bukti transfer ke sini atau klik untuk memilih gambar."
+            file={proof}
+            onFileChange={setProof}
+          />
           <Button className="w-full">Kirim Request</Button>
         </form>
       </Card>

@@ -21,6 +21,93 @@ type ParsedIntent = {
   confidence?: number;
 };
 
+function parseMoney(value: string) {
+  const cleaned = value.toLowerCase().replace(",", ".");
+  const match = cleaned.match(/(\d+(?:\.\d+)?)\s*(jt|juta|rb|ribu|k)?/);
+  if (!match) return 0;
+
+  const amount = Number(match[1]);
+  const suffix = match[2];
+  if (!Number.isFinite(amount)) return 0;
+  if (suffix === "jt" || suffix === "juta") return amount * 1_000_000;
+  if (suffix === "rb" || suffix === "ribu" || suffix === "k") return amount * 1_000;
+  return amount;
+}
+
+function parseLocalIntent(text: string, today: string) {
+  const lower = text.toLowerCase();
+
+  if (/\b(todo|tugas|task)\b/.test(lower)) {
+    const todoText = text
+      .replace(/\b(tambah|buat|bikin)?\s*(todo|tugas|task)\b[:\-\s]*/i, "")
+      .trim();
+    return validateIntent({
+      action: "todo",
+      todo_text: todoText || text,
+      note: todoText || text,
+      date: today,
+      confidence: 0.55,
+    });
+  }
+
+  if (/\b(reminder|ingatkan|jadwal|rapat|r\s)\b/.test(lower)) {
+    const time = lower.match(/(\d{1,2}[:.]\d{2})/)?.[1]?.replace(".", ":");
+    const date = lower.match(/(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)/)?.[1];
+    const remindText = text
+      .replace(/\b(tolong|buat|bikin|tambah|reminder|ingatkan|jadwal)\b/gi, "")
+      .replace(/\b(besok|hari ini|nanti|jam)\b/gi, "")
+      .replace(/(\d{1,2}[:.]\d{2})/g, "")
+      .replace(/(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)/g, "")
+      .trim();
+    return validateIntent({
+      action: "reminder",
+      remind_type: date ? "date" : "time",
+      remind_value: [date, time].filter(Boolean).join(" ") || time || date || "",
+      remind_text: remindText || text,
+      note: remindText || text,
+      date: today,
+      confidence: 0.55,
+    });
+  }
+
+  if (/\b(command|cmd|keyword|respon|response)\b/.test(lower)) {
+    const parts = text.split("@");
+    const keyword = parts[0]
+      ?.replace(/\b(buat|bikin|tambah|command|cmd|keyword)\b/gi, "")
+      .trim();
+    const response = parts.slice(1).join("@").trim();
+    return validateIntent({
+      action: "command",
+      keyword,
+      response: response || text,
+      note: response || text,
+      date: today,
+      confidence: 0.5,
+    });
+  }
+
+  const amount = parseMoney(text);
+  if (amount > 0) {
+    const isIncome =
+      /\b(pemasukan|masuk|income|donasi|iuran|kas masuk|terima|plus|\+)\b/.test(lower) &&
+      !/\b(pengeluaran|keluar|expense|beli|bayar|minus|-)\b/.test(lower);
+    const note = text
+      .replace(/[-+]?\s*\d+(?:[.,]\d+)?\s*(jt|juta|rb|ribu|k)?/i, "")
+      .replace(/\b(pemasukan|pengeluaran|income|expense|masuk|keluar|beli|bayar|catat|tambahkan|tambah)\b/gi, "")
+      .trim();
+    return validateIntent({
+      action: "transaction",
+      type: isIncome ? "income" : "expense",
+      amount,
+      note: note || text,
+      date: today,
+      confidence: 0.6,
+    });
+  }
+
+  return null;
+}
+
 function extractJson(text: string) {
   const match = text.match(/\{[\s\S]*\}/);
   return match ? match[0] : text;
@@ -100,16 +187,6 @@ export async function POST(request: Request) {
   const apiKey = process.env.GOOGLE_AI_API_KEY;
   const model = process.env.GOOGLE_AI_MODEL ?? "gemini-3.8-flash";
 
-  if (!apiKey) {
-    return Response.json(
-      {
-        ok: false,
-        message: "GOOGLE_AI_API_KEY belum diset di server.",
-      },
-      { status: 200 },
-    );
-  }
-
   const body = (await request.json().catch(() => ({}))) as { text?: string };
   const text = body.text?.trim() ?? "";
 
@@ -121,6 +198,30 @@ export async function POST(request: Request) {
   }
 
   const today = new Date().toISOString().slice(0, 10);
+
+  if (!apiKey) {
+    const localIntent = parseLocalIntent(text, today);
+    if (localIntent) {
+      return Response.json(
+        {
+          ok: true,
+          intent: localIntent,
+          source: "local",
+          message: "AI cloud belum dikonfigurasi, memakai parser lokal.",
+        },
+        { status: 200 },
+      );
+    }
+
+    return Response.json(
+      {
+        ok: false,
+        message: "GOOGLE_AI_API_KEY belum diset dan parser lokal belum memahami perintah ini.",
+      },
+      { status: 200 },
+    );
+  }
+
   const prompt = [
     "Ubah perintah natural BotUang bahasa Indonesia menjadi JSON valid saja.",
     "Pilih action: transaction, reminder, todo, atau command.",
@@ -156,6 +257,19 @@ export async function POST(request: Request) {
     };
 
     if (!response.ok) {
+      const localIntent = parseLocalIntent(text, today);
+      if (localIntent) {
+        return Response.json(
+          {
+            ok: true,
+            intent: localIntent,
+            source: "local",
+            message: "Gemini menolak akses project, memakai parser lokal.",
+          },
+          { status: 200 },
+        );
+      }
+
       return Response.json(
         { ok: false, message: data.error?.message ?? "AI parser gagal." },
         { status: 200 },
@@ -175,6 +289,19 @@ export async function POST(request: Request) {
 
     return Response.json({ ok: true, intent }, { status: 200 });
   } catch {
+    const localIntent = parseLocalIntent(text, today);
+    if (localIntent) {
+      return Response.json(
+        {
+          ok: true,
+          intent: localIntent,
+          source: "local",
+          message: "AI cloud tidak tersedia, memakai parser lokal.",
+        },
+        { status: 200 },
+      );
+    }
+
     return Response.json(
       { ok: false, message: "AI parser tidak tersedia." },
       { status: 200 },
