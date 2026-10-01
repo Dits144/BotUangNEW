@@ -40,4 +40,5 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
-.dev-server.*
+.dev-server*
+BotUang/
