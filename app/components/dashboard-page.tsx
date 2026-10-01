@@ -35,6 +35,7 @@ import {
 } from "recharts";
 import { toast } from "sonner";
 import { DASHBOARD_SESSION_KEY } from "@/app/lib/constants";
+import { resolveTrustedBotApiUrl } from "@/app/lib/bot-api";
 import { daysLeft, formatDate, formatRupiah } from "@/app/lib/format";
 import { supabase } from "@/app/lib/supabase";
 import { cn } from "@/app/lib/utils";
@@ -195,6 +196,67 @@ function parseReminderSchedule(schedule?: string) {
   };
 }
 
+async function fetchBotGroupData({
+  resource,
+  groupId,
+  apiUrl,
+  token,
+  method = "GET",
+  body,
+}: {
+  resource: string;
+  groupId: string;
+  apiUrl: string;
+  token: string;
+  method?: "GET" | "POST";
+  body?: Record<string, unknown>;
+}): Promise<BotGroupDataResponse> {
+  const query = `resource=${encodeURIComponent(resource)}&group_id=${encodeURIComponent(groupId)}&api_url=${encodeURIComponent(apiUrl)}`;
+  const requestInit: RequestInit = {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  };
+
+  try {
+    const response = await fetch(`/api/bot/group-data?${query}`, requestInit);
+    if (response.status !== 404) {
+      return (await response.json()) as BotGroupDataResponse;
+    }
+  } catch {
+    // Fall through to the direct Bot API request below.
+  }
+
+  const trustedApiUrl = resolveTrustedBotApiUrl(apiUrl);
+  if (!trustedApiUrl || !token) {
+    return { ok: false, message: "Bot API belum dikonfigurasi" };
+  }
+
+  try {
+    const response = await fetch(
+      `${trustedApiUrl}/api/groups/${encodeURIComponent(groupId)}/${resource}`,
+      {
+        ...requestInit,
+        headers: {
+          ...requestInit.headers,
+          "X-Group-Id": groupId,
+        },
+      },
+    );
+    const data = await response.json().catch(() => null);
+    return {
+      ok: response.ok,
+      data,
+      message: response.ok ? undefined : "Data bot tidak tersedia",
+    };
+  } catch {
+    return { ok: false, message: "Data bot tidak tersedia" };
+  }
+}
+
 export function DashboardPage({ section }: { section: DashboardSection }) {
   const [groupId, setGroupId] = useState("");
   const [sessionToken, setSessionToken] = useState("");
@@ -285,23 +347,17 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
       )
         .then((response) => response.json())
         .catch(() => ({ ok: false, message: "Status bot tidak tersedia" })),
-      fetch(
-        `/api/bot/group-data?resource=reminders&group_id=${encodeURIComponent(targetGroupId)}&api_url=${encodeURIComponent(apiUrl)}`,
-        {
-          headers: authToken
-            ? {
-                Authorization: `Bearer ${authToken}`,
-              }
-            : undefined,
-        },
-      )
-        .then((response) => response.json() as Promise<BotGroupDataResponse>)
-        .catch(
-          (): BotGroupDataResponse => ({
+      authToken
+        ? fetchBotGroupData({
+            resource: "reminders",
+            groupId: targetGroupId,
+            apiUrl,
+            token: authToken,
+          })
+        : Promise.resolve({
             ok: false,
             message: "Reminder bot tidak tersedia",
-          }),
-        ),
+          } satisfies BotGroupDataResponse),
     ]);
 
     if (txResult.error) toast.error(txResult.error.message);
@@ -1287,22 +1343,18 @@ function RemindersPage({
 
     try {
       if (sessionToken && botApiUrl) {
-        const response = await fetch(
-          `/api/bot/group-data?resource=reminders&group_id=${encodeURIComponent(groupId)}&api_url=${encodeURIComponent(botApiUrl)}`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${sessionToken}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              remind_type: type,
-              remind_value: value,
-              remind_text: text,
-            }),
+        const data = await fetchBotGroupData({
+          resource: "reminders",
+          groupId,
+          apiUrl: botApiUrl,
+          token: sessionToken,
+          method: "POST",
+          body: {
+            remind_type: type,
+            remind_value: value,
+            remind_text: text,
           },
-        );
-        const data = (await response.json()) as BotGroupDataResponse;
+        });
         if (!data.ok) {
           throw new Error(data.message ?? "Reminder bot tidak bisa disimpan");
         }
