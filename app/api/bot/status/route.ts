@@ -5,9 +5,11 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const groupId = url.searchParams.get("group_id") ?? "";
   const sessionToken = url.searchParams.get("token") ?? "";
+  const headerToken =
+    request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
   const queryApiUrl = url.searchParams.get("api_url") ?? "";
   const baseUrl = resolveTrustedBotApiUrl(queryApiUrl || BOT_API_URL);
-  const authToken = BOT_API_TOKEN || sessionToken;
+  const authToken = BOT_API_TOKEN || headerToken || sessionToken;
 
   if (!baseUrl || !authToken) {
     return Response.json(

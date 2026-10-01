@@ -220,7 +220,14 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
         .eq("group_id", targetGroupId)
         .maybeSingle(),
       fetch(
-        `/api/bot/status?group_id=${encodeURIComponent(targetGroupId)}&token=${encodeURIComponent(authToken)}&api_url=${encodeURIComponent(apiUrl)}`,
+        `/api/bot/status?group_id=${encodeURIComponent(targetGroupId)}&api_url=${encodeURIComponent(apiUrl)}`,
+        {
+          headers: authToken
+            ? {
+                Authorization: `Bearer ${authToken}`,
+              }
+            : undefined,
+        },
       )
         .then((response) => response.json())
         .catch(() => ({ ok: false, message: "Status bot tidak tersedia" })),
