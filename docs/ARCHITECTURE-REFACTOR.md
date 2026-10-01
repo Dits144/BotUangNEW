@@ -122,6 +122,8 @@ Short-term Phase 1 keeps existing route wrappers working while introducing share
 
 Required additive migration:
 
+- `202610020000_base_schema.sql`: creates the existing BotUang production tables
+  in a fresh Supabase project.
 - `user_group_access`: persistent multi-group account access.
 - `user_profiles`: platform role metadata for server-side role checks.
 
