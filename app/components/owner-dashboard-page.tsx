@@ -229,6 +229,26 @@ export function OwnerDashboardPage({ embedded = false }: { embedded?: boolean })
     window.location.href = "/login";
   }
 
+  function openGroupDashboard(group: OwnerGroup) {
+    const groupId = group.group_id ?? group.id ?? "";
+    if (!groupId) return;
+
+    const stored = window.localStorage.getItem(DASHBOARD_SESSION_KEY);
+    const session = stored ? JSON.parse(stored) : {};
+    window.localStorage.setItem(
+      DASHBOARD_SESSION_KEY,
+      JSON.stringify({
+        ...session,
+        role: "owner",
+        groupId,
+        groupName: group.group_name ?? group.name ?? groupId,
+        apiUrl,
+        connectedAt: new Date().toISOString(),
+      }),
+    );
+    window.location.href = "/dashboard";
+  }
+
   async function runOwnerAction(
     label: string,
     body: Record<string, unknown>,
@@ -340,10 +360,9 @@ export function OwnerDashboardPage({ embedded = false }: { embedded?: boolean })
             <div className="mt-4 grid gap-3">
               {filteredGroups.length ? (
                 filteredGroups.map((group) => (
-                  <button
+                  <div
                     key={group.group_id ?? group.id}
-                    className="rounded-2xl border border-[var(--line)] p-3 text-left transition hover:bg-[var(--panel)]"
-                    onClick={() => setTargetGroupId(group.group_id ?? group.id ?? "")}
+                    className="rounded-2xl border border-[var(--line)] p-3 transition hover:bg-[var(--panel)]"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -361,7 +380,19 @@ export function OwnerDashboardPage({ embedded = false }: { embedded?: boolean })
                         {isGroupActive(group) ? "Aktif" : "Nonaktif"}
                       </Badge>
                     </div>
-                  </button>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setTargetGroupId(group.group_id ?? group.id ?? "")}
+                      >
+                        Pilih
+                      </Button>
+                      <Button size="sm" onClick={() => openGroupDashboard(group)}>
+                        Buka Dashboard
+                      </Button>
+                    </div>
+                  </div>
                 ))
               ) : (
                 <EmptyOwnerState text="Tidak ada grup yang cocok dengan pencarian." />

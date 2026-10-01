@@ -21,9 +21,20 @@ export function LoginPage() {
 
   async function routeToDashboard(userGroupId?: string, role: "admin" | "owner" = "admin") {
     if (role === "owner") {
+      const stored = window.localStorage.getItem(DASHBOARD_SESSION_KEY);
+      const previousSession = stored
+        ? (JSON.parse(stored) as {
+            groupId?: string;
+            groupName?: string;
+            apiUrl?: string;
+          })
+        : {};
       window.localStorage.setItem(
         DASHBOARD_SESSION_KEY,
         JSON.stringify({
+          groupId: groupId || userGroupId || previousSession.groupId,
+          groupName: previousSession.groupName,
+          apiUrl: previousSession.apiUrl,
           role: "owner",
           ownerEmail: email.trim().toLowerCase(),
           connectedAt: new Date().toISOString(),

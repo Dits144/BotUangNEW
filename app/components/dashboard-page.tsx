@@ -598,17 +598,49 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
       window.location.href = "/dashboard";
       return;
     }
-    if (sessionRole === "owner" && section !== "owner") {
-      window.location.href = "/dashboard/owner";
-      return;
-    }
     if (!session.groupId) {
       if (sessionRole === "owner" && section === "owner") {
         setGroupName("Owner SaaS");
         setLoading(false);
         return;
       }
-      window.location.href = sessionRole === "owner" ? "/dashboard/owner" : "/connect";
+      if (sessionRole === "owner") {
+        async function loadDefaultOwnerGroup() {
+          const { data } = await supabase
+            .from("group_rentals")
+            .select("group_id, group_name")
+            .order("is_active", { ascending: false })
+            .order("expire_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (!data?.group_id) {
+            window.location.href = "/dashboard/owner";
+            return;
+          }
+
+          const nextSession = {
+            ...session,
+            role: "owner" as const,
+            groupId: data.group_id,
+            groupName: data.group_name ?? data.group_id,
+          };
+
+          window.localStorage.setItem(
+            DASHBOARD_SESSION_KEY,
+            JSON.stringify(nextSession),
+          );
+          setGroupId(nextSession.groupId);
+          setSessionToken(nextSession.token ?? "");
+          setBotApiUrl(nextSession.apiUrl ?? "");
+          setGroupName(nextSession.groupName);
+          loadData(nextSession.groupId, nextSession.token ?? "", nextSession.apiUrl ?? "");
+        }
+
+        loadDefaultOwnerGroup();
+        return;
+      }
+      window.location.href = "/connect";
       return;
     }
     setGroupId(session.groupId);
