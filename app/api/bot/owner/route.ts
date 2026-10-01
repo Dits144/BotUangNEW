@@ -5,6 +5,7 @@ import {
   SUPABASE_URL,
 } from "@/app/lib/constants";
 import { resolveTrustedBotApiUrl } from "@/app/lib/bot-api";
+import { createSupabaseAdminClient } from "@/app/lib/supabase-server";
 
 type OwnerAction =
   | "activate"
@@ -37,11 +38,25 @@ async function assertOwner(request: Request) {
   if (!response.ok) return "Session owner sudah kedaluwarsa";
 
   const user = (await response.json().catch(() => null)) as {
+    id?: string;
     email?: string;
     user_metadata?: { role?: string };
   } | null;
   const email = user?.email?.trim().toLowerCase() ?? "";
   const role = user?.user_metadata?.role;
+
+  const admin = createSupabaseAdminClient();
+  if (admin && user?.id) {
+    const profile = await admin
+      .from("user_profiles")
+      .select("platform_role")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (profile.data?.platform_role === "owner") {
+      return "";
+    }
+  }
 
   if (role !== "owner" && !ownerEmails.has(email)) {
     return "Akses owner ditolak";

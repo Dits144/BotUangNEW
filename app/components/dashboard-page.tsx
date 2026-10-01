@@ -7,20 +7,27 @@ import {
   Bell,
   Bot,
   CalendarClock,
+  Calculator,
   Check,
   ChevronDown,
   CircleDollarSign,
+  CloudSun,
   ClipboardCheck,
   Download,
+  FileSpreadsheet,
   Home,
   ListTodo,
   LogOut,
+  MapPin,
   Menu,
   Moon,
   Plus,
+  QrCode,
   Search,
   Settings,
   ShieldCheck,
+  Siren,
+  Sparkles,
   Sun,
   Users,
   WalletCards,
@@ -130,7 +137,13 @@ type GroupSettings = {
   group_id: string;
   header_text: string | null;
   weather_location: string | null;
+  azan_location?: string | null;
+  emergency_location?: string | null;
+  weather_enabled?: boolean | null;
+  azan_enabled?: boolean | null;
+  emergency_enabled?: boolean | null;
   typo_enabled: boolean | null;
+  spreadsheet_url?: string | null;
   updated_at: string | null;
 };
 
@@ -587,22 +600,22 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
     role?: "admin" | "owner";
   }) {
     const auth = await supabase.auth.getSession();
-    const userId = auth.data.session?.user.id;
-    const role = session.role ?? "admin";
+    const accessToken = auth.data.session?.access_token ?? "";
+    const sessionRole = session.role ?? "admin";
     const collected = new Map<string, AccessibleGroup>();
 
     if (session.groupId) {
       collected.set(session.groupId, {
         group_id: session.groupId,
         group_name: session.groupName ?? session.groupId,
-        role,
+        role: sessionRole,
       });
     }
 
-    if (userId) {
+    if (accessToken) {
       const accessGroups = await fetch("/api/access/groups", {
         headers: {
-          Authorization: `Bearer ${auth.data.session?.access_token ?? ""}`,
+          Authorization: `Bearer ${accessToken}`,
         },
       })
         .then(
@@ -610,32 +623,21 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
             response.json() as Promise<{
               ok?: boolean;
               groups?: AccessibleGroup[];
+              platform_role?: "admin" | "owner";
             }>,
         )
-        .catch(() => ({ ok: false, groups: [] as AccessibleGroup[] }));
+        .catch(() => ({
+          ok: false,
+          groups: [] as AccessibleGroup[],
+          platform_role: undefined as "admin" | "owner" | undefined,
+        }));
 
       if (accessGroups.ok) {
+        if (accessGroups.platform_role) {
+          setRole(accessGroups.platform_role);
+        }
         for (const group of accessGroups.groups ?? []) {
           collected.set(group.group_id, group);
-        }
-      }
-    }
-
-    if (role === "owner") {
-      const rentals = await supabase
-        .from("group_rentals")
-        .select("group_id, group_name")
-        .order("is_active", { ascending: false })
-        .order("expire_at", { ascending: false })
-        .limit(50);
-
-      if (!rentals.error) {
-        for (const rental of rentals.data ?? []) {
-          collected.set(rental.group_id, {
-            group_id: rental.group_id,
-            group_name: rental.group_name ?? rental.group_id,
-            role: "owner",
-          });
         }
       }
     }
@@ -682,59 +684,73 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
       apiUrl?: string;
       role?: "admin" | "owner";
     };
-    const sessionRole = session.role ?? "admin";
-    setRole(sessionRole);
-    if (section === "owner" && sessionRole !== "owner") {
-      router.push("/dashboard");
-      return;
-    }
-    if (!session.groupId) {
-      if (sessionRole === "owner" && section === "owner") {
-        setGroupName("Owner SaaS");
-        loadAccessibleGroups(session);
+
+    async function bootDashboard() {
+      const accessibleGroups = await loadAccessibleGroups(session);
+      const auth = await supabase.auth.getSession();
+      const accessToken = auth.data.session?.access_token ?? "";
+      let platformRole = session.role ?? "admin";
+
+      if (accessToken) {
+        const profile = await fetch("/api/access/groups", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        })
+          .then(
+            (response) =>
+              response.json() as Promise<{
+                ok?: boolean;
+                platform_role?: "admin" | "owner";
+              }>,
+          )
+          .catch(() => ({
+            ok: false,
+            platform_role: undefined as "admin" | "owner" | undefined,
+          }));
+
+        platformRole = profile.platform_role ?? platformRole;
+      }
+
+      setRole(platformRole);
+
+      if (section === "owner") {
+        if (platformRole !== "owner") {
+          router.push("/dashboard");
+          return;
+        }
+        setGroupName("Owner Control");
         setLoading(false);
         return;
       }
-      if (sessionRole === "owner") {
-        async function loadDefaultOwnerGroup() {
-          const accessibleGroups = await loadAccessibleGroups(session);
-          const data = accessibleGroups[0];
 
-          if (!data) {
-            router.push("/dashboard/owner");
-            return;
-          }
+      const activeGroup =
+        (session.groupId
+          ? accessibleGroups.find((group) => group.group_id === session.groupId)
+          : undefined) ?? accessibleGroups[0];
 
-          const nextSession = {
-            ...session,
-            role: "owner" as const,
-            groupId: data.group_id,
-            groupName: data.group_name ?? data.group_id,
-          };
-
-          window.localStorage.setItem(
-            DASHBOARD_SESSION_KEY,
-            JSON.stringify(nextSession),
-          );
-          setGroupId(nextSession.groupId);
-          setSessionToken(nextSession.token ?? "");
-          setBotApiUrl(nextSession.apiUrl ?? "");
-          setGroupName(nextSession.groupName);
-          loadData(nextSession.groupId, nextSession.token ?? "", nextSession.apiUrl ?? "");
-        }
-
-        loadDefaultOwnerGroup();
+      if (!activeGroup) {
+        router.push(platformRole === "owner" ? "/dashboard/owner" : "/connect");
         return;
       }
-      router.push("/connect");
-      return;
+
+      const nextSession = {
+        ...session,
+        role: platformRole,
+        groupId: activeGroup.group_id,
+        groupName: activeGroup.group_name ?? activeGroup.group_id,
+      };
+
+      window.localStorage.setItem(
+        DASHBOARD_SESSION_KEY,
+        JSON.stringify(nextSession),
+      );
+      setGroupId(nextSession.groupId);
+      setSessionToken(nextSession.token ?? "");
+      setBotApiUrl(nextSession.apiUrl ?? "");
+      setGroupName(nextSession.groupName);
+      loadData(nextSession.groupId, nextSession.token ?? "", nextSession.apiUrl ?? "");
     }
-    loadAccessibleGroups(session);
-    setGroupId(session.groupId);
-    setSessionToken(session.token ?? "");
-    setBotApiUrl(session.apiUrl ?? "");
-    setGroupName(session.groupName || session.groupId);
-    loadData(session.groupId, session.token ?? "", session.apiUrl ?? "");
+
+    bootDashboard();
   }, []);
 
   function toggleTheme() {
@@ -912,6 +928,7 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
               {section === "overview" ? (
                 <Overview
                   loading={loading}
+                  groupId={groupId}
                   summary={summary}
                   monthlyChart={monthlyChart}
                   weeklyChart={weeklyChart}
@@ -923,6 +940,7 @@ export function DashboardPage({ section }: { section: DashboardSection }) {
                   toDate={toDate}
                   setToDate={setToDate}
                   onExport={exportTransactions}
+                  onChanged={() => loadData()}
                 />
               ) : null}
               {section === "participants" ? (
@@ -1124,6 +1142,7 @@ function MobileNav({
 
 function Overview({
   loading,
+  groupId,
   summary,
   monthlyChart,
   weeklyChart,
@@ -1135,8 +1154,10 @@ function Overview({
   toDate,
   setToDate,
   onExport,
+  onChanged,
 }: {
   loading: boolean;
+  groupId: string;
   summary: { income: number; expense: number; balance: number };
   monthlyChart: ChartPoint[];
   weeklyChart: ChartPoint[];
@@ -1148,6 +1169,7 @@ function Overview({
   toDate: string;
   setToDate: (value: string) => void;
   onExport: () => void;
+  onChanged: () => void;
 }) {
   return (
     <div className="space-y-5">
@@ -1175,6 +1197,8 @@ function Overview({
           tone="expense"
         />
       </section>
+
+      <FinancialTools groupId={groupId} onSaved={onChanged} onExport={onExport} />
 
       <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
         <Card className="p-4">
@@ -1254,6 +1278,169 @@ function Overview({
         </div>
         <TransactionsView loading={loading} transactions={transactions} />
       </Card>
+    </div>
+  );
+}
+
+type ParsedTransactionIntent = {
+  type: "income" | "expense";
+  amount: number;
+  note: string;
+  date?: string;
+  confidence?: number;
+};
+
+function FinancialTools({
+  groupId,
+  onSaved,
+  onExport,
+}: {
+  groupId: string;
+  onSaved: () => void;
+  onExport: () => void;
+}) {
+  const [prompt, setPrompt] = useState("");
+  const [intent, setIntent] = useState<ParsedTransactionIntent | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [calc, setCalc] = useState("");
+  const calcResult = useMemo(() => calculateMoneyExpression(calc), [calc]);
+
+  async function parseWithAi(event: FormEvent) {
+    event.preventDefault();
+    if (!prompt.trim()) return;
+
+    setAiLoading(true);
+    const response = await fetch("/api/ai/transaction-parser", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: prompt }),
+    }).then((item) => item.json() as Promise<{
+      ok?: boolean;
+      message?: string;
+      intent?: ParsedTransactionIntent;
+    }>);
+    setAiLoading(false);
+
+    if (!response.ok || !response.intent) {
+      toast.error(response.message ?? "AI belum bisa membaca transaksi.");
+      return;
+    }
+
+    setIntent(response.intent);
+  }
+
+  async function saveIntent() {
+    if (!intent || !groupId) return;
+    setSaving(true);
+    const { error } = await supabase.from("transactions").insert({
+      group_id: groupId,
+      type: intent.type,
+      amount: intent.amount,
+      note: intent.note,
+      sender_name: "AI Dashboard",
+      created_at: intent.date
+        ? new Date(`${intent.date}T12:00:00`).toISOString()
+        : new Date().toISOString(),
+    });
+    setSaving(false);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    toast.success("Transaksi AI disimpan.");
+    setPrompt("");
+    setIntent(null);
+    onSaved();
+  }
+
+  return (
+    <section className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+      <Card className="p-4">
+        <div className="flex items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-emerald-500 text-slate-950">
+            <Sparkles className="h-5 w-5" />
+          </span>
+          <div>
+            <h2 className="font-semibold">AI Catat Transaksi</h2>
+            <p className="mt-1 text-sm text-[var(--muted)]">
+              Tulis natural, cek hasilnya, lalu konfirmasi simpan.
+            </p>
+          </div>
+        </div>
+        <form onSubmit={parseWithAi} className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
+          <Input
+            value={prompt}
+            onChange={(event) => setPrompt(event.target.value)}
+            placeholder="Contoh: pengeluaran 5k beli pop ice"
+          />
+          <Button disabled={aiLoading || !prompt.trim()}>
+            {aiLoading ? "Membaca..." : "Parse"}
+          </Button>
+        </form>
+        {intent ? (
+          <div className="mt-4 rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-3">
+            <div className="grid gap-2 text-sm sm:grid-cols-3">
+              <InfoPill label="Jenis" value={intent.type === "income" ? "Pemasukan" : "Pengeluaran"} />
+              <InfoPill label="Nominal" value={formatRupiah(intent.amount)} />
+              <InfoPill label="Tanggal" value={intent.date ?? "Hari ini"} />
+            </div>
+            <p className="mt-3 text-sm text-[var(--muted)]">{intent.note}</p>
+            <div className="mt-3 flex gap-2">
+              <Button size="sm" onClick={saveIntent} disabled={saving}>
+                {saving ? "Menyimpan..." : "Simpan"}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setIntent(null)}>
+                Batal
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </Card>
+
+      <Card className="p-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <div className="flex items-center gap-2">
+              <Calculator className="h-5 w-5 text-emerald-500" />
+              <h2 className="font-semibold">Kalkulator</h2>
+            </div>
+            <Input
+              className="mt-3 font-mono"
+              value={calc}
+              onChange={(event) => setCalc(event.target.value)}
+              placeholder="150k * 3 - 25rb"
+              inputMode="decimal"
+            />
+            <p className="mt-3 min-h-7 font-mono text-lg font-semibold tabular-nums">
+              {calcResult.ok ? formatRupiah(calcResult.value) : "Rp 0"}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-3">
+            <div className="flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5 text-emerald-500" />
+              <h2 className="font-semibold">Spreadsheet</h2>
+            </div>
+            <p className="mt-2 text-sm text-[var(--muted)]">
+              Ekspor transaksi siap impor ke Google Sheets atau Excel.
+            </p>
+            <Button className="mt-4 w-full" variant="outline" onClick={onExport}>
+              Export CSV
+            </Button>
+          </div>
+        </div>
+      </Card>
+    </section>
+  );
+}
+
+function InfoPill({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-[var(--line)] px-3 py-2">
+      <p className="text-xs text-[var(--muted)]">{label}</p>
+      <p className="mt-1 font-semibold">{value}</p>
     </div>
   );
 }
@@ -1459,6 +1646,40 @@ function buildCashflow(transactions: Transaction[], range: "month" | "week") {
 function getWeek(date: Date) {
   const first = new Date(date.getFullYear(), 0, 1);
   return Math.ceil(((date.getTime() - first.getTime()) / 86_400_000 + first.getDay() + 1) / 7);
+}
+
+function parseMoneyToken(value: string) {
+  const cleaned = value.toLowerCase().replace(/\s/g, "").replace(",", ".");
+  const match = cleaned.match(/^(\d+(?:\.\d+)?)(jt|juta|rb|ribu|k)?$/);
+  if (!match) return Number.NaN;
+  const amount = Number(match[1]);
+  const suffix = match[2];
+  if (!Number.isFinite(amount)) return Number.NaN;
+  if (suffix === "jt" || suffix === "juta") return amount * 1_000_000;
+  if (suffix === "rb" || suffix === "ribu" || suffix === "k") return amount * 1_000;
+  return amount;
+}
+
+function calculateMoneyExpression(expression: string) {
+  if (!expression.trim()) return { ok: true, value: 0 };
+
+  const normalized = expression
+    .replace(/x/gi, "*")
+    .replace(/÷/g, "/")
+    .replace(/(\d+(?:[.,]\d+)?\s*(?:jt|juta|rb|ribu|k)?)/gi, (token) =>
+      String(parseMoneyToken(token)),
+    );
+
+  if (!/^[\d+\-*/().\s]+$/.test(normalized) || normalized.includes("NaN")) {
+    return { ok: false, value: 0 };
+  }
+
+  try {
+    const value = Function(`"use strict"; return (${normalized})`)() as number;
+    return Number.isFinite(value) ? { ok: true, value } : { ok: false, value: 0 };
+  } catch {
+    return { ok: false, value: 0 };
+  }
 }
 
 function TransactionSheet({
@@ -1919,6 +2140,59 @@ function CommandsPage({
   );
 }
 
+function SettingToggle({
+  icon: Icon,
+  title,
+  enabled,
+  onEnabledChange,
+}: {
+  icon: typeof CloudSun;
+  title: string;
+  enabled: boolean;
+  onEnabledChange: (enabled: boolean) => void;
+}) {
+  return (
+    <label className="flex min-h-11 items-center justify-between gap-3 rounded-2xl border border-[var(--line)] px-3 text-sm font-medium">
+      <span className="flex items-center gap-2">
+        <Icon className="h-4 w-4 text-emerald-500" />
+        {title}
+      </span>
+      <input
+        type="checkbox"
+        checked={enabled}
+        onChange={(event) => onEnabledChange(event.target.checked)}
+        className="h-5 w-5 accent-emerald-500"
+      />
+    </label>
+  );
+}
+
+function LocationInput({
+  value,
+  onChange,
+  placeholder,
+  onUseLocation,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  onUseLocation: () => void;
+}) {
+  return (
+    <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+      <Input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+      />
+      <Button type="button" variant="outline" onClick={onUseLocation}>
+        <MapPin className="h-4 w-4" />
+        Pakai lokasi
+      </Button>
+    </div>
+  );
+}
+
 function SettingsPage({
   loading,
   groupId,
@@ -1936,7 +2210,14 @@ function SettingsPage({
 }) {
   const [header, setHeader] = useState("");
   const [location, setLocation] = useState("");
+  const [azanLocation, setAzanLocation] = useState("");
+  const [emergencyLocation, setEmergencyLocation] = useState("");
+  const [weatherEnabled, setWeatherEnabled] = useState(true);
+  const [azanEnabled, setAzanEnabled] = useState(false);
+  const [emergencyEnabled, setEmergencyEnabled] = useState(false);
   const [typoEnabled, setTypoEnabled] = useState(true);
+  const [spreadsheetUrl, setSpreadsheetUrl] = useState("");
+  const [qrisUrl, setQrisUrl] = useState("");
   const [newPin, setNewPin] = useState("");
   const [months, setMonths] = useState("1");
   const [proof, setProof] = useState<File | null>(null);
@@ -1944,8 +2225,26 @@ function SettingsPage({
   useEffect(() => {
     setHeader(settings?.header_text ?? "");
     setLocation(settings?.weather_location ?? "");
+    setAzanLocation(settings?.azan_location ?? settings?.weather_location ?? "");
+    setEmergencyLocation(settings?.emergency_location ?? settings?.weather_location ?? "");
+    setWeatherEnabled(settings?.weather_enabled ?? true);
+    setAzanEnabled(settings?.azan_enabled ?? false);
+    setEmergencyEnabled(settings?.emergency_enabled ?? false);
     setTypoEnabled(settings?.typo_enabled ?? true);
+    setSpreadsheetUrl(settings?.spreadsheet_url ?? "");
   }, [settings]);
+
+  useEffect(() => {
+    supabase
+      .from("owner_settings")
+      .select("qris_image_url")
+      .eq("id", "default")
+      .maybeSingle()
+      .then(({ data }) => {
+        const row = data as { qris_image_url?: string | null } | null;
+        setQrisUrl(row?.qris_image_url ?? "");
+      });
+  }, []);
 
   async function saveSettings(event: FormEvent) {
     event.preventDefault();
@@ -1953,7 +2252,13 @@ function SettingsPage({
       group_id: groupId,
       header_text: header,
       weather_location: location,
+      azan_location: azanLocation,
+      emergency_location: emergencyLocation,
+      weather_enabled: weatherEnabled,
+      azan_enabled: azanEnabled,
+      emergency_enabled: emergencyEnabled,
       typo_enabled: typoEnabled,
+      spreadsheet_url: spreadsheetUrl,
       updated_at: new Date().toISOString(),
     };
     const { error } = await supabase.from("group_settings").upsert(payload);
@@ -1962,6 +2267,25 @@ function SettingsPage({
       toast.success("Setting grup disimpan.");
       onChanged();
     }
+  }
+
+  function useBrowserLocation(target: "weather" | "azan" | "emergency") {
+    if (!navigator.geolocation) {
+      toast.error("Browser tidak mendukung share lokasi.");
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const value = `${position.coords.latitude.toFixed(5)},${position.coords.longitude.toFixed(5)}`;
+        if (target === "weather") setLocation(value);
+        if (target === "azan") setAzanLocation(value);
+        if (target === "emergency") setEmergencyLocation(value);
+        toast.success("Lokasi browser diisi.");
+      },
+      () => toast.error("Izin lokasi ditolak atau tidak tersedia."),
+      { enableHighAccuracy: true, timeout: 10_000 },
+    );
   }
 
   async function changePin(event: FormEvent) {
@@ -2032,6 +2356,23 @@ function SettingsPage({
 
         <form onSubmit={requestExtension} className="mt-5 space-y-3">
           <h3 className="font-semibold">Request Perpanjangan</h3>
+          {qrisUrl ? (
+            <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-3">
+              <div className="mb-3 flex items-center gap-2">
+                <QrCode className="h-5 w-5 text-emerald-500" />
+                <p className="font-semibold">QRIS Owner</p>
+              </div>
+              <img
+                src={qrisUrl}
+                alt="QRIS pembayaran owner"
+                className="max-h-72 w-full rounded-[14px] object-contain"
+              />
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-[var(--line)] p-4 text-sm text-[var(--muted)]">
+              QRIS owner belum dikonfigurasi.
+            </div>
+          )}
           <Input value={months} onChange={(event) => setMonths(event.target.value)} type="number" min="1" placeholder="Jumlah bulan" />
           <Input type="file" accept="image/*" onChange={(event) => setProof(event.target.files?.[0] ?? null)} />
           <Button className="w-full">Kirim Request</Button>
@@ -2043,7 +2384,47 @@ function SettingsPage({
           <h2 className="font-semibold">Group Settings</h2>
           <form onSubmit={saveSettings} className="mt-4 space-y-3">
             <Textarea value={header} onChange={(event) => setHeader(event.target.value)} placeholder="Header teks laporan grup" />
-            <Input value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Lokasi cuaca, contoh: Jakarta" />
+            <SettingToggle
+              icon={CloudSun}
+              title="Weather"
+              enabled={weatherEnabled}
+              onEnabledChange={setWeatherEnabled}
+            />
+            <LocationInput
+              value={location}
+              onChange={setLocation}
+              placeholder="Lokasi cuaca, contoh: Jakarta atau -6.20,106.81"
+              onUseLocation={() => useBrowserLocation("weather")}
+            />
+            <SettingToggle
+              icon={CalendarClock}
+              title="Azan"
+              enabled={azanEnabled}
+              onEnabledChange={setAzanEnabled}
+            />
+            <LocationInput
+              value={azanLocation}
+              onChange={setAzanLocation}
+              placeholder="Lokasi azan"
+              onUseLocation={() => useBrowserLocation("azan")}
+            />
+            <SettingToggle
+              icon={Siren}
+              title="Peringatan darurat"
+              enabled={emergencyEnabled}
+              onEnabledChange={setEmergencyEnabled}
+            />
+            <LocationInput
+              value={emergencyLocation}
+              onChange={setEmergencyLocation}
+              placeholder="Lokasi pantauan darurat/gempa"
+              onUseLocation={() => useBrowserLocation("emergency")}
+            />
+            <Input
+              value={spreadsheetUrl}
+              onChange={(event) => setSpreadsheetUrl(event.target.value)}
+              placeholder="Link Google Sheets / spreadsheet"
+            />
             <label className="flex min-h-11 items-center justify-between rounded-2xl border border-[var(--line)] px-3 text-sm font-medium">
               Typo correction
               <input type="checkbox" checked={typoEnabled} onChange={(event) => setTypoEnabled(event.target.checked)} className="h-5 w-5 accent-emerald-500" />

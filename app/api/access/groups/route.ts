@@ -11,6 +11,13 @@ type GroupAccessRow = {
   role: "admin" | "owner";
 };
 
+const ownerEmails = new Set(
+  (process.env.OWNER_EMAILS ?? "dits144@gmail.com")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean),
+);
+
 type LinkGroupBody = {
   group_id?: string;
   groupId?: string;
@@ -60,7 +67,40 @@ export async function GET(request: Request) {
     );
   }
 
+  const admin = createSupabaseAdminClient();
   const supabase = createSupabaseServerClient(user.accessToken);
+  const normalizedEmail = user.email.trim().toLowerCase();
+  const fallbackRole = ownerEmails.has(normalizedEmail) ? "owner" : "admin";
+  let platformRole: "admin" | "owner" = fallbackRole;
+
+  if (admin) {
+    const profileResult = await admin
+      .from("user_profiles")
+      .upsert(
+        {
+          user_id: user.userId,
+          email: user.email,
+          platform_role: fallbackRole,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id" },
+      )
+      .select("platform_role")
+      .maybeSingle();
+
+    const dbRole = profileResult.data?.platform_role;
+    platformRole = dbRole === "owner" ? "owner" : fallbackRole;
+  } else {
+    const profileResult = await supabase
+      .from("user_profiles")
+      .select("platform_role")
+      .eq("user_id", user.userId)
+      .maybeSingle();
+
+    const dbRole = profileResult.data?.platform_role;
+    platformRole = dbRole === "owner" ? "owner" : fallbackRole;
+  }
+
   const { data, error } = await supabase
     .from("user_group_access")
     .select("group_id, group_name, role")
@@ -78,13 +118,42 @@ export async function GET(request: Request) {
     );
   }
 
-  const groups = ((data ?? []) as GroupAccessRow[]).map((row) => ({
+  const collected = new Map<string, GroupAccessRow>();
+
+  for (const row of (data ?? []) as GroupAccessRow[]) {
+    collected.set(row.group_id, {
+      group_id: row.group_id,
+      group_name: row.group_name ?? row.group_id,
+      role: row.role,
+    });
+  }
+
+  if (platformRole === "owner" && admin) {
+    const rentals = await admin
+      .from("group_rentals")
+      .select("group_id, group_name")
+      .order("is_active", { ascending: false })
+      .order("expire_at", { ascending: false })
+      .limit(100);
+
+    for (const rental of rentals.data ?? []) {
+      if (!collected.has(rental.group_id)) {
+        collected.set(rental.group_id, {
+          group_id: rental.group_id,
+          group_name: rental.group_name ?? rental.group_id,
+          role: "owner",
+        });
+      }
+    }
+  }
+
+  const groups = Array.from(collected.values()).map((row) => ({
     group_id: row.group_id,
     group_name: row.group_name ?? row.group_id,
     role: row.role,
   }));
 
-  return Response.json({ ok: true, groups }, { status: 200 });
+  return Response.json({ ok: true, groups, platform_role: platformRole }, { status: 200 });
 }
 
 export async function POST(request: Request) {

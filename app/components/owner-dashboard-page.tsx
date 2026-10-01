@@ -8,6 +8,7 @@ import {
   LogOut,
   Megaphone,
   Power,
+  QrCode,
   RefreshCw,
   Search,
   Server,
@@ -136,6 +137,7 @@ export function OwnerDashboardPage({ embedded = false }: { embedded?: boolean })
   const [days, setDays] = useState("30");
   const [broadcast, setBroadcast] = useState("");
   const [numbers, setNumbers] = useState("");
+  const [qrisUrl, setQrisUrl] = useState("");
   const [busy, setBusy] = useState("");
 
   const filteredGroups = useMemo(() => {
@@ -173,6 +175,7 @@ export function OwnerDashboardPage({ embedded = false }: { embedded?: boolean })
       }
       setAccessToken(token);
       await loadOwnerData(token, resolvedApiUrl);
+      await loadOwnerSettings();
     }
 
     boot();
@@ -223,6 +226,34 @@ export function OwnerDashboardPage({ embedded = false }: { embedded?: boolean })
     setDbStats(statsResult.ok ? statsResult.data ?? null : null);
     setRequests(Array.isArray(requestResult.data) ? requestResult.data : []);
     setLoading(false);
+  }
+
+  async function loadOwnerSettings() {
+    const { data } = await supabase
+      .from("owner_settings")
+      .select("qris_image_url")
+      .eq("id", "default")
+      .maybeSingle();
+    const row = data as { qris_image_url?: string | null } | null;
+    setQrisUrl(row?.qris_image_url ?? "");
+  }
+
+  async function saveQris(event: FormEvent) {
+    event.preventDefault();
+    setBusy("qris");
+    const { error } = await supabase.from("owner_settings").upsert({
+      id: "default",
+      qris_image_url: qrisUrl,
+      updated_at: new Date().toISOString(),
+    });
+    setBusy("");
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    toast.success("QRIS owner disimpan.");
   }
 
   async function logout() {
@@ -403,6 +434,30 @@ export function OwnerDashboardPage({ embedded = false }: { embedded?: boolean })
           </Card>
 
           <div className="space-y-5">
+            <Card className="p-4">
+              <div className="flex items-center gap-2">
+                <QrCode className="h-5 w-5 text-emerald-500" />
+                <h2 className="font-semibold">QRIS Perpanjangan</h2>
+              </div>
+              <form className="mt-4 space-y-3" onSubmit={saveQris}>
+                <Input
+                  value={qrisUrl}
+                  onChange={(event) => setQrisUrl(event.target.value)}
+                  placeholder="https://.../qris.png"
+                />
+                {qrisUrl ? (
+                  <img
+                    src={qrisUrl}
+                    alt="QRIS owner"
+                    className="max-h-56 w-full rounded-[14px] border border-[var(--line)] object-contain"
+                  />
+                ) : null}
+                <Button className="w-full" disabled={busy === "qris"}>
+                  {busy === "qris" ? "Menyimpan..." : "Simpan QRIS"}
+                </Button>
+              </form>
+            </Card>
+
             <Card className="p-4">
               <h2 className="font-semibold">Aktifkan / Nonaktifkan Sewa</h2>
               <form
