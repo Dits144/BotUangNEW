@@ -3455,6 +3455,8 @@ function RemindersPage({
     } finally {
       setSaving(false);
     }
+  }
+
   async function remove(reminder: Reminder) {
     let botOk = false;
     const targetGroupId = reminder.group_id || groupId;
