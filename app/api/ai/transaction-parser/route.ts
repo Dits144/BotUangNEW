@@ -49,8 +49,9 @@ function parseMoney(value: string) {
 function parseLocalIntent(text: string, today: string) {
   const lower = text.toLowerCase();
 
-  if (/\b(todo|tugas|task)\b/.test(lower)) {
+  if (/^(todo\+|todo|tugas|task)\b/.test(lower) || /\b(todo|tugas|task)\b/.test(lower)) {
     const todoText = text
+      .replace(/^(todo\+|todo|tugas|task)\b[:\-\s]*/i, "")
       .replace(/\b(tambah|buat|bikin)?\s*(todo|tugas|task)\b[:\-\s]*/i, "")
       .trim();
     return validateIntent({
@@ -62,10 +63,12 @@ function parseLocalIntent(text: string, today: string) {
     });
   }
 
-  if (/\b(reminder|ingatkan|jadwal|rapat|r\s)\b/.test(lower)) {
+  if (/^r\s+/i.test(text) || /\b(reminder|ingatkan|jadwal|rapat)\b/.test(lower)) {
     const time = lower.match(/(\d{1,2}[:.]\d{2})/)?.[1]?.replace(".", ":");
     const date = lower.match(/(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)/)?.[1];
-    const remindText = text
+    const textAfterAt = text.includes("@") ? text.split("@").slice(1).join("@") : "";
+    const remindText = (textAfterAt || text)
+      .replace(/^r\s+/i, "")
       .replace(/\b(tolong|buat|bikin|tambah|reminder|ingatkan|jadwal)\b/gi, "")
       .replace(/\b(besok|hari ini|nanti|jam)\b/gi, "")
       .replace(/(\d{1,2}[:.]\d{2})/g, "")
@@ -82,10 +85,11 @@ function parseLocalIntent(text: string, today: string) {
     });
   }
 
-  if (/\b(command|cmd|keyword|respon|response)\b/.test(lower)) {
+  if (/^(cmd|command)\b/i.test(text) || /\b(command|cmd|keyword|respon|response)\b/.test(lower)) {
     const parts = text.split("@");
     const keyword = parts[0]
-      ?.replace(/\b(buat|bikin|tambah|command|cmd|keyword)\b/gi, "")
+      ?.replace(/^(cmd|command)\b/gi, "")
+      .replace(/\b(buat|bikin|tambah|command|cmd|keyword)\b/gi, "")
       .trim();
     const response = parts.slice(1).join("@").trim();
     return validateIntent({
@@ -101,11 +105,12 @@ function parseLocalIntent(text: string, today: string) {
   const amount = parseMoney(text);
   if (amount > 0) {
     const isIncome =
-      /\b(pemasukan|masuk|income|donasi|iuran|kas masuk|terima|plus|\+)\b/.test(lower) &&
-      !/\b(pengeluaran|keluar|expense|beli|bayar|minus|-)\b/.test(lower);
+      text.trim().startsWith("+") ||
+      (/\b(pemasukan|masuk|income|donasi|iuran|kas masuk|terima|plus)\b/.test(lower) &&
+        !/\b(pengeluaran|keluar|expense|beli|bayar|minus|-)\b/.test(lower));
     const note = text
       .replace(/[-+]?\s*\d+(?:[.,]\d+)?\s*(jt|juta|rb|ribu|k)?/i, "")
-      .replace(/\b(pemasukan|pengeluaran|income|expense|masuk|keluar|beli|bayar|catat|tambahkan|tambah)\b/gi, "")
+      .replace(/\b(pemasukan|pengeluaran|income|expense|masuk|keluar|beli|bayar|catat|tambahkan|tambah|plus|minus)\b/gi, "")
       .trim();
     return validateIntent({
       action: "transaction",
@@ -215,6 +220,13 @@ function getFallbackResponse({
   };
 }
 
+function toUserSafeAiMessage(message: string) {
+  if (/denied|permission|403/i.test(message)) {
+    return "Project Gemini ditolak oleh Google. Buat API key dari project Google AI Studio/Cloud lain atau ajukan appeal di Google Cloud Console.";
+  }
+  return message || "AI parser gagal.";
+}
+
 export async function POST(request: Request) {
   const apiKey = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_AI_API_KEY;
 
@@ -314,7 +326,12 @@ export async function POST(request: Request) {
     }
 
     return Response.json(
-      { ok: false, message: lastError || "AI parser gagal dan parser lokal belum memahami perintah ini." },
+      {
+        ok: false,
+        message: toUserSafeAiMessage(
+          lastError || "AI parser gagal dan parser lokal belum memahami perintah ini.",
+        ),
+      },
       { status: 200 },
     );
   } catch {
