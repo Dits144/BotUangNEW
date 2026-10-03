@@ -579,6 +579,28 @@ a {
   transform: scale(1);
 }
 
+.ai-action-command-input {
+  gap: 8px;
+  border-radius: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.ai-action-command-input .ai-morph-bg,
+.ai-action-command-input .ai-morph-stage,
+.ai-action-command-input .ai-morph-label {
+  display: none;
+}
+
+.ai-action-command-input .ai-morph-answer {
+  order: -1;
+}
+
+.ai-action-command-input .ai-morph-input {
+  min-height: 52px;
+}
+
 @keyframes botuang-orb-spin {
   to {
     transform: rotate(360deg);

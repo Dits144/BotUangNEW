@@ -1082,6 +1082,7 @@ export function DashboardPage() {
               {activeSection === "overview" ? (
                 <Overview
                   groupId={groupId}
+                  groupName={groupName}
                   sessionToken={sessionToken}
                   botApiUrl={botApiUrl}
                   loading={loading}
@@ -1175,8 +1176,11 @@ export function DashboardPage() {
           {groupId && activeSection !== "owner" ? (
             <AiCommandBar
               groupId={groupId}
+              groupName={groupName}
               sessionToken={sessionToken}
               botApiUrl={botApiUrl}
+              summary={summary}
+              transactions={transactions}
               onSaved={() => loadData()}
             />
           ) : null}
@@ -1187,6 +1191,9 @@ export function DashboardPage() {
         section={activeSection}
         role={role}
         groupId={groupId}
+        groupName={groupName}
+        summary={summary}
+        transactions={transactions}
         sessionToken={sessionToken}
         botApiUrl={botApiUrl}
         onSaved={() => loadData()}
@@ -1346,6 +1353,9 @@ function MobileNav({
   section,
   role,
   groupId,
+  groupName,
+  summary,
+  transactions,
   sessionToken = "",
   botApiUrl = "",
   onSaved,
@@ -1354,6 +1364,9 @@ function MobileNav({
   section: DashboardSection;
   role: "admin" | "owner";
   groupId: string;
+  groupName: string;
+  summary: { income: number; expense: number; balance: number };
+  transactions: Transaction[];
   sessionToken?: string;
   botApiUrl?: string;
   onSaved: () => void;
@@ -1394,16 +1407,28 @@ function MobileNav({
         })}
         <div className="flex justify-center">
           {groupId ? (
-            <TransactionSheet
+            <AiAssistantSheet
               groupId={groupId}
+              groupName={groupName}
               sessionToken={sessionToken}
               botApiUrl={botApiUrl}
+              summary={summary}
+              transactions={transactions}
               onSaved={onSaved}
-              compact
+              trigger={
+                <button
+                  type="button"
+                  className="flex h-[58px] w-[58px] -translate-y-2 flex-col items-center justify-center gap-0.5 rounded-[18px] bg-emerald-500 text-slate-950 shadow-[0_12px_30px_rgba(16,185,129,0.28)] transition active:scale-95"
+                  aria-label="Buka BotUang AI"
+                >
+                  <Sparkles className="h-5 w-5" />
+                  <span className="text-[10px] font-bold leading-none">AI</span>
+                </button>
+              }
             />
           ) : (
-            <Button size="icon" disabled className="h-[60px] w-[60px] rounded-[20px]">
-              <Plus className="h-5 w-5" />
+            <Button size="icon" disabled className="h-[58px] w-[58px] -translate-y-2 rounded-[18px]">
+              <Sparkles className="h-5 w-5" />
             </Button>
           )}
         </div>
@@ -1439,6 +1464,7 @@ function MobileNav({
 
 function Overview({
   groupId,
+  groupName,
   sessionToken = "",
   botApiUrl = "",
   loading,
@@ -1458,6 +1484,7 @@ function Overview({
   onSaved,
 }: {
   groupId: string;
+  groupName: string;
   sessionToken?: string;
   botApiUrl?: string;
   loading: boolean;
@@ -1645,6 +1672,9 @@ function Overview({
         <div className="grid gap-4">
           <OverviewAiPanel
             groupId={groupId}
+            groupName={groupName}
+            summary={summary}
+            transactions={transactions}
             sessionToken={sessionToken}
             botApiUrl={botApiUrl}
             onSaved={onSaved}
@@ -1845,11 +1875,17 @@ function CountMetricCard({
 
 function OverviewAiPanel({
   groupId,
+  groupName,
+  summary,
+  transactions,
   sessionToken = "",
   botApiUrl = "",
   onSaved,
 }: {
   groupId: string;
+  groupName: string;
+  summary: { income: number; expense: number; balance: number };
+  transactions: Transaction[];
   sessionToken?: string;
   botApiUrl?: string;
   onSaved: () => void;
@@ -1873,8 +1909,11 @@ function OverviewAiPanel({
             <AiAssistantSheet
               key={item}
               groupId={groupId}
+              groupName={groupName}
               sessionToken={sessionToken}
               botApiUrl={botApiUrl}
+              summary={summary}
+              transactions={transactions}
               onSaved={onSaved}
               trigger={
                 <button
@@ -1890,8 +1929,11 @@ function OverviewAiPanel({
       </div>
       <AiAssistantSheet
         groupId={groupId}
+        groupName={groupName}
         sessionToken={sessionToken}
         botApiUrl={botApiUrl}
+        summary={summary}
+        transactions={transactions}
         onSaved={onSaved}
         trigger={
           <button
@@ -1991,8 +2033,9 @@ function UpcomingPanel({
 }
 
 type BotAiIntent = {
-  action: "transaction" | "reminder" | "todo" | "command";
+  action: "transaction" | "query" | "reminder" | "todo" | "command";
   type: "income" | "expense";
+  query_type?: "balance" | "income" | "expense" | "summary" | "search";
   amount: number;
   note: string;
   date?: string;
@@ -2007,11 +2050,17 @@ type BotAiIntent = {
 
 function AiCommandBar({
   groupId,
+  groupName,
+  summary,
+  transactions,
   sessionToken = "",
   botApiUrl = "",
   onSaved,
 }: {
   groupId: string;
+  groupName: string;
+  summary: { income: number; expense: number; balance: number };
+  transactions: Transaction[];
   sessionToken?: string;
   botApiUrl?: string;
   onSaved: () => void;
@@ -2020,8 +2069,11 @@ function AiCommandBar({
     <div className="fixed bottom-5 right-5 z-40 hidden md:block">
       <AiAssistantSheet
         groupId={groupId}
+        groupName={groupName}
         sessionToken={sessionToken}
         botApiUrl={botApiUrl}
+        summary={summary}
+        transactions={transactions}
         onSaved={onSaved}
         trigger={
           <button
@@ -2040,28 +2092,39 @@ function AiCommandBar({
 
 function AiAssistantSheet({
   groupId,
+  groupName,
   sessionToken = "",
   botApiUrl = "",
+  summary,
+  transactions,
   onSaved,
   trigger,
 }: {
   groupId: string;
+  groupName: string;
   sessionToken?: string;
   botApiUrl?: string;
+  summary: { income: number; expense: number; balance: number };
+  transactions: Transaction[];
   onSaved: () => void;
   trigger: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [intent, setIntent] = useState<BotAiIntent | null>(null);
+  const [editMode, setEditMode] = useState(false);
+  const [savedIntent, setSavedIntent] = useState<BotAiIntent | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
   async function parse(event?: FormEvent) {
     event?.preventDefault();
     if (!prompt.trim()) return;
+    setSavedIntent(null);
+    setIntent(null);
+    setEditMode(false);
     setLoading(true);
-    const response = await fetch("/api/ai/transaction-parser", {
+    const response = await fetch("/api/ai/parse", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: prompt }),
@@ -2083,6 +2146,30 @@ function AiAssistantSheet({
 
   async function saveIntent() {
     if (!intent) return;
+    if (intent.action === "query") {
+      toast.message("Ini hanya cek informasi, tidak ada data yang diubah.");
+      return;
+    }
+    if (intent.action === "transaction" && (!Number.isFinite(intent.amount) || intent.amount <= 0)) {
+      toast.error("Nominal transaksi tidak valid.");
+      return;
+    }
+    if (intent.action === "transaction" && !intent.note.trim()) {
+      toast.error("Catatan transaksi wajib diisi.");
+      return;
+    }
+    if (intent.action === "reminder" && !(intent.remind_text ?? intent.note).trim()) {
+      toast.error("Teks reminder wajib diisi.");
+      return;
+    }
+    if (intent.action === "todo" && !(intent.todo_text ?? intent.note).trim()) {
+      toast.error("Todo wajib diisi.");
+      return;
+    }
+    if (intent.action === "command" && (!intent.keyword?.trim() || !(intent.response ?? intent.note).trim())) {
+      toast.error("Keyword dan response command wajib diisi.");
+      return;
+    }
     setSaving(true);
     let botOk = false;
 
@@ -2190,103 +2277,430 @@ function AiAssistantSheet({
     }
 
     toast.success("Aksi AI disimpan.");
+    setSavedIntent(intent);
     setPrompt("");
     setIntent(null);
-    setOpen(false);
+    setEditMode(false);
     onSaved();
+  }
+
+  function updateIntent(patch: Partial<BotAiIntent>) {
+    setIntent((current) => (current ? { ...current, ...patch } : current));
+  }
+
+  function quickPrompt(text: string) {
+    setPrompt(text);
+    setIntent(null);
+    setSavedIntent(null);
+    setEditMode(false);
   }
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>{trigger}</SheetTrigger>
-      <SheetContent className="overflow-hidden bg-[#08111d] p-0 md:w-[460px]">
-        <div className="border-b border-[var(--line)] px-5 pb-5 pt-2 md:pt-5">
-          <div className="flex items-center gap-4">
-            <div className="relative flex h-20 w-20 shrink-0 items-center justify-center rounded-[22px] border border-emerald-300/20 bg-[#0b1726]">
-              <span className="botuang-ai-orb" aria-hidden="true" />
-            </div>
+      <SheetContent className="flex min-h-[64vh] max-h-[86vh] flex-col overflow-hidden bg-[var(--surface)] p-0 md:w-[430px]">
+        <div className="border-b border-[var(--line)] px-5 pb-4 pt-2 md:pt-5">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] border border-emerald-300/20 bg-emerald-400/10 text-emerald-300">
+              <Sparkles className="h-5 w-5" />
+            </span>
             <div className="min-w-0">
-              <SheetTitle className="text-lg font-semibold">AI Assistant BotUang</SheetTitle>
-              <SheetDescription className="mt-1 text-sm text-[var(--muted)]">
-                Catat transaksi, todo, reminder, atau custom command dari bahasa sehari-hari.
+              <SheetTitle className="text-base font-semibold">BotUang AI</SheetTitle>
+              <SheetDescription className="mt-0.5 truncate text-sm text-[var(--muted)]">
+                Asisten keuangan {displayGroupName(groupName, groupId)}
               </SheetDescription>
             </div>
           </div>
         </div>
 
-        <div className="space-y-4 p-5">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5 pb-4">
+          <div>
+            <p className="text-sm font-semibold">Mau mencatat apa?</p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <TransactionSheet
+                groupId={groupId}
+                sessionToken={sessionToken}
+                botApiUrl={botApiUrl}
+                onSaved={onSaved}
+                initialType="income"
+                triggerClassName="min-h-11 w-full justify-start rounded-[12px] border border-emerald-300/20 bg-emerald-400/8 px-3 text-left text-sm font-semibold text-emerald-300 hover:bg-emerald-400/12"
+                label="+ Pemasukan"
+              />
+              <TransactionSheet
+                groupId={groupId}
+                sessionToken={sessionToken}
+                botApiUrl={botApiUrl}
+                onSaved={onSaved}
+                initialType="expense"
+                triggerClassName="min-h-11 w-full justify-start rounded-[12px] border border-rose-300/20 bg-rose-400/8 px-3 text-left text-sm font-semibold text-rose-300 hover:bg-rose-400/12"
+                label="- Pengeluaran"
+              />
+              <button
+                type="button"
+                onClick={() => quickPrompt("saldo sekarang berapa?")}
+                className="min-h-11 rounded-[12px] border border-[var(--line)] px-3 text-left text-sm font-semibold text-[var(--muted)] transition hover:bg-[var(--panel)] hover:text-[var(--foreground)]"
+              >
+                Cek Saldo
+              </button>
+              <button
+                type="button"
+                onClick={() => quickPrompt("reminder besok 08:00 bayar kas")}
+                className="min-h-11 rounded-[12px] border border-[var(--line)] px-3 text-left text-sm font-semibold text-[var(--muted)] transition hover:bg-[var(--panel)] hover:text-[var(--foreground)]"
+              >
+                Reminder
+              </button>
+            </div>
+          </div>
+
+          {savedIntent ? (
+            <AiSuccessCard intent={savedIntent} />
+          ) : null}
+
+          {intent ? (
+            <AiIntentCard
+              intent={intent}
+              groupName={displayGroupName(groupName, groupId)}
+              summary={summary}
+              transactions={transactions}
+              editMode={editMode}
+              saving={saving}
+              onEdit={() => setEditMode(true)}
+              onCancelEdit={() => setEditMode(false)}
+              onChange={updateIntent}
+              onSave={saveIntent}
+            />
+          ) : null}
+
+          {!intent && !savedIntent && !loading ? (
+            <div className="rounded-[14px] border border-[var(--line)] bg-[var(--panel)] p-3 text-sm text-[var(--muted)]">
+              <p className="font-medium text-[var(--foreground)]">Contoh cepat</p>
+              <div className="mt-2 grid gap-2">
+                {[
+                  "tambah pemasukan 1jt gaji awal",
+                  "pengeluaran 5k beli pop ice",
+                  "pengeluaran bulan ini berapa?",
+                ].map((example) => (
+                  <button
+                    key={example}
+                    type="button"
+                    onClick={() => quickPrompt(example)}
+                    className="rounded-[10px] px-2 py-1.5 text-left transition hover:bg-[var(--surface)] hover:text-[var(--foreground)]"
+                  >
+                    {example}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="border-t border-[var(--line)] bg-[var(--surface)] p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
           <AiThinkingOrbAndInput
+            className="ai-action-command-input"
             value={prompt}
             onValueChange={(value) => {
               setPrompt(value);
               if (intent) setIntent(null);
+              if (savedIntent) setSavedIntent(null);
+              if (editMode) setEditMode(false);
             }}
             onSubmit={() => {
               void parse();
             }}
             loading={loading}
             answered={Boolean(intent)}
-            placeholder="Contoh: pengeluaran 5k beli pop ice"
+            placeholder="Contoh: pemasukan 1jt gaji awal"
             status={
               loading
-                ? "Menganalisis perintah BotUang..."
+                ? "Memahami perintah..."
                 : intent
-                  ? "Perintah dipahami, cek lalu simpan."
-                  : "Bisa catat pemasukan, pengeluaran, todo, reminder, atau command."
+                  ? "Saya memahami ini sebagai:"
+                  : "Ketik perintah keuangan, lalu cek sebelum simpan."
             }
           />
-
-          <div className="grid gap-2 text-sm">
-            {[
-              "pemasukan 250k iuran kas",
-              "reminder besok 08:00 rapat bendahara",
-              "todo beli konsumsi rapat",
-              "command qris@ini qris pembayaran kas",
-            ].map((example) => (
-              <button
-                key={example}
-                type="button"
-                onClick={() => setPrompt(example)}
-                className="rounded-[12px] border border-[var(--line)] px-3 py-2 text-left text-[var(--muted)] transition hover:border-emerald-300/25 hover:bg-emerald-400/8 hover:text-[var(--foreground)]"
-              >
-                {example}
-              </button>
-            ))}
-          </div>
-
-          {intent ? (
-            <div className="rounded-[16px] border border-emerald-300/18 bg-emerald-400/8 p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-emerald-200">
-                    {formatAiAction(intent.action)}
-                  </p>
-                  <p className="mt-1 truncate text-sm font-semibold">
-                    {formatAiPrimaryValue(intent)}
-                  </p>
-                  <p className="mt-1 line-clamp-2 text-sm text-[var(--muted)]">
-                    {formatAiDescription(intent)}
-                  </p>
-                </div>
-                <Button size="sm" onClick={saveIntent} disabled={saving} className="shrink-0">
-                  Simpan
-                </Button>
-              </div>
-            </div>
-          ) : null}
-
-          <p className="text-xs leading-relaxed text-[var(--muted)]">
-            AI memakai Gemini jika project diizinkan. Kalau akses Gemini ditolak, parser lokal tetap membaca perintah umum BotUang.
-          </p>
         </div>
       </SheetContent>
     </Sheet>
   );
 }
 
+function AiIntentCard({
+  intent,
+  groupName,
+  summary,
+  transactions,
+  editMode,
+  saving,
+  onEdit,
+  onCancelEdit,
+  onChange,
+  onSave,
+}: {
+  intent: BotAiIntent;
+  groupName: string;
+  summary: { income: number; expense: number; balance: number };
+  transactions: Transaction[];
+  editMode: boolean;
+  saving: boolean;
+  onEdit: () => void;
+  onCancelEdit: () => void;
+  onChange: (patch: Partial<BotAiIntent>) => void;
+  onSave: () => void;
+}) {
+  if (intent.action === "query") {
+    const result = getAiQueryResult(intent, summary, transactions);
+    return (
+      <div className="rounded-[16px] border border-[var(--line)] bg-[var(--panel)] p-4">
+        <p className="text-sm font-semibold text-emerald-300">Saya memahami ini sebagai:</p>
+        <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+          {formatAiAction(intent.action)}
+        </p>
+        <p className="mt-1 font-mono text-2xl font-semibold tabular-nums">{result.value}</p>
+        <p className="mt-2 text-sm text-[var(--muted)]">{result.description}</p>
+        <div className="mt-4 border-t border-[var(--line)] pt-3">
+          <AiDetailRow label="Grup" value={groupName} />
+          <AiDetailRow label="Tanggal" value="Hari ini" />
+        </div>
+      </div>
+    );
+  }
+
+  const transaction = intent.action === "transaction";
+  const tone = intent.type === "income" ? "income" : "expense";
+  const primaryLabel = formatAiPrimaryValue(intent);
+  const description = formatAiDescription(intent);
+  const needsClarification = transaction && Number(intent.confidence ?? 1) < 0.65;
+
+  return (
+    <div
+      className={cn(
+        "rounded-[16px] border bg-[var(--panel)] p-4",
+        transaction && tone === "income"
+          ? "border-emerald-300/22"
+          : transaction
+            ? "border-rose-300/22"
+            : "border-[var(--line)]",
+      )}
+    >
+      <p className="text-sm font-semibold text-[var(--foreground)]">Saya memahami ini sebagai:</p>
+
+      {editMode ? (
+        <div className="mt-4 space-y-3">
+          {transaction ? (
+            <Tabs value={intent.type} onValueChange={(value) => onChange({ type: value as "income" | "expense" })}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="income">Pemasukan</TabsTrigger>
+                <TabsTrigger value="expense">Pengeluaran</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          ) : null}
+          {transaction ? (
+            <label className="block text-sm font-medium">
+              Nominal
+              <Input
+                className="mt-2 font-mono tabular-nums"
+                type="number"
+                min="0"
+                inputMode="numeric"
+                value={intent.amount || ""}
+                onChange={(event) => onChange({ amount: Number(event.target.value) })}
+              />
+            </label>
+          ) : null}
+          <label className="block text-sm font-medium">
+            Catatan
+            <Textarea
+              className="mt-2"
+              value={
+                intent.action === "todo"
+                  ? intent.todo_text ?? intent.note
+                  : intent.action === "reminder"
+                    ? intent.remind_text ?? intent.note
+                    : intent.action === "command"
+                      ? intent.response ?? intent.note
+                      : intent.note
+              }
+              onChange={(event) => {
+                const value = event.target.value;
+                if (intent.action === "todo") onChange({ todo_text: value, note: value });
+                else if (intent.action === "reminder") onChange({ remind_text: value, note: value });
+                else if (intent.action === "command") onChange({ response: value, note: value });
+                else onChange({ note: value });
+              }}
+            />
+          </label>
+          {intent.action === "reminder" ? (
+            <label className="block text-sm font-medium">
+              Jadwal
+              <Input
+                className="mt-2"
+                value={intent.remind_value ?? ""}
+                onChange={(event) => onChange({ remind_value: event.target.value })}
+                placeholder="besok 08:00"
+              />
+            </label>
+          ) : null}
+          {intent.action === "command" ? (
+            <label className="block text-sm font-medium">
+              Keyword
+              <Input
+                className="mt-2"
+                value={intent.keyword ?? ""}
+                onChange={(event) => onChange({ keyword: event.target.value })}
+                placeholder="qris"
+              />
+            </label>
+          ) : null}
+          <label className="block text-sm font-medium">
+            Tanggal
+            <Input
+              className="mt-2"
+              type="date"
+              value={intent.date ?? new Date().toISOString().slice(0, 10)}
+              onChange={(event) => onChange({ date: event.target.value })}
+            />
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <Button type="button" variant="outline" onClick={onCancelEdit}>
+              Batal
+            </Button>
+            <Button type="button" onClick={onSave} disabled={saving}>
+              {saving ? "Menyimpan..." : "Simpan Perubahan"}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="mt-4">
+            {needsClarification ? (
+              <p className="mb-3 rounded-[12px] border border-amber-300/20 bg-amber-400/8 px-3 py-2 text-sm text-amber-200">
+                {formatRupiah(intent.amount)} untuk {intent.note}, ini {intent.type === "income" ? "pemasukan" : "pengeluaran"}?
+              </p>
+            ) : null}
+            <p
+              className={cn(
+                "text-xs font-semibold uppercase tracking-wide",
+                transaction && tone === "income"
+                  ? "text-emerald-300"
+                  : transaction
+                    ? "text-rose-300"
+                    : "text-[var(--muted)]",
+              )}
+            >
+              {formatAiAction(intent.action)}
+            </p>
+            <p className="mt-1 break-words font-mono text-2xl font-semibold tabular-nums">
+              {primaryLabel}
+            </p>
+            <p className="mt-2 break-words text-sm text-[var(--muted)]">{description}</p>
+          </div>
+          <div className="mt-4 border-t border-[var(--line)] pt-3">
+            <AiDetailRow label="Grup" value={groupName} />
+            <AiDetailRow label="Tanggal" value={intent.date ? formatDate(intent.date) : "Hari ini"} />
+          </div>
+          <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <Button type="button" variant="outline" onClick={onEdit}>
+              <Pencil className="h-4 w-4" />
+              Ubah
+            </Button>
+            <Button type="button" onClick={onSave} disabled={saving}>
+              <Check className="h-4 w-4" />
+              {saving ? "Menyimpan..." : `Simpan ${getAiSaveLabel(intent)}`}
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function AiSuccessCard({ intent }: { intent: BotAiIntent }) {
+  return (
+    <div className="rounded-[16px] border border-emerald-300/24 bg-emerald-400/8 p-4">
+      <p className="flex items-center gap-2 text-sm font-semibold text-emerald-300">
+        <Check className="h-4 w-4" />
+        Berhasil dicatat
+      </p>
+      <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+        {formatAiAction(intent.action)}
+      </p>
+      <p className="mt-1 break-words font-mono text-xl font-semibold tabular-nums">
+        {formatAiPrimaryValue(intent)}
+      </p>
+      <p className="mt-1 text-sm text-[var(--muted)]">{formatAiDescription(intent)}</p>
+      <Link
+        href={intent.action === "transaction" ? "/dashboard/transactions" : "/dashboard"}
+        className="mt-4 inline-flex min-h-10 items-center justify-center rounded-[11px] border border-[var(--line)] px-3 text-sm font-semibold text-[var(--foreground)] transition hover:bg-[var(--panel)]"
+      >
+        {intent.action === "transaction" ? "Lihat Transaksi" : "Kembali ke Dashboard"}
+      </Link>
+    </div>
+  );
+}
+
+function AiDetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-3 py-1.5 text-sm">
+      <span className="text-[var(--muted)]">{label}</span>
+      <span className="max-w-[65%] break-words text-right font-medium">{value}</span>
+    </div>
+  );
+}
+
+function getAiQueryResult(
+  intent: BotAiIntent,
+  summary: { income: number; expense: number; balance: number },
+  transactions: Transaction[],
+) {
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+  const monthTransactions = transactions.filter((item) => {
+    const date = new Date(item.created_at);
+    return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+  });
+  const monthIncome = monthTransactions
+    .filter((item) => item.type === "income")
+    .reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const monthExpense = monthTransactions
+    .filter((item) => item.type === "expense")
+    .reduce((sum, item) => sum + Number(item.amount || 0), 0);
+
+  if (intent.query_type === "balance") {
+    return {
+      value: formatRupiah(summary.balance),
+      description: `Saldo dari ${transactions.length} transaksi aktif.`,
+    };
+  }
+  if (intent.query_type === "income") {
+    return {
+      value: formatRupiah(monthIncome),
+      description: "Total pemasukan bulan ini.",
+    };
+  }
+  if (intent.query_type === "expense") {
+    return {
+      value: formatRupiah(monthExpense),
+      description: "Total pengeluaran bulan ini.",
+    };
+  }
+
+  return {
+    value: formatRupiah(monthIncome - monthExpense),
+    description: `Bulan ini: pemasukan ${formatRupiah(monthIncome)}, pengeluaran ${formatRupiah(monthExpense)}.`,
+  };
+}
+
+function getAiSaveLabel(intent: BotAiIntent) {
+  if (intent.action === "transaction") return intent.type === "income" ? "Pemasukan" : "Pengeluaran";
+  if (intent.action === "reminder") return "Reminder";
+  if (intent.action === "todo") return "Todo";
+  return "Command";
+}
+
 function formatAiAction(action: BotAiIntent["action"]) {
   const labels: Record<BotAiIntent["action"], string> = {
     transaction: "Transaksi",
+    query: "Cek Keuangan",
     reminder: "Reminder",
     todo: "Todo",
     command: "Command",
@@ -2295,6 +2709,16 @@ function formatAiAction(action: BotAiIntent["action"]) {
 }
 
 function formatAiPrimaryValue(intent: BotAiIntent) {
+  if (intent.action === "query") {
+    const labels = {
+      balance: "Saldo sekarang",
+      income: "Pemasukan bulan ini",
+      expense: "Pengeluaran bulan ini",
+      summary: "Ringkasan keuangan",
+      search: "Cari transaksi",
+    } satisfies Record<NonNullable<BotAiIntent["query_type"]>, string>;
+    return labels[intent.query_type ?? "summary"];
+  }
   if (intent.action === "transaction") {
     return `${intent.type === "income" ? "Pemasukan" : "Pengeluaran"} ${formatRupiah(intent.amount)}`;
   }
@@ -2308,6 +2732,7 @@ function formatAiPrimaryValue(intent: BotAiIntent) {
 }
 
 function formatAiDescription(intent: BotAiIntent) {
+  if (intent.action === "query") return intent.note;
   if (intent.action === "reminder") return intent.remind_text ?? intent.note;
   if (intent.action === "todo") return intent.todo_text ?? intent.note;
   if (intent.action === "command") return intent.response ?? intent.note;
@@ -2923,15 +3348,21 @@ function TransactionSheet({
   botApiUrl = "",
   onSaved,
   compact = false,
+  initialType = "income",
+  label,
+  triggerClassName,
 }: {
   groupId: string;
   sessionToken?: string;
   botApiUrl?: string;
   onSaved: () => void;
   compact?: boolean;
+  initialType?: "income" | "expense";
+  label?: string;
+  triggerClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [type, setType] = useState<"income" | "expense">("income");
+  const [type, setType] = useState<"income" | "expense">(initialType);
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -2988,11 +3419,18 @@ function TransactionSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
+    <Sheet open={open} onOpenChange={(isOpen) => {
+      setOpen(isOpen);
+      if (isOpen) setType(initialType);
+    }}>
       <SheetTrigger asChild>
-        <Button size={compact ? "icon" : "default"} className={compact ? "h-12 w-12 rounded-full shadow-lg" : ""}>
+        <Button
+          size={compact ? "icon" : "default"}
+          variant={triggerClassName ? "outline" : "default"}
+          className={cn(compact ? "h-12 w-12 rounded-full shadow-lg" : "", triggerClassName)}
+        >
           <Plus className="h-4 w-4" />
-          {compact ? null : <span className="hidden sm:inline">Catat Transaksi</span>}
+          {compact ? null : <span className={label ? "" : "hidden sm:inline"}>{label ?? "Catat Transaksi"}</span>}
         </Button>
       </SheetTrigger>
       <SheetContent>

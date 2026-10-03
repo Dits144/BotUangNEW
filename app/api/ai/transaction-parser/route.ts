@@ -7,8 +7,9 @@ type GeminiResponse = {
 };
 
 type ParsedIntent = {
-  action?: "transaction" | "reminder" | "todo" | "command";
+  action?: "transaction" | "query" | "reminder" | "todo" | "command";
   type?: "income" | "expense";
+  query_type?: "balance" | "income" | "expense" | "summary" | "search";
   amount?: number;
   note?: string;
   date?: string;
@@ -48,6 +49,46 @@ function parseMoney(value: string) {
 
 function parseLocalIntent(text: string, today: string) {
   const lower = text.toLowerCase();
+
+  if (/\b(saldo|kas sekarang|uang kas)\b/.test(lower)) {
+    return validateIntent({
+      action: "query",
+      query_type: "balance",
+      note: text,
+      date: today,
+      confidence: 0.75,
+    });
+  }
+
+  if (/\b(rekap|ringkasan|summary|laporan)\b/.test(lower)) {
+    return validateIntent({
+      action: "query",
+      query_type: "summary",
+      note: text,
+      date: today,
+      confidence: 0.7,
+    });
+  }
+
+  if (/\b(pengeluaran|keluar|expense)\b/.test(lower) && /\b(berapa|total|bulan ini|minggu ini|hari ini)\b/.test(lower)) {
+    return validateIntent({
+      action: "query",
+      query_type: "expense",
+      note: text,
+      date: today,
+      confidence: 0.7,
+    });
+  }
+
+  if (/\b(pemasukan|masuk|income)\b/.test(lower) && /\b(berapa|total|bulan ini|minggu ini|hari ini)\b/.test(lower)) {
+    return validateIntent({
+      action: "query",
+      query_type: "income",
+      note: text,
+      date: today,
+      confidence: 0.7,
+    });
+  }
 
   if (/^(todo\+|todo|tugas|task)\b/.test(lower) || /\b(todo|tugas|task)\b/.test(lower)) {
     const todoText = text
@@ -106,11 +147,11 @@ function parseLocalIntent(text: string, today: string) {
   if (amount > 0) {
     const isIncome =
       text.trim().startsWith("+") ||
-      (/\b(pemasukan|masuk|income|donasi|iuran|kas masuk|terima|plus)\b/.test(lower) &&
+      (/\b(pemasukan|masuk|masukin|income|donasi|iuran|kas masuk|terima|plus)\b/.test(lower) &&
         !/\b(pengeluaran|keluar|expense|beli|bayar|minus|-)\b/.test(lower));
     const note = text
       .replace(/[-+]?\s*\d+(?:[.,]\d+)?\s*(jt|juta|rb|ribu|k)?/i, "")
-      .replace(/\b(pemasukan|pengeluaran|income|expense|masuk|keluar|beli|bayar|catat|tambahkan|tambah|plus|minus)\b/gi, "")
+      .replace(/\b(pemasukan|pengeluaran|income|expense|masuk|masukin|keluar|beli|bayar|catat|tambahkan|tambah|buat|plus|minus)\b/gi, "")
       .trim();
     return validateIntent({
       action: "transaction",
@@ -132,8 +173,24 @@ function extractJson(text: string) {
 
 function validateIntent(value: ParsedIntent) {
   const action = value.action ?? "transaction";
-  if (!["transaction", "reminder", "todo", "command"].includes(action)) {
+  if (!["transaction", "query", "reminder", "todo", "command"].includes(action)) {
     return null;
+  }
+
+  if (action === "query") {
+    const queryType = value.query_type ?? "summary";
+    if (!["balance", "income", "expense", "summary", "search"].includes(queryType)) {
+      return null;
+    }
+    return {
+      action,
+      type: "expense" as const,
+      query_type: queryType,
+      amount: 0,
+      note: String(value.note ?? "").slice(0, 180) || "Cek keuangan",
+      date: value.date,
+      confidence: Number(value.confidence ?? 0.7),
+    };
   }
 
   if (action === "reminder") {
@@ -263,14 +320,16 @@ export async function POST(request: Request) {
 
   const prompt = [
     "Ubah perintah natural BotUang bahasa Indonesia menjadi JSON valid saja.",
-    "Pilih action: transaction, reminder, todo, atau command.",
-    "Schema umum: {\"action\":\"transaction|reminder|todo|command\",\"type\":\"income|expense\",\"amount\":number,\"note\":\"string\",\"date\":\"YYYY-MM-DD\",\"remind_type\":\"time|date|datetime|daily|weekly\",\"remind_value\":\"string\",\"remind_text\":\"string\",\"todo_text\":\"string\",\"keyword\":\"string\",\"response\":\"string\",\"confidence\":number}",
+    "Pilih action: transaction, query, reminder, todo, atau command.",
+    "Schema umum: {\"action\":\"transaction|query|reminder|todo|command\",\"type\":\"income|expense\",\"query_type\":\"balance|income|expense|summary|search\",\"amount\":number,\"note\":\"string\",\"date\":\"YYYY-MM-DD\",\"remind_type\":\"time|date|datetime|daily|weekly\",\"remind_value\":\"string\",\"remind_text\":\"string\",\"todo_text\":\"string\",\"keyword\":\"string\",\"response\":\"string\",\"confidence\":number}",
     "Aturan nominal: k/rb/ribu = x1000, jt/juta = x1000000.",
     "Jika kata mengarah keluar uang seperti pengeluaran, beli, bayar, konsumsi, minus, gunakan expense.",
     "Jika kata mengarah uang masuk seperti pemasukan, iuran, donasi, masuk, plus, gunakan income.",
+    "Jika user menulis masukin/masukin uang, gunakan income kecuali ada kata beli/bayar/keluar.",
     "Jika user minta ingatkan/reminder/jadwal, gunakan action reminder dan isi remind_value.",
     "Jika user minta tambah tugas/todo, gunakan action todo.",
     "Jika user minta buat command/keyword/respon otomatis, gunakan action command.",
+    "Jika user bertanya saldo, pemasukan, pengeluaran, rekap, atau cari transaksi, gunakan action query dan query_type yang sesuai.",
     `Tanggal hari ini: ${today}.`,
     `Teks: ${text}`,
   ].join("\n");
