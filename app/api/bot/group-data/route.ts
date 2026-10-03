@@ -14,13 +14,14 @@ function getRequestContext(request: Request) {
   const url = new URL(request.url);
   const groupId = url.searchParams.get("group_id") ?? "";
   const resource = url.searchParams.get("resource") ?? "";
+  const id = url.searchParams.get("id") ?? "";
   const headerToken =
     request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
   const queryApiUrl = url.searchParams.get("api_url") ?? "";
   const apiUrls = getServerBotApiUrls(queryApiUrl || BOT_API_URL);
   const token = getServerBotToken(headerToken);
 
-  return { apiUrls, groupId, resource, token };
+  return { apiUrls, groupId, resource, id, token };
 }
 
 function validateContext({
@@ -46,7 +47,7 @@ function validateContext({
 
 async function forwardGroupRequest(
   request: Request,
-  method: "GET" | "POST" | "DELETE",
+  method: "GET" | "POST" | "PUT" | "DELETE",
 ) {
   const context = getRequestContext(request);
   const invalidMessage = validateContext(context);
@@ -55,12 +56,12 @@ async function forwardGroupRequest(
     return Response.json({ ok: false, message: invalidMessage }, { status: 200 });
   }
 
-  const body = method === "GET" ? undefined : await request.text();
+  const body = method === "GET" || method === "DELETE" ? undefined : await request.text();
   try {
     for (const apiUrl of context.apiUrls) {
       const endpoint = `${apiUrl}/api/groups/${encodeURIComponent(
         context.groupId,
-      )}/${context.resource}`;
+      )}/${context.resource}${context.id ? `/${encodeURIComponent(context.id)}` : ""}`;
       try {
         const response = await fetch(endpoint, {
           method,
@@ -105,4 +106,12 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   return forwardGroupRequest(request, "POST");
+}
+
+export async function PUT(request: Request) {
+  return forwardGroupRequest(request, "PUT");
+}
+
+export async function DELETE(request: Request) {
+  return forwardGroupRequest(request, "DELETE");
 }

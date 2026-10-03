@@ -23,6 +23,7 @@ import {
   Menu,
   Moon,
   MoreHorizontal,
+  Pencil,
   Plus,
   QrCode,
   Search,
@@ -31,6 +32,7 @@ import {
   Siren,
   Sparkles,
   Sun,
+  Trash2,
   UserPlus,
   Users,
   WalletCards,
@@ -399,22 +401,31 @@ function parseReminderSchedule(schedule?: string) {
   };
 }
 
+function resolveDataList<T>(botItems: T[] | null, supabaseItems: T[]): T[] {
+  if (botItems && botItems.length > 0) return botItems;
+  if (supabaseItems && supabaseItems.length > 0) return supabaseItems;
+  return botItems ?? supabaseItems ?? [];
+}
+
 async function fetchBotGroupData({
   resource,
   groupId,
   apiUrl,
   token,
   method = "GET",
+  id,
   body,
 }: {
   resource: string;
   groupId: string;
   apiUrl: string;
   token: string;
-  method?: "GET" | "POST";
+  method?: "GET" | "POST" | "PUT" | "DELETE";
+  id?: string | number;
   body?: Record<string, unknown>;
 }): Promise<BotGroupDataResponse> {
-  const query = `resource=${encodeURIComponent(resource)}&group_id=${encodeURIComponent(groupId)}&api_url=${encodeURIComponent(apiUrl)}`;
+  const idQuery = id ? `&id=${encodeURIComponent(String(id))}` : "";
+  const query = `resource=${encodeURIComponent(resource)}&group_id=${encodeURIComponent(groupId)}&api_url=${encodeURIComponent(apiUrl)}${idQuery}`;
   const requestInit: RequestInit = {
     method,
     headers: {
@@ -439,8 +450,11 @@ async function fetchBotGroupData({
   }
 
   try {
+    const endpoint = id
+      ? `${trustedApiUrl}/api/groups/${encodeURIComponent(groupId)}/${resource}/${encodeURIComponent(String(id))}`
+      : `${trustedApiUrl}/api/groups/${encodeURIComponent(groupId)}/${resource}`;
     const response = await fetch(
-      `${trustedApiUrl}/api/groups/${encodeURIComponent(groupId)}/${resource}`,
+      endpoint,
       {
         ...requestInit,
         headers: {
@@ -634,16 +648,20 @@ export function DashboardPage() {
       : null;
 
     setTransactions(
-      botTransactions ?? ((txResult.data ?? []) as Transaction[]),
+      resolveDataList(botTransactions, (txResult.data ?? []) as Transaction[]),
     );
     setParticipants(
-      botParticipants ?? ((participantResult.data ?? []) as Participant[]),
+      resolveDataList(botParticipants, (participantResult.data ?? []) as Participant[]),
     );
-    setTodos(botTodos ?? ((todoResult.data ?? []) as Todo[]));
+    setTodos(
+      resolveDataList(botTodos, (todoResult.data ?? []) as Todo[]),
+    );
     setReminders(
-      botReminders ?? ((reminderResult.data ?? []) as Reminder[]),
+      resolveDataList(botReminders, (reminderResult.data ?? []) as Reminder[]),
     );
-    setCommands(botCommands ?? ((commandResult.data ?? []) as Command[]));
+    setCommands(
+      resolveDataList(botCommands, (commandResult.data ?? []) as Command[]),
+    );
     setRental((rentalResult.data as Rental | null) ?? null);
     setSettings((settingResult.data as GroupSettings | null) ?? null);
     setBotStatus(botResult as BotStatus);
@@ -1043,7 +1061,12 @@ export function DashboardPage() {
                   {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                 </Button>
                 {groupId && activeSection !== "owner" && activeSection !== "overview" ? (
-                  <TransactionSheet groupId={groupId} onSaved={() => loadData()} />
+                  <TransactionSheet
+                    groupId={groupId}
+                    sessionToken={sessionToken}
+                    botApiUrl={botApiUrl}
+                    onSaved={() => loadData()}
+                  />
                 ) : null}
                 <div className="hidden min-h-11 items-center gap-3 rounded-[12px] border border-[var(--line)] bg-[var(--background)] px-2.5 pr-3 md:flex">
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-emerald-500 text-xs font-bold text-white">
@@ -1091,6 +1114,8 @@ export function DashboardPage() {
               {activeSection === "overview" ? (
                 <Overview
                   groupId={groupId}
+                  sessionToken={sessionToken}
+                  botApiUrl={botApiUrl}
                   loading={loading}
                   summary={summary}
                   monthlyChart={monthlyChart}
@@ -1112,6 +1137,8 @@ export function DashboardPage() {
                 <ParticipantsPage
                   loading={loading}
                   groupId={groupId}
+                  sessionToken={sessionToken}
+                  botApiUrl={botApiUrl}
                   participants={participants}
                   onChanged={() => loadData()}
                 />
@@ -1120,6 +1147,8 @@ export function DashboardPage() {
                 <TodosPage
                   loading={loading}
                   groupId={groupId}
+                  sessionToken={sessionToken}
+                  botApiUrl={botApiUrl}
                   todos={todos}
                   onChanged={() => loadData()}
                 />
@@ -1138,6 +1167,8 @@ export function DashboardPage() {
                 <CommandsPage
                   loading={loading}
                   groupId={groupId}
+                  sessionToken={sessionToken}
+                  botApiUrl={botApiUrl}
                   commands={commands}
                   onChanged={() => loadData()}
                 />
@@ -1156,7 +1187,12 @@ export function DashboardPage() {
             </motion.div>
           </AnimatePresence>
           {groupId && activeSection !== "owner" ? (
-            <AiCommandBar groupId={groupId} onSaved={() => loadData()} />
+            <AiCommandBar
+              groupId={groupId}
+              sessionToken={sessionToken}
+              botApiUrl={botApiUrl}
+              onSaved={() => loadData()}
+            />
           ) : null}
         </div>
       </div>
@@ -1165,6 +1201,8 @@ export function DashboardPage() {
         section={activeSection}
         role={role}
         groupId={groupId}
+        sessionToken={sessionToken}
+        botApiUrl={botApiUrl}
         onSaved={() => loadData()}
         onNavigate={() => setMenuOpen(false)}
       />
@@ -1322,12 +1360,16 @@ function MobileNav({
   section,
   role,
   groupId,
+  sessionToken = "",
+  botApiUrl = "",
   onSaved,
   onNavigate,
 }: {
   section: DashboardSection;
   role: "admin" | "owner";
   groupId: string;
+  sessionToken?: string;
+  botApiUrl?: string;
   onSaved: () => void;
   onNavigate?: () => void;
 }) {
@@ -1366,7 +1408,13 @@ function MobileNav({
         })}
         <div className="flex justify-center">
           {groupId ? (
-            <TransactionSheet groupId={groupId} onSaved={onSaved} compact />
+            <TransactionSheet
+              groupId={groupId}
+              sessionToken={sessionToken}
+              botApiUrl={botApiUrl}
+              onSaved={onSaved}
+              compact
+            />
           ) : (
             <Button size="icon" disabled className="h-[60px] w-[60px] rounded-[20px]">
               <Plus className="h-5 w-5" />
@@ -1405,6 +1453,8 @@ function MobileNav({
 
 function Overview({
   groupId,
+  sessionToken = "",
+  botApiUrl = "",
   loading,
   summary,
   monthlyChart,
@@ -1422,6 +1472,8 @@ function Overview({
   onSaved,
 }: {
   groupId: string;
+  sessionToken?: string;
+  botApiUrl?: string;
   loading: boolean;
   summary: { income: number; expense: number; balance: number };
   monthlyChart: ChartPoint[];
@@ -1454,7 +1506,14 @@ function Overview({
             Ringkasan keuangan GEN-CB
           </p>
         </div>
-        {groupId ? <TransactionSheet groupId={groupId} onSaved={onSaved} /> : null}
+        {groupId ? (
+          <TransactionSheet
+            groupId={groupId}
+            sessionToken={sessionToken}
+            botApiUrl={botApiUrl}
+            onSaved={onSaved}
+          />
+        ) : null}
       </div>
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -1587,11 +1646,23 @@ function Overview({
             <Input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} />
             <Input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} />
           </div>
-          <TransactionsView loading={loading} transactions={recentTransactions} />
+          <TransactionsView
+            groupId={groupId}
+            sessionToken={sessionToken}
+            botApiUrl={botApiUrl}
+            loading={loading}
+            transactions={recentTransactions}
+            onSaved={onSaved}
+          />
         </DashboardPanel>
 
         <div className="grid gap-4">
-          <OverviewAiPanel groupId={groupId} onSaved={onSaved} />
+          <OverviewAiPanel
+            groupId={groupId}
+            sessionToken={sessionToken}
+            botApiUrl={botApiUrl}
+            onSaved={onSaved}
+          />
           <UpcomingPanel todos={openTodos} reminders={nextReminders} />
         </div>
       </section>
@@ -1655,9 +1726,13 @@ function CountMetricCard({
 
 function OverviewAiPanel({
   groupId,
+  sessionToken = "",
+  botApiUrl = "",
   onSaved,
 }: {
   groupId: string;
+  sessionToken?: string;
+  botApiUrl?: string;
   onSaved: () => void;
 }) {
   if (!groupId) return null;
@@ -1679,6 +1754,8 @@ function OverviewAiPanel({
             <AiAssistantSheet
               key={item}
               groupId={groupId}
+              sessionToken={sessionToken}
+              botApiUrl={botApiUrl}
               onSaved={onSaved}
               trigger={
                 <button
@@ -1694,6 +1771,8 @@ function OverviewAiPanel({
       </div>
       <AiAssistantSheet
         groupId={groupId}
+        sessionToken={sessionToken}
+        botApiUrl={botApiUrl}
         onSaved={onSaved}
         trigger={
           <button
@@ -1836,10 +1915,14 @@ function AiCommandBar({
 
 function AiAssistantSheet({
   groupId,
+  sessionToken = "",
+  botApiUrl = "",
   onSaved,
   trigger,
 }: {
   groupId: string;
+  sessionToken?: string;
+  botApiUrl?: string;
   onSaved: () => void;
   trigger: ReactNode;
 }) {
@@ -1876,6 +1959,67 @@ function AiAssistantSheet({
   async function saveIntent() {
     if (!intent) return;
     setSaving(true);
+    let botOk = false;
+
+    if (botApiUrl) {
+      if (intent.action === "transaction") {
+        const res = await fetchBotGroupData({
+          resource: "transactions",
+          groupId,
+          apiUrl: botApiUrl,
+          token: sessionToken,
+          method: "POST",
+          body: {
+            type: intent.type,
+            amount: intent.amount,
+            note: intent.note,
+            sender_name: "AI Dashboard",
+          },
+        });
+        botOk = Boolean(res.ok);
+      } else if (intent.action === "reminder") {
+        const res = await fetchBotGroupData({
+          resource: "reminders",
+          groupId,
+          apiUrl: botApiUrl,
+          token: sessionToken,
+          method: "POST",
+          body: {
+            remind_type: intent.remind_type ?? "time",
+            remind_value: intent.remind_value ?? "",
+            remind_text: intent.remind_text ?? intent.note,
+          },
+        });
+        botOk = Boolean(res.ok);
+      } else if (intent.action === "todo") {
+        const res = await fetchBotGroupData({
+          resource: "todos",
+          groupId,
+          apiUrl: botApiUrl,
+          token: sessionToken,
+          method: "POST",
+          body: {
+            title: intent.todo_text ?? intent.note,
+            done: false,
+          },
+        });
+        botOk = Boolean(res.ok);
+      } else if (intent.action === "command") {
+        const res = await fetchBotGroupData({
+          resource: "commands",
+          groupId,
+          apiUrl: botApiUrl,
+          token: sessionToken,
+          method: "POST",
+          body: {
+            keyword: intent.keyword ?? "",
+            response: intent.response ?? intent.note,
+          },
+        });
+        botOk = Boolean(res.ok);
+      }
+    }
+
     const { error } =
       intent.action === "transaction"
         ? await supabase.from("transactions").insert({
@@ -1908,7 +2052,7 @@ function AiAssistantSheet({
               });
     setSaving(false);
 
-    if (error) {
+    if (error && !botOk) {
       toast.error(error.message);
       return;
     }
@@ -2189,12 +2333,100 @@ function MetricCard({
 }
 
 function TransactionsView({
+  groupId = "",
+  sessionToken = "",
+  botApiUrl = "",
   loading,
   transactions,
+  onSaved,
 }: {
+  groupId?: string;
+  sessionToken?: string;
+  botApiUrl?: string;
   loading: boolean;
   transactions: Transaction[];
+  onSaved?: () => void;
 }) {
+  const [editTx, setEditTx] = useState<Transaction | null>(null);
+  const [editType, setEditType] = useState<"income" | "expense">("income");
+  const [editAmount, setEditAmount] = useState("");
+  const [editNote, setEditNote] = useState("");
+  const [editDate, setEditDate] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  function openEdit(item: Transaction) {
+    setEditType(item.type);
+    setEditAmount(String(item.amount));
+    setEditNote(item.note ?? "");
+    setEditDate(item.created_at.slice(0, 10));
+    setEditTx(item);
+  }
+
+  async function saveEdit(event: FormEvent) {
+    event.preventDefault();
+    if (!editTx) return;
+    setSaving(true);
+    let botOk = false;
+    const targetGroupId = editTx.group_id || groupId;
+
+    if (botApiUrl && targetGroupId) {
+      const botRes = await fetchBotGroupData({
+        resource: "transactions",
+        id: editTx.id,
+        groupId: targetGroupId,
+        apiUrl: botApiUrl,
+        token: sessionToken,
+        method: "PUT",
+        body: {
+          type: editType,
+          amount: Number(editAmount),
+          note: editNote,
+        },
+      });
+      botOk = Boolean(botRes.ok);
+    }
+
+    const { error } = await supabase
+      .from("transactions")
+      .update({
+        type: editType,
+        amount: Number(editAmount),
+        note: editNote,
+        created_at: new Date(`${editDate}T12:00:00`).toISOString(),
+        edited_at: new Date().toISOString(),
+      })
+      .eq("id", editTx.id);
+    setSaving(false);
+    if (error && !botOk) { toast.error(error.message); return; }
+    toast.success("Transaksi diperbarui.");
+    setEditTx(null);
+    onSaved?.();
+  }
+
+  async function remove(item: Transaction) {
+    let botOk = false;
+    const targetGroupId = item.group_id || groupId;
+
+    if (botApiUrl && targetGroupId) {
+      const botRes = await fetchBotGroupData({
+        resource: "transactions",
+        id: item.id,
+        groupId: targetGroupId,
+        apiUrl: botApiUrl,
+        token: sessionToken,
+        method: "DELETE",
+      });
+      botOk = Boolean(botRes.ok);
+    }
+
+    const { error } = await supabase
+      .from("transactions")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", item.id);
+    if (error && !botOk) toast.error(error.message);
+    else { toast.success("Transaksi dihapus."); onSaved?.(); }
+  }
+
   if (loading) {
     return (
       <div className="mt-5 space-y-3">
@@ -2216,6 +2448,33 @@ function TransactionsView({
 
   return (
     <>
+      <Sheet open={Boolean(editTx)} onOpenChange={(isOpen) => { if (!isOpen) setEditTx(null); }}>
+        <SheetContent>
+          <SheetTitle>Edit Transaksi</SheetTitle>
+          <form onSubmit={saveEdit} className="mt-5 space-y-4">
+            <Tabs value={editType} onValueChange={(value) => setEditType(value as "income" | "expense")}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="income">Pemasukan</TabsTrigger>
+                <TabsTrigger value="expense">Pengeluaran</TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <label className="block text-sm font-medium">
+              Nominal
+              <Input className="mt-2 font-mono tabular-nums" value={editAmount} onChange={(event) => setEditAmount(event.target.value)} inputMode="numeric" type="number" min="0" placeholder="Rp" required />
+            </label>
+            <label className="block text-sm font-medium">
+              Catatan
+              <Textarea className="mt-2" value={editNote} onChange={(event) => setEditNote(event.target.value)} placeholder="Catatan transaksi" required />
+            </label>
+            <label className="block text-sm font-medium">
+              Tanggal
+              <Input className="mt-2" type="date" value={editDate} onChange={(event) => setEditDate(event.target.value)} />
+            </label>
+            <Button className="w-full" disabled={saving}>{saving ? "Menyimpan..." : "Simpan Perubahan"}</Button>
+          </form>
+        </SheetContent>
+      </Sheet>
+
       <div className="mt-5 hidden overflow-hidden rounded-2xl border border-[var(--line)] md:block">
         <table className="w-full text-left text-sm">
           <thead className="bg-[var(--panel)] text-xs uppercase text-[var(--muted)]">
@@ -2225,6 +2484,7 @@ function TransactionsView({
               <th className="px-4 py-3">Pengirim</th>
               <th className="px-4 py-3">Jenis</th>
               <th className="px-4 py-3 text-right">Nominal</th>
+              <th className="px-4 py-3"></th>
             </tr>
           </thead>
           <tbody>
@@ -2238,14 +2498,18 @@ function TransactionsView({
                     {item.type === "income" ? "Pemasukan" : "Pengeluaran"}
                   </Badge>
                 </td>
-                <td
-                  className={cn(
-                    "px-4 py-3 text-right font-mono font-semibold tabular-nums",
-                    item.type === "income" ? "text-emerald-500" : "text-rose-500",
-                  )}
-                >
-                  {item.type === "income" ? "+" : "-"}
-                  {formatRupiah(item.amount)}
+                <td className={cn("px-4 py-3 text-right font-mono font-semibold tabular-nums", item.type === "income" ? "text-emerald-500" : "text-rose-500")}>
+                  {item.type === "income" ? "+" : "-"}{formatRupiah(item.amount)}
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center justify-end gap-1">
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)} aria-label="Edit transaksi">
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-500 hover:bg-rose-500/10 hover:text-rose-500" onClick={() => remove(item)} aria-label="Hapus transaksi">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -2255,28 +2519,27 @@ function TransactionsView({
 
       <div className="mt-5 grid gap-2 md:hidden">
         {transactions.map((item) => (
-          <button
-            key={item.id}
-            className="min-h-16 rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-3 text-left active:scale-[0.99]"
-          >
+          <div key={item.id} className="min-h-16 rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-3">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate font-semibold">{item.note || "Transaksi"}</p>
                 <p className="mt-1 truncate text-xs text-[var(--muted)]">
-                  {formatDate(item.created_at)} - {item.sender_name || "WhatsApp"}
+                  {formatDate(item.created_at)} · {item.sender_name || "WhatsApp"}
                 </p>
               </div>
-              <p
-                className={cn(
-                  "shrink-0 font-mono text-sm font-semibold tabular-nums",
-                  item.type === "income" ? "text-emerald-500" : "text-rose-500",
-                )}
-              >
-                {item.type === "income" ? "+" : "-"}
-                {formatRupiah(item.amount)}
+              <p className={cn("shrink-0 font-mono text-sm font-semibold tabular-nums", item.type === "income" ? "text-emerald-500" : "text-rose-500")}>
+                {item.type === "income" ? "+" : "-"}{formatRupiah(item.amount)}
               </p>
             </div>
-          </button>
+            <div className="mt-2 flex justify-end gap-1">
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)} aria-label="Edit transaksi">
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-500 hover:bg-rose-500/10 hover:text-rose-500" onClick={() => remove(item)} aria-label="Hapus transaksi">
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
         ))}
       </div>
     </>
@@ -2423,10 +2686,14 @@ function calculateMoneyExpression(expression: string) {
 
 function TransactionSheet({
   groupId,
+  sessionToken = "",
+  botApiUrl = "",
   onSaved,
   compact = false,
 }: {
   groupId: string;
+  sessionToken?: string;
+  botApiUrl?: string;
   onSaved: () => void;
   compact?: boolean;
 }) {
@@ -2441,6 +2708,25 @@ function TransactionSheet({
     event.preventDefault();
     if (!groupId || Number(amount) <= 0) return;
     setSaving(true);
+    let botOk = false;
+
+    if (botApiUrl) {
+      const botRes = await fetchBotGroupData({
+        resource: "transactions",
+        groupId,
+        apiUrl: botApiUrl,
+        token: sessionToken,
+        method: "POST",
+        body: {
+          type,
+          amount: Number(amount),
+          note,
+          sender_name: "Dashboard",
+        },
+      });
+      botOk = Boolean(botRes.ok);
+    }
+
     const { error } = await supabase.from("transactions").insert({
       group_id: groupId,
       type,
@@ -2450,7 +2736,7 @@ function TransactionSheet({
       created_at: new Date(`${date}T12:00:00`).toISOString(),
     });
     setSaving(false);
-    if (error) {
+    if (error && !botOk) {
       toast.error(error.message);
       return;
     }
@@ -2522,11 +2808,15 @@ function TransactionSheet({
 function ParticipantsPage({
   loading,
   groupId,
+  sessionToken = "",
+  botApiUrl = "",
   participants,
   onChanged,
 }: {
   loading: boolean;
   groupId: string;
+  sessionToken?: string;
+  botApiUrl?: string;
   participants: Participant[];
   onChanged: () => void;
 }) {
@@ -2535,6 +2825,10 @@ function ParticipantsPage({
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | "paid" | "unpaid">("all");
   const [open, setOpen] = useState(false);
+  const [editParticipant, setEditParticipant] = useState<Participant | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editDues, setEditDues] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const summary = useMemo(() => {
     const paid = participants.filter((participant) => participant.data?.status === "paid");
@@ -2563,12 +2857,25 @@ function ParticipantsPage({
 
   async function add(event: FormEvent) {
     event.preventDefault();
+    let botOk = false;
+    if (botApiUrl) {
+      const res = await fetchBotGroupData({
+        resource: "participants",
+        groupId,
+        apiUrl: botApiUrl,
+        token: sessionToken,
+        method: "POST",
+        body: { name, phone: "", note: String(dues || 0) },
+      });
+      botOk = Boolean(res.ok);
+    }
+
     const { error } = await supabase.from("participants").insert({
       group_id: groupId,
       name,
       data: { dues_amount: Number(dues || 0), status: "unpaid" },
     });
-    if (error) toast.error(error.message);
+    if (error && !botOk) toast.error(error.message);
     else {
       toast.success("Anggota ditambahkan.");
       setName("");
@@ -2578,7 +2885,58 @@ function ParticipantsPage({
     }
   }
 
+  async function saveEdit(event: FormEvent) {
+    event.preventDefault();
+    if (!editParticipant) return;
+    setSaving(true);
+    let botOk = false;
+    if (botApiUrl) {
+      const res = await fetchBotGroupData({
+        resource: "participants",
+        id: editParticipant.id,
+        groupId,
+        apiUrl: botApiUrl,
+        token: sessionToken,
+        method: "PUT",
+        body: { name: editName, phone: "", note: String(editDues || 0) },
+      });
+      botOk = Boolean(res.ok);
+    }
+
+    const { error } = await supabase
+      .from("participants")
+      .update({
+        name: editName,
+        data: { ...(editParticipant.data ?? {}), dues_amount: Number(editDues || 0) },
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", editParticipant.id);
+    setSaving(false);
+    if (error && !botOk) { toast.error(error.message); return; }
+    toast.success("Anggota diperbarui.");
+    setEditParticipant(null);
+    onChanged();
+  }
+
   async function mark(participant: Participant, status: "paid" | "unpaid") {
+    let botOk = false;
+    if (botApiUrl) {
+      const res = await fetchBotGroupData({
+        resource: "participants",
+        id: participant.id,
+        groupId,
+        apiUrl: botApiUrl,
+        token: sessionToken,
+        method: "PUT",
+        body: {
+          name: participant.name,
+          phone: "",
+          note: JSON.stringify({ ...(participant.data ?? {}), status }),
+        },
+      });
+      botOk = Boolean(res.ok);
+    }
+
     const { error } = await supabase
       .from("participants")
       .update({
@@ -2586,8 +2944,30 @@ function ParticipantsPage({
         updated_at: new Date().toISOString(),
       })
       .eq("id", participant.id);
-    if (error) toast.error(error.message);
+    if (error && !botOk) toast.error(error.message);
     else onChanged();
+  }
+
+  async function remove(participant: Participant) {
+    let botOk = false;
+    if (botApiUrl) {
+      const res = await fetchBotGroupData({
+        resource: "participants",
+        id: participant.id,
+        groupId,
+        apiUrl: botApiUrl,
+        token: sessionToken,
+        method: "DELETE",
+      });
+      botOk = Boolean(res.ok);
+    }
+
+    const { error } = await supabase
+      .from("participants")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", participant.id);
+    if (error && !botOk) toast.error(error.message);
+    else { toast.success("Anggota dihapus."); onChanged(); }
   }
 
   return (
@@ -2614,6 +2994,17 @@ function ParticipantsPage({
           </Sheet>
         }
       />
+
+      <Sheet open={Boolean(editParticipant)} onOpenChange={(isOpen) => { if (!isOpen) setEditParticipant(null); }}>
+        <SheetContent>
+          <SheetTitle>Edit Anggota</SheetTitle>
+          <form onSubmit={saveEdit} className="mt-5 space-y-3">
+            <Input value={editName} onChange={(event) => setEditName(event.target.value)} placeholder="Nama anggota" required />
+            <Input value={editDues} onChange={(event) => setEditDues(event.target.value)} type="number" inputMode="numeric" placeholder="Nominal iuran" />
+            <Button className="w-full" disabled={saving}>{saving ? "Menyimpan..." : "Simpan Perubahan"}</Button>
+          </form>
+        </SheetContent>
+      </Sheet>
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
         <SummaryTile label="Total Anggota" value={String(summary.total)} />
@@ -2660,12 +3051,34 @@ function ParticipantsPage({
                     <p className="truncate font-semibold">{participant.name}</p>
                     <p className="font-mono text-xs text-[var(--muted)] tabular-nums">Iuran {formatRupiah(due)}</p>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
+                  <div className="flex shrink-0 items-center gap-1.5">
                     <Badge tone={status === "paid" ? "income" : "warning"}>
                       {status === "paid" ? "Lunas" : "Belum bayar"}
                     </Badge>
                     <Button variant="outline" size="sm" onClick={() => mark(participant, status === "paid" ? "unpaid" : "paid")}>
                       {status === "paid" ? "Reset" : "Lunas"}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => {
+                        setEditName(participant.name);
+                        setEditDues(String(participant.data?.dues_amount ?? ""));
+                        setEditParticipant(participant);
+                      }}
+                      aria-label="Edit anggota"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-rose-500 hover:bg-rose-500/10 hover:text-rose-500"
+                      onClick={() => remove(participant)}
+                      aria-label="Hapus anggota"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                 </div>
@@ -2683,11 +3096,15 @@ function ParticipantsPage({
 function TodosPage({
   loading,
   groupId,
+  sessionToken = "",
+  botApiUrl = "",
   todos,
   onChanged,
 }: {
   loading: boolean;
   groupId: string;
+  sessionToken?: string;
+  botApiUrl?: string;
   todos: Todo[];
   onChanged: () => void;
 }) {
@@ -2700,8 +3117,25 @@ function TodosPage({
   async function add(event: FormEvent) {
     event.preventDefault();
     const todo_text = priority === "normal" ? text : `[${priority}] ${text}`;
+    let botOk = false;
+
+    if (botApiUrl) {
+      const res = await fetchBotGroupData({
+        resource: "todos",
+        groupId,
+        apiUrl: botApiUrl,
+        token: sessionToken,
+        method: "POST",
+        body: {
+          title: todo_text,
+          done: false,
+        },
+      });
+      botOk = Boolean(res.ok);
+    }
+
     const { error } = await supabase.from("todos").insert({ group_id: groupId, todo_text });
-    if (error) toast.error(error.message);
+    if (error && !botOk) toast.error(error.message);
     else {
       setText("");
       setOpen(false);
@@ -2711,11 +3145,29 @@ function TodosPage({
   }
 
   async function toggle(todo: Todo) {
+    let botOk = false;
+    const targetGroupId = todo.group_id || groupId;
+
+    if (botApiUrl && targetGroupId) {
+      const res = await fetchBotGroupData({
+        resource: "todos",
+        id: todo.id,
+        groupId: targetGroupId,
+        apiUrl: botApiUrl,
+        token: sessionToken,
+        method: "PUT",
+        body: {
+          done: !todo.is_done,
+        },
+      });
+      botOk = Boolean(res.ok);
+    }
+
     const { error } = await supabase
       .from("todos")
       .update({ is_done: !todo.is_done, updated_at: new Date().toISOString() })
       .eq("id", todo.id);
-    if (error) toast.error(error.message);
+    if (error && !botOk) toast.error(error.message);
     else onChanged();
   }
 
@@ -2751,8 +3203,25 @@ function TodosPage({
         <Skeleton className="h-32" />
       ) : todos.length ? (
         <div className="grid gap-5 lg:grid-cols-2">
-          <TodoSection title="Belum Selesai" todos={activeTodos} onToggle={toggle} />
-          <TodoSection title="Selesai" todos={doneTodos} onToggle={toggle} muted />
+          <TodoSection
+            title="Belum Selesai"
+            groupId={groupId}
+            sessionToken={sessionToken}
+            botApiUrl={botApiUrl}
+            todos={activeTodos}
+            onToggle={toggle}
+            onChanged={onChanged}
+          />
+          <TodoSection
+            title="Selesai"
+            groupId={groupId}
+            sessionToken={sessionToken}
+            botApiUrl={botApiUrl}
+            todos={doneTodos}
+            onToggle={toggle}
+            onChanged={onChanged}
+            muted
+          />
         </div>
       ) : (
         <EmptyState title="Todo kosong" description="Tambahkan tugas grup tanpa membuat data palsu." />
@@ -2763,15 +3232,93 @@ function TodosPage({
 
 function TodoSection({
   title,
+  groupId = "",
+  sessionToken = "",
+  botApiUrl = "",
   todos,
   onToggle,
+  onChanged,
   muted,
 }: {
   title: string;
+  groupId?: string;
+  sessionToken?: string;
+  botApiUrl?: string;
   todos: Todo[];
   onToggle: (todo: Todo) => void;
+  onChanged: () => void;
   muted?: boolean;
 }) {
+  const [editTodo, setEditTodo] = useState<Todo | null>(null);
+  const [editText, setEditText] = useState("");
+  const [editPriority, setEditPriority] = useState("normal");
+  const [saving, setSaving] = useState(false);
+
+  function openEdit(todo: Todo) {
+    const parsed = parseTodo(todo.todo_text);
+    setEditText(parsed.text);
+    setEditPriority(parsed.priority);
+    setEditTodo(todo);
+  }
+
+  async function saveEdit(event: FormEvent) {
+    event.preventDefault();
+    if (!editTodo) return;
+    setSaving(true);
+    const todo_text = editPriority === "normal" ? editText : `[${editPriority}] ${editText}`;
+    let botOk = false;
+    const targetGroupId = editTodo.group_id || groupId;
+
+    if (botApiUrl && targetGroupId) {
+      const res = await fetchBotGroupData({
+        resource: "todos",
+        id: editTodo.id,
+        groupId: targetGroupId,
+        apiUrl: botApiUrl,
+        token: sessionToken,
+        method: "PUT",
+        body: {
+          title: todo_text,
+        },
+      });
+      botOk = Boolean(res.ok);
+    }
+
+    const { error } = await supabase
+      .from("todos")
+      .update({ todo_text, updated_at: new Date().toISOString() })
+      .eq("id", editTodo.id);
+    setSaving(false);
+    if (error && !botOk) { toast.error(error.message); return; }
+    toast.success("Todo diperbarui.");
+    setEditTodo(null);
+    onChanged();
+  }
+
+  async function remove(todo: Todo) {
+    let botOk = false;
+    const targetGroupId = todo.group_id || groupId;
+
+    if (botApiUrl && targetGroupId) {
+      const res = await fetchBotGroupData({
+        resource: "todos",
+        id: todo.id,
+        groupId: targetGroupId,
+        apiUrl: botApiUrl,
+        token: sessionToken,
+        method: "DELETE",
+      });
+      botOk = Boolean(res.ok);
+    }
+
+    const { error } = await supabase
+      .from("todos")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", todo.id);
+    if (error && !botOk) toast.error(error.message);
+    else { toast.success("Todo dihapus."); onChanged(); }
+  }
+
   return (
     <section>
       <div className="mb-2 flex items-center justify-between">
@@ -2783,18 +3330,51 @@ function TodoSection({
           todos.map((todo) => {
             const parsed = parseTodo(todo.todo_text);
             return (
-              <motion.button
-                layout
+              <div
                 key={todo.id}
-                onClick={() => onToggle(todo)}
-                className="flex min-h-14 w-full items-center gap-3 border-b border-[var(--line)] p-3 text-left last:border-b-0"
+                className="flex min-h-14 items-center gap-2 border-b border-[var(--line)] p-3 last:border-b-0"
               >
-                <span className={cn("flex h-7 w-7 items-center justify-center rounded-[9px] border", todo.is_done ? "border-emerald-400 bg-emerald-500 text-slate-950" : "border-[var(--line)]")}>
+                <button
+                  type="button"
+                  onClick={() => onToggle(todo)}
+                  className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] border transition active:scale-95", todo.is_done ? "border-emerald-400 bg-emerald-500 text-slate-950" : "border-[var(--line)] hover:border-emerald-300")}
+                  aria-label={todo.is_done ? "Tandai belum selesai" : "Tandai selesai"}
+                >
                   {todo.is_done ? <Check className="h-4 w-4" /> : null}
-                </span>
-                <span className={cn("min-w-0 flex-1 truncate font-medium", muted ? "text-[var(--muted)] line-through" : "")}>{parsed.text}</span>
+                </button>
+                <span className={cn("min-w-0 flex-1 truncate text-sm font-medium", muted ? "text-[var(--muted)] line-through" : "")}>{parsed.text}</span>
                 <Badge tone={parsed.priority === "tinggi" ? "warning" : "muted"}>{parsed.priority}</Badge>
-              </motion.button>
+                <div className="flex shrink-0 gap-1">
+                  <Sheet open={editTodo?.id === todo.id} onOpenChange={(isOpen) => { if (!isOpen) setEditTodo(null); }}>
+                    <SheetTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(todo)} aria-label="Edit todo">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    </SheetTrigger>
+                    <SheetContent>
+                      <SheetTitle>Edit Tugas</SheetTitle>
+                      <form onSubmit={saveEdit} className="mt-5 space-y-3">
+                        <Input value={editText} onChange={(event) => setEditText(event.target.value)} placeholder="Tugas" required />
+                        <select value={editPriority} onChange={(event) => setEditPriority(event.target.value)} className="min-h-11 w-full rounded-[11px] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm">
+                          <option value="normal">Normal</option>
+                          <option value="tinggi">Tinggi</option>
+                          <option value="rendah">Rendah</option>
+                        </select>
+                        <Button className="w-full" disabled={saving}>{saving ? "Menyimpan..." : "Simpan Perubahan"}</Button>
+                      </form>
+                    </SheetContent>
+                  </Sheet>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-rose-500 hover:bg-rose-500/10 hover:text-rose-500"
+                    onClick={() => remove(todo)}
+                    aria-label="Hapus todo"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
             );
           })
         ) : (
@@ -2875,6 +3455,28 @@ function RemindersPage({
     } finally {
       setSaving(false);
     }
+  async function remove(reminder: Reminder) {
+    let botOk = false;
+    const targetGroupId = reminder.group_id || groupId;
+
+    if (botApiUrl && targetGroupId) {
+      const res = await fetchBotGroupData({
+        resource: "reminders",
+        id: reminder.id,
+        groupId: targetGroupId,
+        apiUrl: botApiUrl,
+        token: sessionToken,
+        method: "DELETE",
+      });
+      botOk = Boolean(res.ok);
+    }
+
+    const { error } = await supabase
+      .from("reminders")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", reminder.id);
+    if (error && !botOk) toast.error(error.message);
+    else { toast.success("Reminder dihapus."); onChanged(); }
   }
 
   return (
@@ -2914,7 +3516,7 @@ function RemindersPage({
         ) : reminders.length ? (
           <div className="divide-y divide-[var(--line)]">
             {reminders.map((reminder) => (
-              <div key={reminder.id} className="flex gap-3 p-3">
+              <div key={reminder.id} className="flex items-center gap-3 p-3">
                 <div className="flex flex-col items-center">
                   <span className="flex h-9 w-9 items-center justify-center rounded-[12px] bg-[var(--panel)] text-emerald-500">
                     <CalendarClock className="h-4 w-4" />
@@ -2930,6 +3532,15 @@ function RemindersPage({
                   <p className="mt-1 text-sm text-[var(--muted)]">{reminder.remind_value}</p>
                   <p className="mt-1 text-xs text-[var(--muted)]">Dibuat oleh {reminder.created_by ?? "Dashboard"}</p>
                 </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0 text-rose-500 hover:bg-rose-500/10 hover:text-rose-500"
+                  onClick={() => remove(reminder)}
+                  aria-label="Hapus reminder"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
               </div>
             ))}
           </div>
@@ -2944,11 +3555,15 @@ function RemindersPage({
 function CommandsPage({
   loading,
   groupId,
+  sessionToken = "",
+  botApiUrl = "",
   commands,
   onChanged,
 }: {
   loading: boolean;
   groupId: string;
+  sessionToken?: string;
+  botApiUrl?: string;
   commands: Command[];
   onChanged: () => void;
 }) {
@@ -2956,6 +3571,10 @@ function CommandsPage({
   const [response, setResponse] = useState("");
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const [editCommand, setEditCommand] = useState<Command | null>(null);
+  const [editKeyword, setEditKeyword] = useState("");
+  const [editResponse, setEditResponse] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const visibleCommands = useMemo(
     () =>
@@ -2967,14 +3586,39 @@ function CommandsPage({
     [commands, query],
   );
 
+  function openEdit(command: Command) {
+    setEditKeyword(command.keyword);
+    setEditResponse(command.response);
+    setEditCommand(command);
+  }
+
   async function add(event: FormEvent) {
     event.preventDefault();
+    setSaving(true);
+    let botOk = false;
+
+    if (botApiUrl) {
+      const res = await fetchBotGroupData({
+        resource: "commands",
+        groupId,
+        apiUrl: botApiUrl,
+        token: sessionToken,
+        method: "POST",
+        body: {
+          keyword,
+          response,
+        },
+      });
+      botOk = Boolean(res.ok);
+    }
+
     const { error } = await supabase.from("custom_commands").insert({
       group_id: groupId,
       keyword,
       response,
     });
-    if (error) toast.error(error.message);
+    setSaving(false);
+    if (error && !botOk) toast.error(error.message);
     else {
       toast.success("Command disimpan.");
       setKeyword("");
@@ -2984,13 +3628,66 @@ function CommandsPage({
     }
   }
 
+  async function saveEdit(event: FormEvent) {
+    event.preventDefault();
+    if (!editCommand) return;
+    setSaving(true);
+    let botOk = false;
+    const targetGroupId = editCommand.group_id || groupId;
+
+    if (botApiUrl && targetGroupId) {
+      const res = await fetchBotGroupData({
+        resource: "commands",
+        id: editCommand.id,
+        groupId: targetGroupId,
+        apiUrl: botApiUrl,
+        token: sessionToken,
+        method: "PUT",
+        body: {
+          keyword: editKeyword,
+          response: editResponse,
+        },
+      });
+      botOk = Boolean(res.ok);
+    }
+
+    const { error } = await supabase
+      .from("custom_commands")
+      .update({
+        keyword: editKeyword,
+        response: editResponse,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", editCommand.id);
+    setSaving(false);
+    if (error && !botOk) { toast.error(error.message); return; }
+    toast.success("Command diperbarui.");
+    setEditCommand(null);
+    onChanged();
+  }
+
   async function remove(command: Command) {
+    let botOk = false;
+    const targetGroupId = command.group_id || groupId;
+
+    if (botApiUrl && targetGroupId) {
+      const res = await fetchBotGroupData({
+        resource: "commands",
+        id: command.id,
+        groupId: targetGroupId,
+        apiUrl: botApiUrl,
+        token: sessionToken,
+        method: "DELETE",
+      });
+      botOk = Boolean(res.ok);
+    }
+
     const { error } = await supabase
       .from("custom_commands")
       .update({ deleted_at: new Date().toISOString() })
       .eq("id", command.id);
-    if (error) toast.error(error.message);
-    else onChanged();
+    if (error && !botOk) toast.error(error.message);
+    else { toast.success("Command dihapus."); onChanged(); }
   }
 
   return (
@@ -3011,12 +3708,24 @@ function CommandsPage({
               <form onSubmit={add} className="mt-5 space-y-3">
                 <Input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="Keyword, contoh: /kas" required />
                 <Textarea value={response} onChange={(event) => setResponse(event.target.value)} placeholder="Respon otomatis" required />
-                <Button className="w-full">Simpan Command</Button>
+                <Button className="w-full" disabled={saving}>{saving ? "Menyimpan..." : "Simpan Command"}</Button>
               </form>
             </SheetContent>
           </Sheet>
         }
       />
+
+      <Sheet open={Boolean(editCommand)} onOpenChange={(isOpen) => { if (!isOpen) setEditCommand(null); }}>
+        <SheetContent>
+          <SheetTitle>Edit Command</SheetTitle>
+          <form onSubmit={saveEdit} className="mt-5 space-y-3">
+            <Input value={editKeyword} onChange={(event) => setEditKeyword(event.target.value)} placeholder="Keyword" required />
+            <Textarea value={editResponse} onChange={(event) => setEditResponse(event.target.value)} placeholder="Respon otomatis" required />
+            <Button className="w-full" disabled={saving}>{saving ? "Menyimpan..." : "Simpan Perubahan"}</Button>
+          </form>
+        </SheetContent>
+      </Sheet>
+
       <label className="relative block max-w-xl">
         <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-[var(--muted)]" />
         <Input className="pl-9" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cari command" />
@@ -3027,14 +3736,35 @@ function CommandsPage({
         ) : visibleCommands.length ? (
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {visibleCommands.map((command) => (
-              <div key={command.id} className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
-                <p className="font-mono text-sm font-semibold text-emerald-500">{command.keyword}</p>
-                <div className="mt-3 rounded-[14px] border border-[var(--line)] bg-[var(--panel)] p-3">
-                  <p className="line-clamp-4 text-sm">{command.response}</p>
+              <div key={command.id} className="flex flex-col justify-between rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
+                <div>
+                  <p className="font-mono text-sm font-semibold text-emerald-500">{command.keyword}</p>
+                  <div className="mt-3 rounded-[14px] border border-[var(--line)] bg-[var(--panel)] p-3">
+                    <p className="line-clamp-4 text-sm">{command.response}</p>
+                  </div>
                 </div>
-                <div className="mt-3 flex items-center justify-between gap-2">
+                <div className="mt-3 flex items-center justify-between gap-2 border-t border-[var(--line)]/50 pt-2">
                   <span className="text-xs text-[var(--muted)]">Text response</span>
-                  <Button variant="ghost" size="sm" onClick={() => remove(command)}>Delete</Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => openEdit(command)}
+                      aria-label="Edit command"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-rose-500 hover:bg-rose-500/10 hover:text-rose-500"
+                      onClick={() => remove(command)}
+                      aria-label="Hapus command"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             ))}
