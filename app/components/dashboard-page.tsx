@@ -4,7 +4,6 @@ import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  ArrowUp,
   Bell,
   Bot,
   CalendarClock,
@@ -57,6 +56,7 @@ import { supabase } from "@/app/lib/supabase";
 import { cn } from "@/app/lib/utils";
 import { OwnerDashboardPage } from "./owner-dashboard-page";
 import { Badge } from "./ui/badge";
+import { AiThinkingOrbAndInput } from "./ui/ai-thinking-orb-and-input";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { ImageDropzone } from "./ui/image-dropzone";
@@ -1635,8 +1635,8 @@ function AiAssistantSheet({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  async function parse(event: FormEvent) {
-    event.preventDefault();
+  async function parse(event?: FormEvent) {
+    event?.preventDefault();
     if (!prompt.trim()) return;
     setLoading(true);
     const response = await fetch("/api/ai/transaction-parser", {
@@ -1725,30 +1725,26 @@ function AiAssistantSheet({
         </div>
 
         <div className="space-y-4 p-5">
-          <form
-            onSubmit={parse}
-            className="flex min-h-12 items-center gap-2 rounded-[16px] border border-[var(--line)] bg-white/[0.045] px-2"
-          >
-            <Sparkles className="ml-1 h-4 w-4 shrink-0 text-emerald-300" />
-            <Input
-              value={prompt}
-              onChange={(event) => {
-                setPrompt(event.target.value);
-                if (intent) setIntent(null);
-              }}
-              placeholder="Contoh: pengeluaran 5k beli pop ice"
-              className="min-h-11 min-w-0 border-0 bg-transparent px-1 shadow-none focus-visible:outline-none"
-            />
-            <Button
-              type="submit"
-              size="icon"
-              disabled={loading || !prompt.trim()}
-              className="h-9 w-9 shrink-0 rounded-full"
-              aria-label="Kirim perintah AI"
-            >
-              {loading ? "..." : <ArrowUp className="h-4 w-4" />}
-            </Button>
-          </form>
+          <AiThinkingOrbAndInput
+            value={prompt}
+            onValueChange={(value) => {
+              setPrompt(value);
+              if (intent) setIntent(null);
+            }}
+            onSubmit={() => {
+              void parse();
+            }}
+            loading={loading}
+            answered={Boolean(intent)}
+            placeholder="Contoh: pengeluaran 5k beli pop ice"
+            status={
+              loading
+                ? "Menganalisis perintah BotUang..."
+                : intent
+                  ? "Perintah dipahami, cek lalu simpan."
+                  : "Bisa catat pemasukan, pengeluaran, todo, reminder, atau command."
+            }
+          />
 
           <div className="grid gap-2 text-sm">
             {[
