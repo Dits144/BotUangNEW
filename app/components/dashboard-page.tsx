@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Bell,
   Bot,
@@ -45,7 +45,7 @@ import {
   YAxis,
 } from "recharts";
 import { toast } from "sonner";
-import { DASHBOARD_SECTION_KEY, DASHBOARD_SESSION_KEY } from "@/app/lib/constants";
+import { DASHBOARD_SESSION_KEY } from "@/app/lib/constants";
 import { resolveTrustedBotApiUrl } from "@/app/lib/bot-api";
 import { daysLeft, formatDate, formatRupiah } from "@/app/lib/format";
 import { resolveDashboardImage, uploadDashboardImage } from "@/app/lib/image-upload";
@@ -219,13 +219,13 @@ type BotCommandPayload = {
 };
 
 const navItems = [
-  { key: "overview", label: "Overview", icon: Home },
-  { key: "participants", label: "Anggota", icon: Users },
-  { key: "todos", label: "Todo", icon: ListTodo },
-  { key: "reminders", label: "Reminder", icon: Bell },
-  { key: "commands", label: "Command", icon: Bot },
-  { key: "settings", label: "Setting", icon: Settings },
-  { key: "owner", label: "Owner", icon: ShieldCheck },
+  { key: "overview", label: "Overview", href: "/dashboard", icon: Home },
+  { key: "participants", label: "Anggota", href: "/dashboard/participants", icon: Users },
+  { key: "todos", label: "Todo", href: "/dashboard/todos", icon: ListTodo },
+  { key: "reminders", label: "Reminder", href: "/dashboard/reminders", icon: Bell },
+  { key: "commands", label: "Command", href: "/dashboard/commands", icon: Bot },
+  { key: "settings", label: "Setting", href: "/dashboard/settings", icon: Settings },
+  { key: "owner", label: "Owner", href: "/dashboard/owner", icon: ShieldCheck },
 ] as const;
 
 function normalizeBotReminders(data: unknown, groupId: string): Reminder[] | null {
@@ -405,28 +405,18 @@ async function fetchBotGroupData({
   }
 }
 
-const sectionKeys = new Set<DashboardSection>([
-  "overview",
-  "participants",
-  "todos",
-  "reminders",
-  "commands",
-  "settings",
-  "owner",
-]);
-
-function isDashboardSection(value: string | null): value is DashboardSection {
-  return Boolean(value && sectionKeys.has(value as DashboardSection));
-}
-
-export function DashboardPage({
-  initialSection = "overview",
-}: {
-  initialSection?: DashboardSection;
-}) {
+export function DashboardPage() {
   const router = useRouter();
-  const [activeSection, setActiveSection] =
-    useState<DashboardSection>(initialSection);
+  const pathname = usePathname();
+  const activeSection = useMemo<DashboardSection>(() => {
+    if (pathname.endsWith("/participants")) return "participants";
+    if (pathname.endsWith("/todos")) return "todos";
+    if (pathname.endsWith("/reminders")) return "reminders";
+    if (pathname.endsWith("/commands")) return "commands";
+    if (pathname.endsWith("/settings")) return "settings";
+    if (pathname.endsWith("/owner")) return "owner";
+    return "overview";
+  }, [pathname]);
   const [groupId, setGroupId] = useState("");
   const [sessionToken, setSessionToken] = useState("");
   const [botApiUrl, setBotApiUrl] = useState("");
@@ -691,12 +681,6 @@ export function DashboardPage({
     setTheme(selected);
     document.documentElement.dataset.theme = selected;
 
-    const storedSection = window.sessionStorage.getItem(DASHBOARD_SECTION_KEY);
-    const requestedSection = isDashboardSection(storedSection)
-      ? storedSection
-      : initialSection;
-    setActiveSection(requestedSection);
-
     const stored = window.localStorage.getItem(DASHBOARD_SESSION_KEY);
     if (!stored) {
       router.push("/connect");
@@ -737,9 +721,9 @@ export function DashboardPage({
 
       setRole(platformRole);
 
-      if (requestedSection === "owner") {
+      if (activeSection === "owner") {
         if (platformRole !== "owner") {
-          changeSection("overview");
+          router.push("/dashboard");
           return;
         }
         setGroupName("Owner Control");
@@ -755,7 +739,7 @@ export function DashboardPage({
 
       if (!activeGroup) {
         if (platformRole === "owner") {
-          changeSection("owner");
+          router.push("/dashboard/owner");
           setGroupName("Owner Control");
           setBotStatus({ ok: false, message: "Pilih grup untuk status bot" });
           setLoading(false);
@@ -786,11 +770,11 @@ export function DashboardPage({
     bootDashboard();
   }, []);
 
-  function changeSection(nextSection: DashboardSection) {
-    setActiveSection(nextSection);
-    window.sessionStorage.setItem(DASHBOARD_SECTION_KEY, nextSection);
-    setMenuOpen(false);
-  }
+  useEffect(() => {
+    if (!loading && activeSection === "owner" && role !== "owner") {
+      router.push("/dashboard");
+    }
+  }, [activeSection, loading, role, router]);
 
   function toggleTheme() {
     const next = theme === "dark" ? "light" : "dark";
@@ -891,7 +875,7 @@ export function DashboardPage({
                 key={item.key}
                 item={item}
                 active={activeSection === item.key}
-                onSelect={() => changeSection(item.key)}
+                onNavigate={() => setMenuOpen(false)}
               />
             ))}
           </nav>
@@ -972,11 +956,12 @@ export function DashboardPage({
               {activeSection === "overview" ? (
                 <Overview
                   loading={loading}
-                  groupId={groupId}
                   summary={summary}
                   monthlyChart={monthlyChart}
                   weeklyChart={weeklyChart}
                   transactions={filteredTransactions}
+                  todos={todos}
+                  reminders={reminders}
                   query={query}
                   setQuery={setQuery}
                   fromDate={fromDate}
@@ -984,7 +969,6 @@ export function DashboardPage({
                   toDate={toDate}
                   setToDate={setToDate}
                   onExport={exportTransactions}
-                  onChanged={() => loadData()}
                 />
               ) : null}
               {activeSection === "participants" ? (
@@ -1034,13 +1018,16 @@ export function DashboardPage({
               {activeSection === "owner" ? <OwnerDashboardPage embedded /> : null}
             </motion.div>
           </AnimatePresence>
+          {groupId && activeSection !== "owner" ? (
+            <AiCommandBar groupId={groupId} onSaved={() => loadData()} />
+          ) : null}
         </div>
       </div>
 
       <MobileNav
         section={activeSection}
         items={visibleNavItems}
-        onSelect={changeSection}
+        onNavigate={() => setMenuOpen(false)}
       />
       <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
         <SheetContent>
@@ -1051,7 +1038,7 @@ export function DashboardPage({
                 key={item.key}
                 item={item}
                 active={activeSection === item.key}
-                onSelect={() => changeSection(item.key)}
+                onNavigate={() => setMenuOpen(false)}
               />
             ))}
           </div>
@@ -1145,17 +1132,18 @@ function Brand({
 function NavLink({
   item,
   active,
-  onSelect,
+  onNavigate,
 }: {
   item: (typeof navItems)[number];
   active: boolean;
-  onSelect: () => void;
+  onNavigate?: () => void;
 }) {
   const Icon = item.icon;
   return (
-    <button
-      type="button"
-      onClick={onSelect}
+    <Link
+      href={item.href}
+      prefetch
+      onClick={onNavigate}
       className={cn(
         "flex min-h-11 w-full items-center gap-3 rounded-[12px] px-3 text-left text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400",
         active
@@ -1165,18 +1153,18 @@ function NavLink({
     >
       <Icon className="h-4 w-4" />
       {item.label}
-    </button>
+    </Link>
   );
 }
 
 function MobileNav({
   section,
   items,
-  onSelect,
+  onNavigate,
 }: {
   section: DashboardSection;
   items: ReadonlyArray<(typeof navItems)[number]>;
-  onSelect: (section: DashboardSection) => void;
+  onNavigate?: () => void;
 }) {
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--line)] bg-[var(--background)]/95 px-2 py-2 backdrop-blur md:hidden">
@@ -1185,10 +1173,11 @@ function MobileNav({
           const Icon = item.icon;
           const active = section === item.key;
           return (
-            <button
-              type="button"
+            <Link
               key={item.key}
-              onClick={() => onSelect(item.key)}
+              href={item.href}
+              prefetch
+              onClick={onNavigate}
               className={cn(
                 "flex min-h-14 min-w-16 flex-col items-center justify-center gap-1 rounded-[12px] text-[11px] font-semibold transition",
                 active
@@ -1199,7 +1188,7 @@ function MobileNav({
             >
               <Icon className="h-4 w-4" />
               <span className="max-w-full truncate">{item.label}</span>
-            </button>
+            </Link>
           );
         })}
       </div>
@@ -1209,11 +1198,12 @@ function MobileNav({
 
 function Overview({
   loading,
-  groupId,
   summary,
   monthlyChart,
   weeklyChart,
   transactions,
+  todos,
+  reminders,
   query,
   setQuery,
   fromDate,
@@ -1221,14 +1211,14 @@ function Overview({
   toDate,
   setToDate,
   onExport,
-  onChanged,
 }: {
   loading: boolean;
-  groupId: string;
   summary: { income: number; expense: number; balance: number };
   monthlyChart: ChartPoint[];
   weeklyChart: ChartPoint[];
   transactions: Transaction[];
+  todos: Todo[];
+  reminders: Reminder[];
   query: string;
   setQuery: (value: string) => void;
   fromDate: string;
@@ -1236,39 +1226,43 @@ function Overview({
   toDate: string;
   setToDate: (value: string) => void;
   onExport: () => void;
-  onChanged: () => void;
 }) {
+  const openTodos = todos.filter((todo) => !todo.is_done).slice(0, 3);
+  const nextReminders = reminders.slice(0, 3);
+
   return (
-    <div className="space-y-5">
-      <section className="grid gap-3 md:grid-cols-3">
-        <MetricCard
-          loading={loading}
-          label="Saldo Kas Saat Ini"
-          value={summary.balance}
-          icon={WalletCards}
-          tone="neutral"
-          primary
-        />
-        <MetricCard
-          loading={loading}
-          label="Total Pemasukan"
-          value={summary.income}
-          icon={CircleDollarSign}
-          tone="income"
-        />
-        <MetricCard
-          loading={loading}
-          label="Total Pengeluaran"
-          value={summary.expense}
-          icon={ChevronDown}
-          tone="expense"
-        />
+    <div className="space-y-4">
+      <section className="grid gap-3 lg:grid-cols-[1.15fr_0.85fr]">
+        <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 md:p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm text-[var(--muted)]">Saldo Kas Saat Ini</p>
+              {loading ? (
+                <Skeleton className="mt-3 h-10 w-56" />
+              ) : (
+                <p className="mt-2 font-mono text-3xl font-semibold tracking-normal tabular-nums md:text-4xl">
+                  {formatRupiah(summary.balance)}
+                </p>
+              )}
+            </div>
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] bg-[var(--panel)] text-emerald-500">
+              <WalletCards className="h-5 w-5" />
+            </span>
+          </div>
+          <div className="mt-5 grid grid-cols-2 gap-3">
+            <CompactMoneyStat label="Pemasukan" value={summary.income} tone="income" loading={loading} />
+            <CompactMoneyStat label="Pengeluaran" value={summary.expense} tone="expense" loading={loading} />
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+          <FinancialInsight title="Rasio keluar" value={summary.income ? `${Math.round((summary.expense / summary.income) * 100)}%` : "-"} description="Dari total pemasukan tercatat." />
+          <FinancialInsight title="Aktivitas" value={String(transactions.length)} description="Transaksi pada filter saat ini." />
+        </div>
       </section>
 
-      <FinancialTools groupId={groupId} onSaved={onChanged} onExport={onExport} />
-
-      <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-        <Card className="p-4">
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_360px]">
+        <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <h2 className="font-semibold">Cash Flow Bulanan</h2>
@@ -1293,33 +1287,34 @@ function Overview({
           ) : (
             <EmptyState title="Belum ada cash flow" description="Transaksi yang masuk dari WhatsApp akan muncul di grafik ini." />
           )}
-        </Card>
+        </div>
 
-        <Card className="p-4">
-          <h2 className="font-semibold">Breakdown Mingguan</h2>
-          <p className="text-sm text-[var(--muted)]">Ringkasan 8 minggu terakhir.</p>
-          {loading ? (
-            <Skeleton className="mt-4 h-72" />
-          ) : weeklyChart.length ? (
-            <div className="mt-4 h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={weeklyChart}>
-                  <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
-                  <XAxis dataKey="label" stroke="var(--muted)" fontSize={12} />
-                  <YAxis stroke="var(--muted)" fontSize={12} tickFormatter={(value) => `${Number(value) / 1000}k`} />
-                  <Tooltip content={<ChartTooltip />} />
-                  <Bar dataKey="income" fill="#10B981" radius={[6, 6, 0, 0]} />
-                  <Bar dataKey="expense" fill="#F43F5E" radius={[6, 6, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <EmptyState title="Data mingguan kosong" description="Tambahkan transaksi untuk melihat pola mingguan." />
-          )}
-        </Card>
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
+            <h2 className="font-semibold">Breakdown Mingguan</h2>
+            {loading ? (
+              <Skeleton className="mt-4 h-48" />
+            ) : weeklyChart.length ? (
+              <div className="mt-4 h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={weeklyChart}>
+                    <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
+                    <XAxis dataKey="label" stroke="var(--muted)" fontSize={12} />
+                    <Tooltip content={<ChartTooltip />} />
+                    <Bar dataKey="income" fill="#10B981" radius={[6, 6, 0, 0]} />
+                    <Bar dataKey="expense" fill="#F43F5E" radius={[6, 6, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <EmptyState title="Data mingguan kosong" description="Tambahkan transaksi untuk melihat pola mingguan." />
+            )}
+          </div>
+          <UpcomingPanel todos={openTodos} reminders={nextReminders} />
+        </div>
       </section>
 
-      <Card className="p-4">
+      <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
             <h2 className="font-semibold">Recent Transactions</h2>
@@ -1344,7 +1339,90 @@ function Overview({
           <Input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} />
         </div>
         <TransactionsView loading={loading} transactions={transactions} />
-      </Card>
+      </div>
+    </div>
+  );
+}
+
+function CompactMoneyStat({
+  label,
+  value,
+  tone,
+  loading,
+}: {
+  label: string;
+  value: number;
+  tone: "income" | "expense";
+  loading: boolean;
+}) {
+  return (
+    <div className="rounded-[14px] border border-[var(--line)] bg-[var(--panel)] p-3">
+      <p className="text-xs font-medium text-[var(--muted)]">{label}</p>
+      {loading ? (
+        <Skeleton className="mt-2 h-6 w-28" />
+      ) : (
+        <p
+          className={cn(
+            "mt-1 font-mono text-base font-semibold tabular-nums",
+            tone === "income" ? "text-emerald-500" : "text-rose-500",
+          )}
+        >
+          {tone === "income" ? "+" : "-"}
+          {formatRupiah(value)}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function FinancialInsight({
+  title,
+  value,
+  description,
+}: {
+  title: string;
+  value: string;
+  description: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
+      <p className="text-sm text-[var(--muted)]">{title}</p>
+      <p className="mt-1 font-mono text-2xl font-semibold tabular-nums">{value}</p>
+      <p className="mt-1 text-sm text-[var(--muted)]">{description}</p>
+    </div>
+  );
+}
+
+function UpcomingPanel({
+  todos,
+  reminders,
+}: {
+  todos: Todo[];
+  reminders: Reminder[];
+}) {
+  return (
+    <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
+      <h2 className="font-semibold">Agenda Terdekat</h2>
+      <div className="mt-3 space-y-3">
+        {reminders.map((reminder) => (
+          <div key={reminder.id} className="flex items-start gap-3">
+            <CalendarClock className="mt-0.5 h-4 w-4 text-emerald-500" />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">{reminder.remind_text}</p>
+              <p className="text-xs text-[var(--muted)]">{reminder.remind_value}</p>
+            </div>
+          </div>
+        ))}
+        {todos.map((todo) => (
+          <div key={todo.id} className="flex items-start gap-3">
+            <ClipboardCheck className="mt-0.5 h-4 w-4 text-[var(--muted)]" />
+            <p className="min-w-0 truncate text-sm font-medium">{parseTodo(todo.todo_text).text}</p>
+          </div>
+        ))}
+        {!reminders.length && !todos.length ? (
+          <p className="text-sm text-[var(--muted)]">Belum ada todo atau reminder aktif.</p>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -1364,25 +1442,23 @@ type BotAiIntent = {
   confidence?: number;
 };
 
-function FinancialTools({
+function AiCommandBar({
   groupId,
   onSaved,
-  onExport,
 }: {
   groupId: string;
   onSaved: () => void;
-  onExport: () => void;
 }) {
+  const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [intent, setIntent] = useState<BotAiIntent | null>(null);
-  const [aiLoading, setAiLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  async function parseWithAi(event: FormEvent) {
+  async function parse(event: FormEvent) {
     event.preventDefault();
     if (!prompt.trim()) return;
-
-    setAiLoading(true);
+    setLoading(true);
     const response = await fetch("/api/ai/transaction-parser", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1392,20 +1468,20 @@ function FinancialTools({
       message?: string;
       intent?: BotAiIntent;
     }>);
-    setAiLoading(false);
+    setLoading(false);
 
     if (!response.ok || !response.intent) {
-      toast.error(response.message ?? "AI belum bisa membaca transaksi.");
+      toast.error(response.message ?? "AI belum memahami perintah.");
       return;
     }
 
+    if (response.message) toast.message(response.message);
     setIntent(response.intent);
   }
 
   async function saveIntent() {
-    if (!intent || !groupId) return;
+    if (!intent) return;
     setSaving(true);
-
     const { error } =
       intent.action === "transaction"
         ? await supabase.from("transactions").insert({
@@ -1446,71 +1522,50 @@ function FinancialTools({
     toast.success("Aksi AI disimpan.");
     setPrompt("");
     setIntent(null);
+    setOpen(false);
     onSaved();
   }
 
   return (
-    <section className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-      <Card className="p-4">
-        <div className="flex items-start gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-emerald-500 text-slate-950">
-            <Sparkles className="h-5 w-5" />
-          </span>
-          <div>
-            <h2 className="font-semibold">AI Assistant BotUang</h2>
-            <p className="mt-1 text-sm text-[var(--muted)]">
-              Bisa catat transaksi, buat reminder, todo, atau custom command.
-            </p>
-          </div>
-        </div>
-        <form onSubmit={parseWithAi} className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
-          <Input
-            value={prompt}
-            onChange={(event) => setPrompt(event.target.value)}
-            placeholder="Contoh: pengeluaran 5k pop ice / reminder besok 08:00 rapat"
-          />
-          <Button disabled={aiLoading || !prompt.trim()}>
-            {aiLoading ? "Membaca..." : "Parse"}
-          </Button>
-        </form>
-        {intent ? (
-          <div className="mt-4 rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-3">
-            <div className="grid gap-2 text-sm sm:grid-cols-3">
-              <InfoPill label="Aksi" value={formatAiAction(intent.action)} />
-              <InfoPill label="Detail" value={formatAiPrimaryValue(intent)} />
-              <InfoPill label="Tanggal" value={intent.date ?? "Hari ini"} />
-            </div>
-            <p className="mt-3 text-sm text-[var(--muted)]">{formatAiDescription(intent)}</p>
-            <div className="mt-3 flex gap-2">
-              <Button size="sm" onClick={saveIntent} disabled={saving}>
-                {saving ? "Menyimpan..." : "Simpan"}
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setIntent(null)}>
-                Batal
-              </Button>
-            </div>
-          </div>
-        ) : null}
-      </Card>
-
-      <Card className="p-4">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <MoneyCalculator />
-          <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-3">
-            <div className="flex items-center gap-2">
-              <FileSpreadsheet className="h-5 w-5 text-emerald-500" />
-              <h2 className="font-semibold">Spreadsheet</h2>
-            </div>
-            <p className="mt-2 text-sm text-[var(--muted)]">
-              Ekspor transaksi siap impor ke Google Sheets atau Excel.
-            </p>
-            <Button className="mt-4 w-full" variant="outline" onClick={onExport}>
-              Export CSV
+    <div className="fixed inset-x-3 bottom-20 z-40 mx-auto max-w-2xl md:bottom-5 md:left-auto md:right-5 md:mx-0 md:w-[440px]">
+      {open ? (
+        <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-3 shadow-2xl">
+          <form onSubmit={parse} className="flex gap-2">
+            <Input
+              value={prompt}
+              onChange={(event) => setPrompt(event.target.value)}
+              placeholder="Tulis: pengeluaran 5k pop ice, reminder besok 08:00..."
+              className="min-w-0"
+            />
+            <Button disabled={loading || !prompt.trim()} className="shrink-0">
+              {loading ? "..." : "AI"}
             </Button>
-          </div>
+          </form>
+          {intent ? (
+            <div className="mt-3 rounded-[14px] border border-[var(--line)] bg-[var(--panel)] p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold">{formatAiAction(intent.action)}</p>
+                  <p className="mt-1 truncate text-sm text-[var(--muted)]">
+                    {formatAiPrimaryValue(intent)}
+                  </p>
+                  <p className="mt-1 line-clamp-2 text-sm">{formatAiDescription(intent)}</p>
+                </div>
+                <Button size="sm" onClick={saveIntent} disabled={saving}>
+                  Simpan
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </div>
-      </Card>
-    </section>
+      ) : null}
+      <div className="mt-2 flex justify-end">
+        <Button onClick={() => setOpen((value) => !value)} className="shadow-lg">
+          <Sparkles className="h-4 w-4" />
+          AI
+        </Button>
+      </div>
+    </div>
   );
 }
 

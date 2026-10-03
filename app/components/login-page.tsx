@@ -6,7 +6,6 @@ import { Mail, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import {
   AUTH_REDIRECT_KEY,
-  DASHBOARD_SECTION_KEY,
   DASHBOARD_SESSION_KEY,
 } from "@/app/lib/constants";
 import { supabase } from "@/app/lib/supabase";
@@ -81,7 +80,6 @@ export function LoginPage() {
       "";
 
     if (platformRole === "owner") {
-      window.sessionStorage.setItem(DASHBOARD_SECTION_KEY, targetGroup ? "overview" : "owner");
       window.localStorage.setItem(
         DASHBOARD_SESSION_KEY,
         JSON.stringify({
@@ -95,7 +93,7 @@ export function LoginPage() {
           connectedAt: new Date().toISOString(),
         }),
       );
-      router.push("/dashboard");
+      router.push(targetGroup ? "/dashboard" : "/dashboard/owner");
       return;
     }
 
