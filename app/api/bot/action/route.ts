@@ -1,17 +1,15 @@
-import { BOT_API_TOKEN, BOT_API_URL } from "@/app/lib/constants";
-import { resolveTrustedBotApiUrl } from "@/app/lib/bot-api";
+import { BOT_API_URL } from "@/app/lib/constants";
+import { getServerBotApiUrl, getServerBotToken } from "@/app/lib/bot-server-config";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const action = typeof body.action === "string" ? body.action : "sync";
-  const apiUrl = resolveTrustedBotApiUrl(
+  const apiUrl = getServerBotApiUrl(
     typeof body.api_url === "string" || typeof body.apiUrl === "string"
       ? String(body.api_url ?? body.apiUrl)
       : BOT_API_URL,
   );
-  const token =
-    BOT_API_TOKEN ||
-    (typeof body.token === "string" ? body.token : "");
+  const token = getServerBotToken(typeof body.token === "string" ? body.token : "");
 
   if (!apiUrl || !token) {
     return Response.json(

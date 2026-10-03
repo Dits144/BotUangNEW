@@ -1,5 +1,5 @@
-import { BOT_API_TOKEN, BOT_API_URL } from "@/app/lib/constants";
-import { resolveTrustedBotApiUrl } from "@/app/lib/bot-api";
+import { BOT_API_URL } from "@/app/lib/constants";
+import { getServerBotApiUrls, getServerBotToken } from "@/app/lib/bot-server-config";
 
 const allowedResources = new Set([
   "transactions",
@@ -17,19 +17,19 @@ function getRequestContext(request: Request) {
   const headerToken =
     request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
   const queryApiUrl = url.searchParams.get("api_url") ?? "";
-  const apiUrl = resolveTrustedBotApiUrl(queryApiUrl || BOT_API_URL);
-  const token = headerToken || BOT_API_TOKEN;
+  const apiUrls = getServerBotApiUrls(queryApiUrl || BOT_API_URL);
+  const token = getServerBotToken(headerToken);
 
-  return { apiUrl, groupId, resource, token };
+  return { apiUrls, groupId, resource, token };
 }
 
 function validateContext({
-  apiUrl,
+  apiUrls,
   groupId,
   resource,
   token,
 }: ReturnType<typeof getRequestContext>) {
-  if (!apiUrl || !token) {
+  if (!apiUrls.length || !token) {
     return "Bot API belum dikonfigurasi";
   }
 
@@ -56,28 +56,39 @@ async function forwardGroupRequest(
   }
 
   const body = method === "GET" ? undefined : await request.text();
-  const endpoint = `${context.apiUrl}/api/groups/${encodeURIComponent(
-    context.groupId,
-  )}/${context.resource}`;
-
   try {
-    const response = await fetch(endpoint, {
-      method,
-      headers: {
-        Authorization: `Bearer ${context.token}`,
-        "Content-Type": "application/json",
-        "X-Group-Id": context.groupId,
-      },
-      body,
-    });
-    const data = await response.json().catch(() => null);
+    for (const apiUrl of context.apiUrls) {
+      const endpoint = `${apiUrl}/api/groups/${encodeURIComponent(
+        context.groupId,
+      )}/${context.resource}`;
+      try {
+        const response = await fetch(endpoint, {
+          method,
+          headers: {
+            Authorization: `Bearer ${context.token}`,
+            "Content-Type": "application/json",
+            "X-Group-Id": context.groupId,
+          },
+          body,
+        });
+        const data = await response.json().catch(() => null);
+
+        if (response.ok) {
+          return Response.json(
+            {
+              ok: true,
+              data,
+            },
+            { status: 200 },
+          );
+        }
+      } catch {
+        continue;
+      }
+    }
 
     return Response.json(
-      {
-        ok: response.ok,
-        data,
-        message: response.ok ? undefined : "Data bot tidak tersedia",
-      },
+      { ok: false, message: "Data bot tidak tersedia" },
       { status: 200 },
     );
   } catch {

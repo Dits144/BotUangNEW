@@ -1,10 +1,9 @@
 import {
-  BOT_API_TOKEN,
   BOT_API_URL,
   SUPABASE_ANON_KEY,
   SUPABASE_URL,
 } from "@/app/lib/constants";
-import { resolveTrustedBotApiUrl } from "@/app/lib/bot-api";
+import { getServerBotApiUrl, getServerBotToken } from "@/app/lib/bot-server-config";
 import { createSupabaseAdminClient } from "@/app/lib/supabase-server";
 
 type OwnerAction =
@@ -66,7 +65,7 @@ async function assertOwner(request: Request) {
 }
 
 function getBotToken() {
-  return BOT_API_TOKEN || process.env.LOVABLE_API_KEY || "";
+  return getServerBotToken();
 }
 
 async function callOwnerApi({
@@ -124,7 +123,7 @@ export async function GET(request: Request) {
   }
 
   const url = new URL(request.url);
-  const apiUrl = resolveTrustedBotApiUrl(url.searchParams.get("api_url") ?? BOT_API_URL);
+  const apiUrl = getServerBotApiUrl(url.searchParams.get("api_url") ?? BOT_API_URL);
   const resource = url.searchParams.get("resource") ?? "groups";
   const paths: Record<string, string> = {
     groups: "/owner/groups",
@@ -151,7 +150,7 @@ export async function POST(request: Request) {
   }
 
   const url = new URL(request.url);
-  const apiUrl = resolveTrustedBotApiUrl(url.searchParams.get("api_url") ?? BOT_API_URL);
+  const apiUrl = getServerBotApiUrl(url.searchParams.get("api_url") ?? BOT_API_URL);
   const payload = (await request.json().catch(() => ({}))) as {
     action?: OwnerAction;
     id?: string | number;

@@ -1,24 +1,28 @@
 @import "tailwindcss";
 
 :root,
+:root[data-theme="light"] {
+  --background: #f6f8fb;
+  --foreground: #111827;
+  --surface: #ffffff;
+  --sidebar: #ffffff;
+  --panel: rgba(15, 23, 42, 0.035);
+  --line: #e5e7eb;
+  --muted: #64748b;
+  --chart-grid: rgba(15, 23, 42, 0.08);
+  --soft-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
 :root[data-theme="dark"] {
   --background: #0b0f19;
   --foreground: #f8fafc;
-  --surface: #0f1724;
+  --surface: #111827;
+  --sidebar: #0f172a;
   --panel: rgba(255, 255, 255, 0.045);
   --line: rgba(255, 255, 255, 0.085);
   --muted: #9ca3af;
   --chart-grid: rgba(255, 255, 255, 0.08);
-}
-
-:root[data-theme="light"] {
-  --background: #f7f8fb;
-  --foreground: #101827;
-  --surface: #ffffff;
-  --panel: rgba(15, 23, 42, 0.035);
-  --line: rgba(15, 23, 42, 0.1);
-  --muted: #64748b;
-  --chart-grid: rgba(15, 23, 42, 0.08);
+  --soft-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
 }
 
 @theme inline {
@@ -34,7 +38,7 @@
 html {
   background: var(--background);
   color: var(--foreground);
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 html[data-theme="light"] {

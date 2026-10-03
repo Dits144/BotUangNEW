@@ -27,7 +27,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="id" data-theme="dark">
+    <html lang="id" data-theme="light">
       <body>
         {children}
         <Toaster position="top-center" richColors />

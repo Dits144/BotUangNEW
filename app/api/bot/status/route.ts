@@ -1,5 +1,5 @@
-import { BOT_API_TOKEN, BOT_API_URL } from "@/app/lib/constants";
-import { resolveTrustedBotApiUrl } from "@/app/lib/bot-api";
+import { BOT_API_URL } from "@/app/lib/constants";
+import { getServerBotApiUrls, getServerBotToken } from "@/app/lib/bot-server-config";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -8,10 +8,10 @@ export async function GET(request: Request) {
   const headerToken =
     request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
   const queryApiUrl = url.searchParams.get("api_url") ?? "";
-  const baseUrl = resolveTrustedBotApiUrl(queryApiUrl || BOT_API_URL);
-  const authToken = BOT_API_TOKEN || headerToken || sessionToken;
+  const baseUrls = getServerBotApiUrls(queryApiUrl || BOT_API_URL);
+  const authToken = getServerBotToken(headerToken || sessionToken);
 
-  if (!baseUrl || !authToken) {
+  if (!baseUrls.length || !authToken) {
     return Response.json(
       { ok: false, message: "Bot API belum dikonfigurasi" },
       { status: 200 },
@@ -21,28 +21,34 @@ export async function GET(request: Request) {
   try {
     const paths = ["/status", "/api/status", "/health", "/api/health", "/"];
 
-    for (const path of paths) {
-      const response = await fetch(
-        `${baseUrl}${path}${path === "/" ? "" : `?group_id=${encodeURIComponent(groupId)}`}`,
-        {
-          headers: {
-            Authorization: `Bearer ${authToken}`,
-            "X-Group-Id": groupId,
-          },
-        },
-      );
-      const data = await response.json().catch(() => ({}));
-      const endpointMissing =
-        response.status === 404 ||
-        String((data as { error?: string }).error ?? "")
-          .toLowerCase()
-          .includes("not found");
+    for (const baseUrl of baseUrls) {
+      for (const path of paths) {
+        try {
+          const response = await fetch(
+            `${baseUrl}${path}${path === "/" ? "" : `?group_id=${encodeURIComponent(groupId)}`}`,
+            {
+              headers: {
+                Authorization: `Bearer ${authToken}`,
+                "X-Group-Id": groupId,
+              },
+            },
+          );
+          const data = await response.json().catch(() => ({}));
+          const endpointMissing =
+            response.status === 404 ||
+            String((data as { error?: string }).error ?? "")
+              .toLowerCase()
+              .includes("not found");
 
-      if (!endpointMissing) {
-        return Response.json(
-          { ok: response.ok, source: path, ...data },
-          { status: 200 },
-        );
+          if (!endpointMissing) {
+            return Response.json(
+              { ok: response.ok, source: path, apiUrl: baseUrl, ...data },
+              { status: 200 },
+            );
+          }
+        } catch {
+          continue;
+        }
       }
     }
 

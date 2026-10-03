@@ -717,7 +717,7 @@ export function DashboardPage() {
       | "dark"
       | "light"
       | null;
-    const selected = storedTheme ?? "dark";
+    const selected = storedTheme ?? "light";
     setTheme(selected);
     document.documentElement.dataset.theme = selected;
 
@@ -901,7 +901,7 @@ export function DashboardPage() {
   return (
     <main className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
       <div className="flex min-h-screen">
-        <aside className="hidden w-[244px] shrink-0 border-r border-[var(--line)] bg-[#08111d]/95 p-4 md:block">
+        <aside className="hidden w-[232px] shrink-0 border-r border-[var(--line)] bg-[var(--sidebar)] p-4 md:block">
           <Brand
             groupId={groupId}
             groupName={groupName}
@@ -938,7 +938,7 @@ export function DashboardPage() {
         </aside>
 
         <div className="min-w-0 flex-1 pb-24 md:pb-0">
-          <header className="sticky top-0 z-30 border-b border-[var(--line)] bg-[var(--background)]/88 px-4 py-3 backdrop-blur-xl md:px-7 md:py-4">
+          <header className="sticky top-0 z-30 border-b border-[var(--line)] bg-[var(--surface)]/92 px-4 py-3 shadow-[var(--soft-shadow)] backdrop-blur-xl md:px-6">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
@@ -956,7 +956,7 @@ export function DashboardPage() {
                     {displayGroupName(groupName, groupId)}
                   </p>
                 </div>
-                <h1 className="truncate text-lg font-semibold md:text-xl">
+                <h1 className="truncate text-lg font-semibold">
                   {visibleNavItems.find((item) => item.key === activeSection)?.label}
                 </h1>
                 {activeSection !== "owner" && groups.length > 1 ? (
@@ -979,7 +979,7 @@ export function DashboardPage() {
                   </select>
                 ) : null}
               </div>
-              <div className="hidden min-w-[260px] max-w-sm flex-1 items-center rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 lg:flex">
+              <div className="hidden min-w-[280px] max-w-lg flex-1 items-center rounded-[12px] border border-[var(--line)] bg-[var(--background)] px-3 lg:flex">
                 <Search className="h-4 w-4 text-[var(--muted)]" />
                 <input
                   value={query}
@@ -1006,7 +1006,7 @@ export function DashboardPage() {
                 >
                   {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                 </Button>
-                {groupId && activeSection !== "owner" ? (
+                {groupId && activeSection !== "owner" && activeSection !== "overview" ? (
                   <TransactionSheet groupId={groupId} onSaved={() => loadData()} />
                 ) : null}
                 <Button
@@ -1037,10 +1037,11 @@ export function DashboardPage() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.18 }}
-              className="mx-auto max-w-7xl px-4 py-5 md:px-8 md:py-8"
+              className="w-full px-4 py-5 md:px-6 md:py-6"
             >
               {activeSection === "overview" ? (
                 <Overview
+                  groupId={groupId}
                   loading={loading}
                   summary={summary}
                   monthlyChart={monthlyChart}
@@ -1055,6 +1056,7 @@ export function DashboardPage() {
                   toDate={toDate}
                   setToDate={setToDate}
                   onExport={exportTransactions}
+                  onSaved={() => loadData()}
                 />
               ) : null}
               {activeSection === "participants" ? (
@@ -1197,7 +1199,7 @@ function Brand({
           + Connect Group
         </Link>
       </div>
-      <div className="mt-5 rounded-[16px] border border-[var(--line)] bg-white/[0.035] p-3">
+      <div className="mt-5 rounded-[14px] border border-[var(--line)] bg-[var(--panel)] p-3">
         <p className="text-xs text-[var(--muted)]">Status Bot</p>
         <p className="mt-1 flex items-center gap-2 text-sm font-semibold">
           <span
@@ -1297,23 +1299,10 @@ function MobileNav({
         })}
         <div className="flex justify-center">
           {groupId ? (
-            <AiAssistantSheet
-              groupId={groupId}
-              onSaved={onSaved}
-              trigger={
-                <button
-                  type="button"
-                  className="relative -mt-5 flex min-h-[68px] min-w-[68px] flex-col items-center justify-center gap-1 rounded-[22px] border border-emerald-300/30 bg-[#0a1422] text-[11px] font-semibold text-emerald-100 shadow-[0_14px_36px_rgba(16,185,129,0.22)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-300"
-                  aria-label="Buka AI BotUang"
-                >
-                  <span className="botuang-ai-orb botuang-ai-orb-sm" aria-hidden="true" />
-                  <span>AI</span>
-                </button>
-              }
-            />
+            <TransactionSheet groupId={groupId} onSaved={onSaved} compact />
           ) : (
             <Button size="icon" disabled className="h-[60px] w-[60px] rounded-[20px]">
-              <Sparkles className="h-5 w-5" />
+              <Plus className="h-5 w-5" />
             </Button>
           )}
         </div>
@@ -1348,6 +1337,7 @@ function MobileNav({
 }
 
 function Overview({
+  groupId,
   loading,
   summary,
   monthlyChart,
@@ -1362,7 +1352,9 @@ function Overview({
   toDate,
   setToDate,
   onExport,
+  onSaved,
 }: {
+  groupId: string;
   loading: boolean;
   summary: { income: number; expense: number; balance: number };
   monthlyChart: ChartPoint[];
@@ -1377,53 +1369,83 @@ function Overview({
   toDate: string;
   setToDate: (value: string) => void;
   onExport: () => void;
+  onSaved: () => void;
 }) {
   const openTodos = todos.filter((todo) => !todo.is_done).slice(0, 3);
   const nextReminders = reminders.slice(0, 3);
+  const expenseRatio = summary.income
+    ? `${Math.round((summary.expense / summary.income) * 100)}%`
+    : "-";
+  const recentTransactions = transactions.slice(0, 5);
 
   return (
     <div className="space-y-4">
-      <section className="grid gap-3 lg:grid-cols-[1.15fr_0.85fr]">
-        <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 md:p-5">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-sm text-[var(--muted)]">Saldo Kas Saat Ini</p>
-              {loading ? (
-                <Skeleton className="mt-3 h-10 w-56" />
-              ) : (
-                <p className="mt-2 font-mono text-3xl font-semibold tracking-normal tabular-nums md:text-4xl">
-                  {formatRupiah(summary.balance)}
-                </p>
-              )}
-            </div>
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] bg-[var(--panel)] text-emerald-500">
-              <WalletCards className="h-5 w-5" />
-            </span>
-          </div>
-          <div className="mt-5 grid grid-cols-2 gap-3">
-            <CompactMoneyStat label="Pemasukan" value={summary.income} tone="income" loading={loading} />
-            <CompactMoneyStat label="Pengeluaran" value={summary.expense} tone="expense" loading={loading} />
-          </div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-normal">Overview</h1>
+          <p className="mt-1 text-sm text-[var(--muted)]">
+            Ringkasan keuangan GEN-CB
+          </p>
         </div>
+        {groupId ? <TransactionSheet groupId={groupId} onSaved={onSaved} /> : null}
+      </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-          <FinancialInsight title="Rasio keluar" value={summary.income ? `${Math.round((summary.expense / summary.income) * 100)}%` : "-"} description="Dari total pemasukan tercatat." />
-          <FinancialInsight title="Aktivitas" value={String(transactions.length)} description="Transaksi pada filter saat ini." />
-        </div>
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          label="Saldo Kas"
+          value={summary.balance}
+          icon={WalletCards}
+          tone="neutral"
+          primary
+          loading={loading}
+        />
+        <MetricCard
+          label="Pemasukan"
+          value={summary.income}
+          icon={CircleDollarSign}
+          tone="income"
+          loading={loading}
+        />
+        <MetricCard
+          label="Pengeluaran"
+          value={summary.expense}
+          icon={WalletCards}
+          tone="expense"
+          loading={loading}
+        />
+        <CountMetricCard
+          label="Transaksi"
+          value={transactions.length}
+          description="pada filter aktif"
+          loading={loading}
+        />
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_360px]">
-        <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_360px]">
+        <DashboardPanel>
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <h2 className="font-semibold">Cash Flow Bulanan</h2>
+              <h2 className="text-sm font-semibold uppercase tracking-wide">Arus Kas</h2>
               <p className="text-sm text-[var(--muted)]">Pemasukan dan pengeluaran per bulan.</p>
+            </div>
+            <div className="hidden rounded-[11px] border border-[var(--line)] p-1 text-xs font-semibold text-[var(--muted)] sm:flex">
+              {["7 Hari", "30 Hari", "3 Bulan", "1 Tahun"].map((item, index) => (
+                <span
+                  key={item}
+                  className={cn(
+                    "rounded-[9px] px-2.5 py-1",
+                    index === 1 ? "bg-emerald-500 text-white" : "",
+                  )}
+                >
+                  {item}
+                </span>
+              ))}
             </div>
           </div>
           {loading ? (
-            <Skeleton className="h-72" />
+            <Skeleton className="h-64" />
           ) : monthlyChart.length ? (
-            <div className="h-72">
+            <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={monthlyChart}>
                   <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
@@ -1438,15 +1460,24 @@ function Overview({
           ) : (
             <EmptyState title="Belum ada cash flow" description="Transaksi yang masuk dari WhatsApp akan muncul di grafik ini." />
           )}
-        </div>
+        </DashboardPanel>
 
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
-            <h2 className="font-semibold">Breakdown Mingguan</h2>
+        <div className="grid gap-4">
+          <DashboardPanel>
+            <h2 className="text-sm font-semibold uppercase tracking-wide">Ringkasan Bulan Ini</h2>
+            <div className="mt-4 grid gap-3">
+              <InfoPill label="Rasio keluar" value={expenseRatio} />
+              <InfoPill label="Transaksi" value={`${transactions.length} tercatat`} />
+              <InfoPill label="Todo aktif" value={`${openTodos.length} prioritas`} />
+              <InfoPill label="Reminder" value={`${nextReminders.length} terdekat`} />
+            </div>
+          </DashboardPanel>
+          <DashboardPanel>
+            <h2 className="text-sm font-semibold uppercase tracking-wide">Breakdown Mingguan</h2>
             {loading ? (
-              <Skeleton className="mt-4 h-48" />
+              <Skeleton className="mt-4 h-40" />
             ) : weeklyChart.length ? (
-              <div className="mt-4 h-48">
+              <div className="mt-4 h-40">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={weeklyChart}>
                     <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
@@ -1460,38 +1491,154 @@ function Overview({
             ) : (
               <EmptyState title="Data mingguan kosong" description="Tambahkan transaksi untuk melihat pola mingguan." />
             )}
-          </div>
-          <UpcomingPanel todos={openTodos} reminders={nextReminders} />
+          </DashboardPanel>
         </div>
       </section>
 
-      <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
-        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h2 className="font-semibold">Recent Transactions</h2>
-            <p className="text-sm text-[var(--muted)]">Cari, filter tanggal, lalu ekspor data kas.</p>
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_360px]">
+        <DashboardPanel>
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h2 className="text-sm font-semibold uppercase tracking-wide">Transaksi Terbaru</h2>
+              <p className="text-sm text-[var(--muted)]">Cari, filter tanggal, lalu ekspor data kas.</p>
+            </div>
+            <Button variant="outline" onClick={onExport} disabled={!transactions.length}>
+              <Download className="h-4 w-4" />
+              Export CSV
+            </Button>
           </div>
-          <Button variant="outline" onClick={onExport} disabled={!transactions.length}>
-            <Download className="h-4 w-4" />
-            Export CSV
-          </Button>
+          <div className="mt-4 grid gap-3 md:grid-cols-[1fr_160px_160px]">
+            <label className="relative">
+              <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-[var(--muted)]" />
+              <Input
+                className="pl-9"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Cari catatan atau pengirim"
+              />
+            </label>
+            <Input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} />
+            <Input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} />
+          </div>
+          <TransactionsView loading={loading} transactions={recentTransactions} />
+        </DashboardPanel>
+
+        <div className="grid gap-4">
+          <OverviewAiPanel groupId={groupId} onSaved={onSaved} />
+          <UpcomingPanel todos={openTodos} reminders={nextReminders} />
         </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-[1fr_170px_170px]">
-          <label className="relative">
-            <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-[var(--muted)]" />
-            <Input
-              className="pl-9"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Cari catatan atau pengirim"
-            />
-          </label>
-          <Input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} />
-          <Input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} />
-        </div>
-        <TransactionsView loading={loading} transactions={transactions} />
-      </div>
+      </section>
     </div>
+  );
+}
+
+function DashboardPanel({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section
+      className={cn(
+        "rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--soft-shadow)]",
+        className,
+      )}
+    >
+      {children}
+    </section>
+  );
+}
+
+function CountMetricCard({
+  label,
+  value,
+  description,
+  loading,
+}: {
+  label: string;
+  value: number;
+  description: string;
+  loading: boolean;
+}) {
+  return (
+    <Card className="p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+            {label}
+          </p>
+          {loading ? (
+            <Skeleton className="mt-3 h-8 w-24" />
+          ) : (
+            <p className="mt-2 font-mono text-2xl font-semibold tabular-nums">
+              {value}
+            </p>
+          )}
+          <p className="mt-1 text-xs text-[var(--muted)]">{description}</p>
+        </div>
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[var(--panel)] text-[var(--muted)]">
+          <ClipboardCheck className="h-4 w-4" />
+        </span>
+      </div>
+    </Card>
+  );
+}
+
+function OverviewAiPanel({
+  groupId,
+  onSaved,
+}: {
+  groupId: string;
+  onSaved: () => void;
+}) {
+  if (!groupId) return null;
+
+  return (
+    <DashboardPanel>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold uppercase tracking-wide">BotUang AI</h2>
+          <p className="mt-1 text-sm text-[var(--muted)]">
+            Tanyakan tentang keuangan atau catat data cepat.
+          </p>
+        </div>
+        <span className="botuang-ai-orb botuang-ai-orb-sm" aria-hidden="true" />
+      </div>
+      <div className="mt-4 grid gap-2">
+        {["Pengeluaran 5k beli Pop Ice", "Saldo sekarang?", "Rekap bulan ini"].map(
+          (item) => (
+            <AiAssistantSheet
+              key={item}
+              groupId={groupId}
+              onSaved={onSaved}
+              trigger={
+                <button
+                  type="button"
+                  className="min-h-10 rounded-[11px] border border-[var(--line)] px-3 text-left text-sm text-[var(--muted)] transition hover:border-emerald-300/40 hover:bg-emerald-500/5 hover:text-[var(--foreground)]"
+                >
+                  {item}
+                </button>
+              }
+            />
+          ),
+        )}
+      </div>
+      <AiAssistantSheet
+        groupId={groupId}
+        onSaved={onSaved}
+        trigger={
+          <button
+            type="button"
+            className="mt-3 flex min-h-11 w-full items-center justify-between rounded-[12px] border border-[var(--line)] bg-[var(--background)] px-3 text-sm text-[var(--muted)] transition hover:border-emerald-300/40 hover:text-[var(--foreground)]"
+          >
+            <span>Tanyakan tentang keuangan...</span>
+            <Sparkles className="h-4 w-4 text-emerald-500" />
+          </button>
+        }
+      />
+    </DashboardPanel>
   );
 }
 
@@ -1946,17 +2093,19 @@ function MetricCard({
         ? "text-rose-500"
         : "text-[var(--foreground)]";
   return (
-    <Card className={cn("p-4", primary ? "md:p-5" : "")}>
+    <Card className="p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm text-[var(--muted)]">{label}</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+            {label}
+          </p>
           {loading ? (
-            <Skeleton className="mt-3 h-8 w-44" />
+            <Skeleton className="mt-3 h-8 w-36" />
           ) : (
             <p
               className={cn(
                 "mt-2 font-mono font-semibold tabular-nums",
-                primary ? "text-3xl" : "text-2xl",
+                primary ? "text-2xl xl:text-3xl" : "text-2xl",
                 color,
               )}
             >
@@ -1964,8 +2113,8 @@ function MetricCard({
             </p>
           )}
         </div>
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] bg-[var(--panel)] text-[var(--muted)]">
-          <Icon className="h-5 w-5" />
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[var(--panel)] text-[var(--muted)]">
+          <Icon className="h-4 w-4" />
         </span>
       </div>
     </Card>
