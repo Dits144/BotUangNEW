@@ -30,7 +30,7 @@ export function LandingPage() {
               <a href="/login">Masuk</a>
             </Button>
             <Button asChildLike="true">
-              <a href="/connect">Buka Dashboard</a>
+              <a href="/dashboard">Buka Dashboard</a>
             </Button>
           </div>
         </nav>
@@ -50,7 +50,7 @@ export function LandingPage() {
             </p>
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
               <Button asChildLike="true" className="w-full sm:w-auto">
-                <a href="/connect">
+                <a href="/dashboard">
                   Hubungkan Grup <ArrowRight className="h-4 w-4" />
                 </a>
               </Button>

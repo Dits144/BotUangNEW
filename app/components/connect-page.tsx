@@ -61,6 +61,25 @@ export function ConnectPage() {
 
     async function load() {
       if (!queryGroup || !queryToken) {
+        const auth = await supabase.auth.getSession();
+        const accessToken = auth.data.session?.access_token ?? "";
+
+        if (accessToken) {
+          const access = await fetch("/api/access/groups", {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          })
+            .then((response) => response.json() as Promise<{
+              ok?: boolean;
+              groups?: Array<{ group_id: string }>;
+            }>)
+            .catch(() => ({ ok: false, groups: [] }));
+
+          if (access.ok && access.groups?.length) {
+            router.replace("/dashboard");
+            return;
+          }
+        }
+
         setLoading(false);
         return;
       }
