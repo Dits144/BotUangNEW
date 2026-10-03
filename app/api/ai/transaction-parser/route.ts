@@ -21,6 +21,18 @@ type ParsedIntent = {
   confidence?: number;
 };
 
+function getGeminiModels() {
+  const configured = process.env.GOOGLE_AI_MODEL?.trim();
+  return [
+    configured,
+    "gemini-3.8-flash",
+    "gemini-3.6-flash",
+    "gemini-3.5-flash",
+  ].filter((model, index, models): model is string =>
+    Boolean(model && models.indexOf(model) === index),
+  );
+}
+
 function parseMoney(value: string) {
   const cleaned = value.toLowerCase().replace(",", ".");
   const match = cleaned.match(/(\d+(?:\.\d+)?)\s*(jt|juta|rb|ribu|k)?/);
@@ -183,9 +195,28 @@ function validateIntent(value: ParsedIntent) {
   };
 }
 
+function getFallbackResponse({
+  text,
+  today,
+  debug,
+}: {
+  text: string;
+  today: string;
+  debug?: string;
+}) {
+  const localIntent = parseLocalIntent(text, today);
+  if (!localIntent) return null;
+
+  return {
+    ok: true,
+    intent: localIntent,
+    source: "local",
+    debug,
+  };
+}
+
 export async function POST(request: Request) {
-  const apiKey = process.env.GOOGLE_AI_API_KEY;
-  const model = process.env.GOOGLE_AI_MODEL ?? "gemini-3.8-flash";
+  const apiKey = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_AI_API_KEY;
 
   const body = (await request.json().catch(() => ({}))) as { text?: string };
   const text = body.text?.trim() ?? "";
@@ -200,23 +231,19 @@ export async function POST(request: Request) {
   const today = new Date().toISOString().slice(0, 10);
 
   if (!apiKey) {
-    const localIntent = parseLocalIntent(text, today);
-    if (localIntent) {
-      return Response.json(
-        {
-          ok: true,
-          intent: localIntent,
-          source: "local",
-          message: "AI cloud belum dikonfigurasi, memakai parser lokal.",
-        },
-        { status: 200 },
-      );
+    const fallback = getFallbackResponse({
+      text,
+      today,
+      debug: "GEMINI_API_KEY/GOOGLE_AI_API_KEY belum diset.",
+    });
+    if (fallback) {
+      return Response.json(fallback, { status: 200 });
     }
 
     return Response.json(
       {
         ok: false,
-        message: "GOOGLE_AI_API_KEY belum diset dan parser lokal belum memahami perintah ini.",
+        message: "API key Gemini belum diset dan parser lokal belum memahami perintah ini.",
       },
       { status: 200 },
     );
@@ -237,11 +264,17 @@ export async function POST(request: Request) {
   ].join("\n");
 
   try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-      {
+    let lastError = "";
+
+    for (const model of getGeminiModels()) {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
@@ -250,56 +283,48 @@ export async function POST(request: Request) {
           },
         }),
       },
-    );
+      );
 
-    const data = (await response.json().catch(() => ({}))) as GeminiResponse & {
-      error?: { message?: string };
-    };
+      const data = (await response.json().catch(() => ({}))) as GeminiResponse & {
+        error?: { message?: string };
+      };
 
-    if (!response.ok) {
-      const localIntent = parseLocalIntent(text, today);
-      if (localIntent) {
-        return Response.json(
-          {
-            ok: true,
-            intent: localIntent,
-            source: "local",
-            message: "Gemini menolak akses project, memakai parser lokal.",
-          },
-          { status: 200 },
-        );
+      if (!response.ok) {
+        lastError = data.error?.message ?? `Gemini ${model} gagal (${response.status})`;
+        const denied = response.status === 403 || /denied|permission/i.test(lastError);
+        if (denied) break;
+        continue;
       }
 
-      return Response.json(
-        { ok: false, message: data.error?.message ?? "AI parser gagal." },
-        { status: 200 },
-      );
+      const output = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+      const parsed = JSON.parse(extractJson(output)) as ParsedIntent;
+      const intent = validateIntent(parsed);
+
+      if (!intent) {
+        lastError = `Gemini ${model} tidak menghasilkan intent valid.`;
+        continue;
+      }
+
+      return Response.json({ ok: true, intent, source: "gemini", model }, { status: 200 });
     }
 
-    const output = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-    const parsed = JSON.parse(extractJson(output)) as ParsedIntent;
-    const intent = validateIntent(parsed);
-
-    if (!intent) {
-      return Response.json(
-        { ok: false, message: "AI belum menemukan nominal transaksi." },
-        { status: 200 },
-      );
+    const fallback = getFallbackResponse({ text, today, debug: lastError });
+    if (fallback) {
+      return Response.json(fallback, { status: 200 });
     }
 
-    return Response.json({ ok: true, intent }, { status: 200 });
+    return Response.json(
+      { ok: false, message: lastError || "AI parser gagal dan parser lokal belum memahami perintah ini." },
+      { status: 200 },
+    );
   } catch {
-    const localIntent = parseLocalIntent(text, today);
-    if (localIntent) {
-      return Response.json(
-        {
-          ok: true,
-          intent: localIntent,
-          source: "local",
-          message: "AI cloud tidak tersedia, memakai parser lokal.",
-        },
-        { status: 200 },
-      );
+    const fallback = getFallbackResponse({
+      text,
+      today,
+      debug: "AI cloud tidak tersedia.",
+    });
+    if (fallback) {
+      return Response.json(fallback, { status: 200 });
     }
 
     return Response.json(
