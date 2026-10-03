@@ -1888,15 +1888,21 @@ type BotAiIntent = {
 
 function AiCommandBar({
   groupId,
+  sessionToken = "",
+  botApiUrl = "",
   onSaved,
 }: {
   groupId: string;
+  sessionToken?: string;
+  botApiUrl?: string;
   onSaved: () => void;
 }) {
   return (
     <div className="fixed bottom-5 right-5 z-40 hidden md:block">
       <AiAssistantSheet
         groupId={groupId}
+        sessionToken={sessionToken}
+        botApiUrl={botApiUrl}
         onSaved={onSaved}
         trigger={
           <button
