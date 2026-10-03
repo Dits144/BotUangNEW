@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -15,12 +15,14 @@ import {
   ClipboardCheck,
   Download,
   FileSpreadsheet,
+  Filter,
   Home,
   ListTodo,
   LogOut,
   MapPin,
   Menu,
   Moon,
+  MoreHorizontal,
   Plus,
   QrCode,
   Search,
@@ -29,6 +31,7 @@ import {
   Siren,
   Sparkles,
   Sun,
+  UserPlus,
   Users,
   WalletCards,
 } from "lucide-react";
@@ -227,6 +230,36 @@ const navItems = [
   { key: "settings", label: "Setting", href: "/dashboard/settings", icon: Settings },
   { key: "owner", label: "Owner", href: "/dashboard/owner", icon: ShieldCheck },
 ] as const;
+
+const navGroups = [
+  {
+    label: "Overview",
+    items: ["overview"],
+  },
+  {
+    label: "Group",
+    items: ["participants", "todos", "reminders", "commands"],
+  },
+  {
+    label: "System",
+    items: ["settings"],
+  },
+  {
+    label: "Owner",
+    items: ["owner"],
+  },
+] as const;
+
+function getNavItem(key: DashboardSection) {
+  return navItems.find((item) => item.key === key);
+}
+
+function displayGroupName(groupName: string, groupId?: string) {
+  const value = groupName || groupId || "Grup BotUang";
+  if (value.includes("@g.us")) return "Grup WhatsApp";
+  if (value.length > 34) return `${value.slice(0, 31)}...`;
+  return value;
+}
 
 function normalizeBotReminders(data: unknown, groupId: string): Reminder[] | null {
   if (!Array.isArray(data)) return null;
@@ -861,7 +894,7 @@ export function DashboardPage() {
   return (
     <main className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
       <div className="flex min-h-screen">
-        <aside className="hidden w-72 shrink-0 border-r border-[var(--line)] bg-[var(--surface)] p-5 md:block">
+        <aside className="hidden w-64 shrink-0 border-r border-[var(--line)] bg-[var(--surface)] p-4 md:block">
           <Brand
             groupId={groupId}
             groupName={groupName}
@@ -869,15 +902,31 @@ export function DashboardPage() {
             botStatus={botStatus}
             onSelectGroup={selectGroup}
           />
-          <nav className="mt-8 grid gap-1">
-            {visibleNavItems.map((item) => (
-              <NavLink
-                key={item.key}
-                item={item}
-                active={activeSection === item.key}
-                onNavigate={() => setMenuOpen(false)}
-              />
-            ))}
+          <nav className="mt-6 space-y-5">
+            {navGroups.map((group) => {
+              const items = group.items
+                .map((key) => getNavItem(key))
+                .filter((item): item is (typeof navItems)[number] => Boolean(item))
+                .filter((item) => visibleNavItems.some((visible) => visible.key === item.key));
+              if (!items.length) return null;
+              return (
+                <div key={group.label}>
+                  <p className="px-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">
+                    {group.label}
+                  </p>
+                  <div className="mt-2 grid gap-1">
+                    {items.map((item) => (
+                      <NavLink
+                        key={item.key}
+                        item={item}
+                        active={activeSection === item.key}
+                        onNavigate={() => setMenuOpen(false)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </nav>
         </aside>
 
@@ -886,7 +935,7 @@ export function DashboardPage() {
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-wide text-emerald-500">
-                  {groupName}
+                  {displayGroupName(groupName, groupId)}
                 </p>
                 <h1 className="truncate text-xl font-semibold md:text-2xl">
                   {visibleNavItems.find((item) => item.key === activeSection)?.label}
@@ -1026,7 +1075,9 @@ export function DashboardPage() {
 
       <MobileNav
         section={activeSection}
-        items={visibleNavItems}
+        role={role}
+        groupId={groupId}
+        onSaved={() => loadData()}
         onNavigate={() => setMenuOpen(false)}
       />
       <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
@@ -1069,7 +1120,9 @@ function Brand({
         </span>
         <div className="min-w-0">
           <p className="font-semibold">BotUang</p>
-          <p className="truncate text-sm text-[var(--muted)]">{groupName}</p>
+          <p className="truncate text-sm text-[var(--muted)]">
+            {displayGroupName(groupName, groupId)}
+          </p>
         </div>
       </div>
       <div className="mt-5">
@@ -1159,17 +1212,29 @@ function NavLink({
 
 function MobileNav({
   section,
-  items,
+  role,
+  groupId,
+  onSaved,
   onNavigate,
 }: {
   section: DashboardSection;
-  items: ReadonlyArray<(typeof navItems)[number]>;
+  role: "admin" | "owner";
+  groupId: string;
+  onSaved: () => void;
   onNavigate?: () => void;
 }) {
+  const menuHref = role === "owner" ? "/dashboard/owner" : "/dashboard/settings";
+  const items = [
+    { key: "overview" as const, label: "Home", href: "/dashboard", icon: Home },
+    { key: "transactions" as const, label: "Transaksi", href: "/dashboard", icon: WalletCards },
+    { key: "todos" as const, label: "Aktivitas", href: "/dashboard/todos", icon: ListTodo },
+    { key: "menu" as const, label: "Menu", href: menuHref, icon: MoreHorizontal },
+  ];
+
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--line)] bg-[var(--background)]/95 px-2 py-2 backdrop-blur md:hidden">
-      <div className="flex gap-1 overflow-x-auto">
-        {items.map((item) => {
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--line)] bg-[var(--background)]/95 px-3 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 backdrop-blur md:hidden">
+      <div className="grid grid-cols-5 items-end gap-1">
+        {items.slice(0, 2).map((item) => {
           const Icon = item.icon;
           const active = section === item.key;
           return (
@@ -1180,6 +1245,40 @@ function MobileNav({
               onClick={onNavigate}
               className={cn(
                 "flex min-h-14 min-w-16 flex-col items-center justify-center gap-1 rounded-[12px] text-[11px] font-semibold transition",
+                active
+                  ? "bg-emerald-500 text-slate-950"
+                  : "text-[var(--muted)] active:bg-[var(--panel)]",
+              )}
+              aria-label={item.label}
+            >
+              <Icon className="h-4 w-4" />
+              <span className="max-w-full truncate">{item.label}</span>
+            </Link>
+          );
+        })}
+        <div className="flex justify-center">
+          {groupId ? (
+            <TransactionSheet groupId={groupId} onSaved={onSaved} compact />
+          ) : (
+            <Button size="icon" disabled className="rounded-full">
+              <Plus className="h-5 w-5" />
+            </Button>
+          )}
+        </div>
+        {items.slice(2).map((item) => {
+          const Icon = item.icon;
+          const active =
+            item.key === "todos"
+              ? section === "todos" || section === "reminders" || section === "commands"
+              : section === "settings" || section === "participants" || section === "owner";
+          return (
+            <Link
+              key={item.key}
+              href={item.href}
+              prefetch
+              onClick={onNavigate}
+              className={cn(
+                "flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-[12px] text-[11px] font-semibold transition",
                 active
                   ? "bg-emerald-500 text-slate-950"
                   : "text-[var(--muted)] active:bg-[var(--panel)]",
@@ -1880,6 +1979,50 @@ function EmptyState({
   );
 }
 
+function PageIntro({
+  title,
+  description,
+  action,
+}: {
+  title: string;
+  description: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <h2 className="text-xl font-semibold">{title}</h2>
+        <p className="mt-1 text-sm text-[var(--muted)]">{description}</p>
+      </div>
+      {action ? <div className="shrink-0">{action}</div> : null}
+    </div>
+  );
+}
+
+function SummaryTile({
+  label,
+  value,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string;
+  tone?: "neutral" | "income" | "warning";
+}) {
+  return (
+    <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-3">
+      <p className="text-xs text-[var(--muted)]">{label}</p>
+      <p
+        className={cn(
+          "mt-1 truncate font-mono text-lg font-semibold tabular-nums",
+          tone === "income" ? "text-emerald-500" : tone === "warning" ? "text-amber-400" : "",
+        )}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
 type ChartPoint = { label: string; income: number; expense: number };
 
 function buildCashflow(transactions: Transaction[], range: "month" | "week") {
@@ -1939,9 +2082,11 @@ function calculateMoneyExpression(expression: string) {
 function TransactionSheet({
   groupId,
   onSaved,
+  compact = false,
 }: {
   groupId: string;
   onSaved: () => void;
+  compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<"income" | "expense">("income");
@@ -1977,9 +2122,9 @@ function TransactionSheet({
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button>
+        <Button size={compact ? "icon" : "default"} className={compact ? "h-12 w-12 rounded-full shadow-lg" : ""}>
           <Plus className="h-4 w-4" />
-          <span className="hidden sm:inline">Catat Transaksi</span>
+          {compact ? null : <span className="hidden sm:inline">Catat Transaksi</span>}
         </Button>
       </SheetTrigger>
       <SheetContent>
@@ -2045,6 +2190,34 @@ function ParticipantsPage({
 }) {
   const [name, setName] = useState("");
   const [dues, setDues] = useState("");
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<"all" | "paid" | "unpaid">("all");
+  const [open, setOpen] = useState(false);
+
+  const summary = useMemo(() => {
+    const paid = participants.filter((participant) => participant.data?.status === "paid");
+    const total = paid.reduce(
+      (sum, participant) => sum + Number(participant.data?.dues_amount ?? 0),
+      0,
+    );
+    return {
+      total: participants.length,
+      paid: paid.length,
+      unpaid: participants.length - paid.length,
+      collected: total,
+    };
+  }, [participants]);
+
+  const visibleParticipants = useMemo(() => {
+    return participants.filter((participant) => {
+      const status = participant.data?.status === "paid" ? "paid" : "unpaid";
+      const matchesFilter = filter === "all" || filter === status;
+      const matchesQuery = participant.name
+        .toLowerCase()
+        .includes(query.toLowerCase());
+      return matchesFilter && matchesQuery;
+    });
+  }, [filter, participants, query]);
 
   async function add(event: FormEvent) {
     event.preventDefault();
@@ -2058,6 +2231,7 @@ function ParticipantsPage({
       toast.success("Anggota ditambahkan.");
       setName("");
       setDues("");
+      setOpen(false);
       onChanged();
     }
   }
@@ -2075,41 +2249,81 @@ function ParticipantsPage({
   }
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[360px_1fr]">
-      <Card className="p-4">
-        <h2 className="font-semibold">Tambah Anggota</h2>
-        <form onSubmit={add} className="mt-4 space-y-3">
-          <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Nama anggota" required />
-          <Input value={dues} onChange={(event) => setDues(event.target.value)} type="number" inputMode="numeric" placeholder="Nominal iuran" />
-          <Button className="w-full">Tambah</Button>
-        </form>
-      </Card>
-      <Card className="p-4">
-        <h2 className="font-semibold">Kas Anggota</h2>
+    <div className="space-y-4">
+      <PageIntro
+        title="Anggota"
+        description="Kelola anggota dan kontribusi grup"
+        action={
+          <Sheet open={open} onOpenChange={setOpen}>
+            <SheetTrigger asChild>
+              <Button>
+                <UserPlus className="h-4 w-4" />
+                Tambah
+              </Button>
+            </SheetTrigger>
+            <SheetContent>
+              <SheetTitle>Tambah Anggota</SheetTitle>
+              <form onSubmit={add} className="mt-5 space-y-3">
+                <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Nama anggota" required />
+                <Input value={dues} onChange={(event) => setDues(event.target.value)} type="number" inputMode="numeric" placeholder="Nominal iuran" />
+                <Button className="w-full">Simpan Anggota</Button>
+              </form>
+            </SheetContent>
+          </Sheet>
+        }
+      />
+
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+        <SummaryTile label="Total Anggota" value={String(summary.total)} />
+        <SummaryTile label="Sudah Bayar" value={String(summary.paid)} tone="income" />
+        <SummaryTile label="Belum Bayar" value={String(summary.unpaid)} tone="warning" />
+        <SummaryTile label="Terkumpul" value={formatRupiah(summary.collected)} tone="income" />
+      </div>
+
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <label className="relative flex-1">
+          <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-[var(--muted)]" />
+          <Input className="pl-9" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cari anggota" />
+        </label>
+        <select value={filter} onChange={(event) => setFilter(event.target.value as typeof filter)} className="min-h-11 rounded-[11px] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm">
+          <option value="all">Semua status</option>
+          <option value="paid">Sudah bayar</option>
+          <option value="unpaid">Belum bayar</option>
+        </select>
+      </div>
+
+      <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
         {loading ? (
-          <div className="mt-4 space-y-3">
+          <div className="space-y-2 p-3">
             <Skeleton className="h-16" />
             <Skeleton className="h-16" />
           </div>
-        ) : participants.length ? (
-          <div className="mt-4 grid gap-3">
-            {participants.map((participant) => {
+        ) : visibleParticipants.length ? (
+          <div className="divide-y divide-[var(--line)]">
+            {visibleParticipants.map((participant) => {
               const status = participant.data?.status === "paid" ? "paid" : "unpaid";
               const due = Number(participant.data?.dues_amount ?? 0);
+              const initials = participant.name
+                .split(/\s+/)
+                .slice(0, 2)
+                .map((part) => part[0])
+                .join("")
+                .toUpperCase();
               return (
-                <div key={participant.id} className="flex flex-col gap-3 rounded-2xl border border-[var(--line)] p-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="font-semibold">{participant.name}</p>
-                    <p className="font-mono text-sm text-[var(--muted)] tabular-nums">
-                      Iuran: {formatRupiah(due)}
-                    </p>
+                <div key={participant.id} className="flex min-h-16 items-center gap-3 p-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-[var(--panel)] text-sm font-semibold">
+                    {initials || "A"}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold">{participant.name}</p>
+                    <p className="font-mono text-xs text-[var(--muted)] tabular-nums">Iuran {formatRupiah(due)}</p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex shrink-0 items-center gap-2">
                     <Badge tone={status === "paid" ? "income" : "warning"}>
                       {status === "paid" ? "Lunas" : "Belum bayar"}
                     </Badge>
                     <Button variant="outline" size="sm" onClick={() => mark(participant, status === "paid" ? "unpaid" : "paid")}>
-                      {status === "paid" ? "Tandai belum" : "Tandai lunas"}
+                      {status === "paid" ? "Reset" : "Lunas"}
                     </Button>
                   </div>
                 </div>
@@ -2119,7 +2333,7 @@ function ParticipantsPage({
         ) : (
           <EmptyState title="Anggota belum ada" description="Tambahkan anggota grup untuk memantau iuran." />
         )}
-      </Card>
+      </div>
     </div>
   );
 }
@@ -2137,6 +2351,9 @@ function TodosPage({
 }) {
   const [text, setText] = useState("");
   const [priority, setPriority] = useState("normal");
+  const [open, setOpen] = useState(false);
+  const activeTodos = todos.filter((todo) => !todo.is_done);
+  const doneTodos = todos.filter((todo) => todo.is_done);
 
   async function add(event: FormEvent) {
     event.preventDefault();
@@ -2145,6 +2362,7 @@ function TodosPage({
     if (error) toast.error(error.message);
     else {
       setText("");
+      setOpen(false);
       toast.success("Todo ditambahkan.");
       onChanged();
     }
@@ -2160,47 +2378,88 @@ function TodosPage({
   }
 
   return (
-    <Card className="p-4">
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h2 className="font-semibold">To-Do List</h2>
-          <p className="text-sm text-[var(--muted)]">Tugas grup yang tersinkron dengan tabel todos.</p>
-        </div>
-        <form onSubmit={add} className="grid gap-2 sm:grid-cols-[1fr_130px_auto]">
-          <Input value={text} onChange={(event) => setText(event.target.value)} placeholder="Tugas baru" required />
-          <select value={priority} onChange={(event) => setPriority(event.target.value)} className="min-h-11 rounded-[11px] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm">
-            <option value="normal">Normal</option>
-            <option value="tinggi">Tinggi</option>
-            <option value="rendah">Rendah</option>
-          </select>
-          <Button>Tambah</Button>
-        </form>
-      </div>
+    <div className="space-y-4">
+      <PageIntro
+        title="Todo"
+        description="Kelola tugas grup"
+        action={
+          <Sheet open={open} onOpenChange={setOpen}>
+            <SheetTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4" />
+                Tambah Tugas
+              </Button>
+            </SheetTrigger>
+            <SheetContent>
+              <SheetTitle>Tambah Tugas</SheetTitle>
+              <form onSubmit={add} className="mt-5 space-y-3">
+                <Input value={text} onChange={(event) => setText(event.target.value)} placeholder="Tugas baru" required />
+                <select value={priority} onChange={(event) => setPriority(event.target.value)} className="min-h-11 w-full rounded-[11px] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm">
+                  <option value="normal">Normal</option>
+                  <option value="tinggi">Tinggi</option>
+                  <option value="rendah">Rendah</option>
+                </select>
+                <Button className="w-full">Simpan Tugas</Button>
+              </form>
+            </SheetContent>
+          </Sheet>
+        }
+      />
       {loading ? (
-        <Skeleton className="mt-5 h-32" />
+        <Skeleton className="h-32" />
       ) : todos.length ? (
-        <div className="mt-5 grid gap-2">
-          {todos.map((todo) => {
-            const parsed = parseTodo(todo.todo_text);
-            return (
-              <button
-                key={todo.id}
-                onClick={() => toggle(todo)}
-                className="flex min-h-14 items-center gap-3 rounded-2xl border border-[var(--line)] p-3 text-left transition hover:bg-[var(--panel)]"
-              >
-                <span className={cn("flex h-7 w-7 items-center justify-center rounded-[9px] border", todo.is_done ? "border-emerald-400 bg-emerald-500 text-slate-950" : "border-[var(--line)]")}>
-                  {todo.is_done ? <Check className="h-4 w-4" /> : null}
-                </span>
-                <span className={cn("flex-1 font-medium", todo.is_done ? "text-[var(--muted)] line-through" : "")}>{parsed.text}</span>
-                <Badge tone={parsed.priority === "tinggi" ? "warning" : "muted"}>{parsed.priority}</Badge>
-              </button>
-            );
-          })}
+        <div className="grid gap-5 lg:grid-cols-2">
+          <TodoSection title="Belum Selesai" todos={activeTodos} onToggle={toggle} />
+          <TodoSection title="Selesai" todos={doneTodos} onToggle={toggle} muted />
         </div>
       ) : (
         <EmptyState title="Todo kosong" description="Tambahkan tugas grup tanpa membuat data palsu." />
       )}
-    </Card>
+    </div>
+  );
+}
+
+function TodoSection({
+  title,
+  todos,
+  onToggle,
+  muted,
+}: {
+  title: string;
+  todos: Todo[];
+  onToggle: (todo: Todo) => void;
+  muted?: boolean;
+}) {
+  return (
+    <section>
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="font-semibold">{title}</h2>
+        <span className="text-sm text-[var(--muted)]">{todos.length}</span>
+      </div>
+      <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
+        {todos.length ? (
+          todos.map((todo) => {
+            const parsed = parseTodo(todo.todo_text);
+            return (
+              <motion.button
+                layout
+                key={todo.id}
+                onClick={() => onToggle(todo)}
+                className="flex min-h-14 w-full items-center gap-3 border-b border-[var(--line)] p-3 text-left last:border-b-0"
+              >
+                <span className={cn("flex h-7 w-7 items-center justify-center rounded-[9px] border", todo.is_done ? "border-emerald-400 bg-emerald-500 text-slate-950" : "border-[var(--line)]")}>
+                  {todo.is_done ? <Check className="h-4 w-4" /> : null}
+                </span>
+                <span className={cn("min-w-0 flex-1 truncate font-medium", muted ? "text-[var(--muted)] line-through" : "")}>{parsed.text}</span>
+                <Badge tone={parsed.priority === "tinggi" ? "warning" : "muted"}>{parsed.priority}</Badge>
+              </motion.button>
+            );
+          })
+        ) : (
+          <p className="p-4 text-sm text-[var(--muted)]">Kosong.</p>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -2228,6 +2487,7 @@ function RemindersPage({
   const [value, setValue] = useState("");
   const [text, setText] = useState("");
   const [saving, setSaving] = useState(false);
+  const [open, setOpen] = useState(false);
 
   async function add(event: FormEvent) {
     event.preventDefault();
@@ -2264,6 +2524,7 @@ function RemindersPage({
       toast.success("Reminder disimpan.");
       setText("");
       setValue("");
+      setOpen(false);
       onChanged();
     } catch (error) {
       toast.error(
@@ -2275,38 +2536,57 @@ function RemindersPage({
   }
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[360px_1fr]">
-      <Card className="p-4">
-        <h2 className="font-semibold">Reminder Baru</h2>
-        <form onSubmit={add} className="mt-4 space-y-3">
-          <select value={type} onChange={(event) => setType(event.target.value)} className="min-h-11 w-full rounded-[11px] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm">
-            <option value="time">Jam harian</option>
-            <option value="date">Tanggal khusus</option>
-            <option value="datetime">Tanggal dan jam</option>
-          </select>
-          <Input value={value} onChange={(event) => setValue(event.target.value)} placeholder="08:00, 29/01/2027, atau 08:00&29/01/2027" required />
-          <Textarea value={text} onChange={(event) => setText(event.target.value)} placeholder="Isi reminder" required />
-          <Button className="w-full" disabled={saving}>
-            {saving ? "Menyimpan..." : "Simpan Reminder"}
-          </Button>
-        </form>
-      </Card>
-      <Card className="p-4">
-        <h2 className="font-semibold">Jadwal Aktif</h2>
+    <div className="space-y-4">
+      <PageIntro
+        title="Reminder"
+        description="Jadwal otomatis untuk grup WhatsApp"
+        action={
+          <Sheet open={open} onOpenChange={setOpen}>
+            <SheetTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4" />
+                Buat Reminder
+              </Button>
+            </SheetTrigger>
+            <SheetContent>
+              <SheetTitle>Reminder Baru</SheetTitle>
+              <form onSubmit={add} className="mt-5 space-y-3">
+                <select value={type} onChange={(event) => setType(event.target.value)} className="min-h-11 w-full rounded-[11px] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm">
+                  <option value="time">Jam harian</option>
+                  <option value="date">Tanggal khusus</option>
+                  <option value="datetime">Tanggal dan jam</option>
+                </select>
+                <Input value={value} onChange={(event) => setValue(event.target.value)} placeholder="08:00, 29/01/2027, atau 08:00&29/01/2027" required />
+                <Textarea value={text} onChange={(event) => setText(event.target.value)} placeholder="Isi reminder" required />
+                <Button className="w-full" disabled={saving}>
+                  {saving ? "Menyimpan..." : "Simpan Reminder"}
+                </Button>
+              </form>
+            </SheetContent>
+          </Sheet>
+        }
+      />
+      <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-2">
         {loading ? (
-          <Skeleton className="mt-4 h-32" />
+          <Skeleton className="h-32" />
         ) : reminders.length ? (
-          <div className="mt-4 grid gap-3">
+          <div className="divide-y divide-[var(--line)]">
             {reminders.map((reminder) => (
-              <div key={reminder.id} className="rounded-2xl border border-[var(--line)] p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
+              <div key={reminder.id} className="flex gap-3 p-3">
+                <div className="flex flex-col items-center">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-[12px] bg-[var(--panel)] text-emerald-500">
+                    <CalendarClock className="h-4 w-4" />
+                  </span>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-3">
                     <p className="font-semibold">{reminder.remind_text}</p>
-                    <p className="mt-1 text-sm text-[var(--muted)]">
-                      {reminder.remind_type} - {reminder.remind_value}
-                    </p>
+                    <span className="rounded-full bg-[var(--panel)] px-2 py-1 text-xs text-[var(--muted)]">
+                      {reminder.remind_type}
+                    </span>
                   </div>
-                  <CalendarClock className="h-5 w-5 text-emerald-500" />
+                  <p className="mt-1 text-sm text-[var(--muted)]">{reminder.remind_value}</p>
+                  <p className="mt-1 text-xs text-[var(--muted)]">Dibuat oleh {reminder.created_by ?? "Dashboard"}</p>
                 </div>
               </div>
             ))}
@@ -2314,7 +2594,7 @@ function RemindersPage({
         ) : (
           <EmptyState title="Belum ada reminder" description="Reminder otomatis grup akan tampil di sini." />
         )}
-      </Card>
+      </div>
     </div>
   );
 }
@@ -2332,6 +2612,18 @@ function CommandsPage({
 }) {
   const [keyword, setKeyword] = useState("");
   const [response, setResponse] = useState("");
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+
+  const visibleCommands = useMemo(
+    () =>
+      commands.filter(
+        (command) =>
+          command.keyword.toLowerCase().includes(query.toLowerCase()) ||
+          command.response.toLowerCase().includes(query.toLowerCase()),
+      ),
+    [commands, query],
+  );
 
   async function add(event: FormEvent) {
     event.preventDefault();
@@ -2345,6 +2637,7 @@ function CommandsPage({
       toast.success("Command disimpan.");
       setKeyword("");
       setResponse("");
+      setOpen(false);
       onChanged();
     }
   }
@@ -2359,29 +2652,47 @@ function CommandsPage({
   }
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[360px_1fr]">
-      <Card className="p-4">
-        <h2 className="font-semibold">Custom Command</h2>
-        <form onSubmit={add} className="mt-4 space-y-3">
-          <Input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="Keyword, contoh: /kas" required />
-          <Textarea value={response} onChange={(event) => setResponse(event.target.value)} placeholder="Respon otomatis" required />
-          <Button className="w-full">Simpan Command</Button>
-        </form>
-      </Card>
-      <Card className="p-4">
-        <h2 className="font-semibold">Trigger WhatsApp</h2>
+    <div className="space-y-4">
+      <PageIntro
+        title="Command"
+        description="Kelola respon otomatis WhatsApp"
+        action={
+          <Sheet open={open} onOpenChange={setOpen}>
+            <SheetTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4" />
+                Command Baru
+              </Button>
+            </SheetTrigger>
+            <SheetContent>
+              <SheetTitle>Command Baru</SheetTitle>
+              <form onSubmit={add} className="mt-5 space-y-3">
+                <Input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="Keyword, contoh: /kas" required />
+                <Textarea value={response} onChange={(event) => setResponse(event.target.value)} placeholder="Respon otomatis" required />
+                <Button className="w-full">Simpan Command</Button>
+              </form>
+            </SheetContent>
+          </Sheet>
+        }
+      />
+      <label className="relative block max-w-xl">
+        <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-[var(--muted)]" />
+        <Input className="pl-9" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cari command" />
+      </label>
+      <div>
         {loading ? (
-          <Skeleton className="mt-4 h-32" />
-        ) : commands.length ? (
-          <div className="mt-4 grid gap-3">
-            {commands.map((command) => (
-              <div key={command.id} className="rounded-2xl border border-[var(--line)] p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="font-mono font-semibold text-emerald-500">{command.keyword}</p>
-                    <p className="mt-1 line-clamp-2 text-sm text-[var(--muted)]">{command.response}</p>
-                  </div>
-                  <Button variant="ghost" size="sm" onClick={() => remove(command)}>Hapus</Button>
+          <Skeleton className="h-32" />
+        ) : visibleCommands.length ? (
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {visibleCommands.map((command) => (
+              <div key={command.id} className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
+                <p className="font-mono text-sm font-semibold text-emerald-500">{command.keyword}</p>
+                <div className="mt-3 rounded-[14px] border border-[var(--line)] bg-[var(--panel)] p-3">
+                  <p className="line-clamp-4 text-sm">{command.response}</p>
+                </div>
+                <div className="mt-3 flex items-center justify-between gap-2">
+                  <span className="text-xs text-[var(--muted)]">Text response</span>
+                  <Button variant="ghost" size="sm" onClick={() => remove(command)}>Delete</Button>
                 </div>
               </div>
             ))}
@@ -2389,7 +2700,7 @@ function CommandsPage({
         ) : (
           <EmptyState title="Command kosong" description="Buat trigger respon otomatis untuk grup WhatsApp." />
         )}
-      </Card>
+      </div>
     </div>
   );
 }
@@ -2475,6 +2786,9 @@ function SettingsPage({
   const [newPin, setNewPin] = useState("");
   const [months, setMonths] = useState("1");
   const [proof, setProof] = useState<File | null>(null);
+  const [settingsSection, setSettingsSection] = useState<
+    "rental" | "group" | "location" | "bot" | "security"
+  >("rental");
 
   useEffect(() => {
     setHeader(settings?.header_text ?? "");
@@ -2592,9 +2906,42 @@ function SettingsPage({
 
   if (loading) return <Skeleton className="h-96" />;
 
+  const settingSections = [
+    { key: "rental", label: "Rental", icon: WalletCards },
+    { key: "group", label: "Group", icon: Users },
+    { key: "location", label: "Location & Services", icon: MapPin },
+    { key: "bot", label: "Bot", icon: Bot },
+    { key: "security", label: "Security", icon: ShieldCheck },
+  ] as const;
+
   return (
-    <div className="grid gap-5 lg:grid-cols-[1fr_1fr]">
-      <Card className="p-4">
+    <div className="space-y-4">
+      <PageIntro title="Setting" description="Kelola sewa, layanan lokasi, bot, dan keamanan grup" />
+      <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
+        <nav className="grid gap-1 self-start rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-2 lg:sticky lg:top-24">
+          {settingSections.map((section) => {
+            const Icon = section.icon;
+            return (
+              <button
+                key={section.key}
+                onClick={() => setSettingsSection(section.key)}
+                className={cn(
+                  "flex min-h-11 items-center gap-3 rounded-[12px] px-3 text-left text-sm font-semibold",
+                  settingsSection === section.key
+                    ? "bg-emerald-500 text-slate-950"
+                    : "text-[var(--muted)] hover:bg-[var(--panel)] hover:text-[var(--foreground)]",
+                )}
+              >
+                <Icon className="h-4 w-4" />
+                {section.label}
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="space-y-4">
+      {settingsSection === "rental" ? (
+      <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="font-semibold">Rental Status</h2>
@@ -2640,13 +2987,28 @@ function SettingsPage({
           />
           <Button className="w-full">Kirim Request</Button>
         </form>
-      </Card>
+      </section>
+      ) : null}
 
-      <div className="space-y-5">
-        <Card className="p-4">
+      {settingsSection === "group" ? (
+        <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
           <h2 className="font-semibold">Group Settings</h2>
           <form onSubmit={saveSettings} className="mt-4 space-y-3">
             <Textarea value={header} onChange={(event) => setHeader(event.target.value)} placeholder="Header teks laporan grup" />
+            <Input
+              value={spreadsheetUrl}
+              onChange={(event) => setSpreadsheetUrl(event.target.value)}
+              placeholder="Link Google Sheets / spreadsheet"
+            />
+            <Button className="w-full">Simpan Setting</Button>
+          </form>
+        </section>
+      ) : null}
+
+      {settingsSection === "location" ? (
+        <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
+          <h2 className="font-semibold">Location & Services</h2>
+          <form onSubmit={saveSettings} className="mt-4 space-y-3">
             <SettingToggle
               icon={CloudSun}
               title="Weather"
@@ -2683,26 +3045,34 @@ function SettingsPage({
               placeholder="Lokasi pantauan darurat/gempa"
               onUseLocation={() => useBrowserLocation("emergency")}
             />
-            <Input
-              value={spreadsheetUrl}
-              onChange={(event) => setSpreadsheetUrl(event.target.value)}
-              placeholder="Link Google Sheets / spreadsheet"
-            />
+            <Button className="w-full">Simpan Layanan</Button>
+          </form>
+        </section>
+      ) : null}
+
+      {settingsSection === "bot" ? (
+        <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
+          <h2 className="font-semibold">Bot</h2>
+          <form onSubmit={saveSettings} className="mt-4 space-y-3">
             <label className="flex min-h-11 items-center justify-between rounded-2xl border border-[var(--line)] px-3 text-sm font-medium">
               Typo correction
               <input type="checkbox" checked={typoEnabled} onChange={(event) => setTypoEnabled(event.target.checked)} className="h-5 w-5 accent-emerald-500" />
             </label>
             <Button className="w-full">Simpan Setting</Button>
           </form>
-        </Card>
+        </section>
+      ) : null}
 
-        <Card className="p-4">
+      {settingsSection === "security" ? (
+        <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
           <h2 className="font-semibold">Change PIN</h2>
           <form onSubmit={changePin} className="mt-4 space-y-3">
             <Input value={newPin} onChange={(event) => setNewPin(event.target.value)} inputMode="numeric" type="password" placeholder="PIN baru" />
             <Button className="w-full" variant="secondary">Update PIN</Button>
           </form>
-        </Card>
+        </section>
+      ) : null}
+        </div>
       </div>
     </div>
   );
