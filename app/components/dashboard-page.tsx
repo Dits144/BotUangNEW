@@ -75,11 +75,13 @@ import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 
 type DashboardSection =
   | "overview"
+  | "transactions"
   | "participants"
   | "todos"
   | "reminders"
   | "commands"
   | "settings"
+  | "calculator"
   | "owner";
 
 type Transaction = {
@@ -224,28 +226,32 @@ type BotCommandPayload = {
   media_path?: string | null;
 };
 
+const DASHBOARD_SYNCED_SENDER_ID = "dashboard_synced";
+
 const navItems = [
   { key: "overview", label: "Overview", href: "/dashboard", icon: Home },
+  { key: "transactions", label: "Transaksi", href: "/dashboard/transactions", icon: WalletCards },
   { key: "participants", label: "Anggota", href: "/dashboard/participants", icon: Users },
   { key: "todos", label: "Todo", href: "/dashboard/todos", icon: ListTodo },
   { key: "reminders", label: "Reminder", href: "/dashboard/reminders", icon: Bell },
   { key: "commands", label: "Command", href: "/dashboard/commands", icon: Bot },
   { key: "settings", label: "Setting", href: "/dashboard/settings", icon: Settings },
+  { key: "calculator", label: "Kalkulator", href: "/dashboard/calculator", icon: Calculator },
   { key: "owner", label: "Owner", href: "/dashboard/owner", icon: ShieldCheck },
 ] as const;
 
 const navGroups = [
   {
     label: "Overview",
-    items: ["overview"],
+    items: ["overview", "transactions"],
   },
   {
     label: "Group",
     items: ["participants", "todos", "reminders", "commands"],
   },
   {
-    label: "System",
-    items: ["settings"],
+    label: "Utilitas",
+    items: ["settings", "calculator"],
   },
   {
     label: "Owner",
@@ -272,6 +278,12 @@ function getUserInitials(user: DashboardUser) {
     .filter(Boolean)
     .slice(0, 2);
   return parts.map((part) => part[0]?.toUpperCase()).join("") || "U";
+}
+
+function isConfirmedTransaction(item: Transaction) {
+  const senderName = (item.sender_name ?? "").trim().toLowerCase();
+  const dashboardSender = senderName === "ai dashboard" || senderName === "dashboard";
+  return !dashboardSender || item.sender_id === DASHBOARD_SYNCED_SENDER_ID;
 }
 
 function normalizeBotReminders(data: unknown, groupId: string): Reminder[] | null {
@@ -444,11 +456,13 @@ export function DashboardPage() {
   const router = useRouter();
   const pathname = usePathname();
   const activeSection = useMemo<DashboardSection>(() => {
+    if (pathname.endsWith("/transactions")) return "transactions";
     if (pathname.endsWith("/participants")) return "participants";
     if (pathname.endsWith("/todos")) return "todos";
     if (pathname.endsWith("/reminders")) return "reminders";
     if (pathname.endsWith("/commands")) return "commands";
     if (pathname.endsWith("/settings")) return "settings";
+    if (pathname.endsWith("/calculator")) return "calculator";
     if (pathname.endsWith("/owner")) return "owner";
     return "overview";
   }, [pathname]);
@@ -603,7 +617,7 @@ export function DashboardPage() {
       ? normalizeBotCommands(botCommandResult.data, targetGroupId)
       : null;
 
-    setTransactions((txResult.data ?? []) as Transaction[]);
+    setTransactions(((txResult.data ?? []) as Transaction[]).filter(isConfirmedTransaction));
     setParticipants(
       resolveDataList(botParticipants, (participantResult.data ?? []) as Participant[]),
     );
@@ -1014,7 +1028,7 @@ export function DashboardPage() {
                 >
                   {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                 </Button>
-                {groupId && activeSection !== "owner" && activeSection !== "overview" ? (
+                {groupId && !["owner", "overview", "transactions", "calculator"].includes(activeSection) ? (
                   <TransactionSheet
                     groupId={groupId}
                     sessionToken={sessionToken}
@@ -1087,6 +1101,23 @@ export function DashboardPage() {
                   onSaved={() => loadData()}
                 />
               ) : null}
+              {activeSection === "transactions" ? (
+                <TransactionsPage
+                  groupId={groupId}
+                  sessionToken={sessionToken}
+                  botApiUrl={botApiUrl}
+                  loading={loading}
+                  transactions={filteredTransactions}
+                  query={query}
+                  setQuery={setQuery}
+                  fromDate={fromDate}
+                  setFromDate={setFromDate}
+                  toDate={toDate}
+                  setToDate={setToDate}
+                  onExport={exportTransactions}
+                  onSaved={() => loadData()}
+                />
+              ) : null}
               {activeSection === "participants" ? (
                 <ParticipantsPage
                   loading={loading}
@@ -1137,6 +1168,7 @@ export function DashboardPage() {
                   onChanged={() => loadData()}
                 />
               ) : null}
+              {activeSection === "calculator" ? <CalculatorPage /> : null}
               {activeSection === "owner" ? <OwnerDashboardPage embedded /> : null}
             </motion.div>
           </AnimatePresence>
@@ -1330,7 +1362,7 @@ function MobileNav({
   const menuHref = role === "owner" ? "/dashboard/owner" : "/dashboard/settings";
   const items = [
     { key: "overview" as const, label: "Home", href: "/dashboard", icon: Home },
-    { key: "transactions" as const, label: "Transaksi", href: "/dashboard", icon: WalletCards },
+    { key: "transactions" as const, label: "Transaksi", href: "/dashboard/transactions", icon: WalletCards },
     { key: "todos" as const, label: "Aktivitas", href: "/dashboard/todos", icon: ListTodo },
     { key: "menu" as const, label: "Menu", href: menuHref, icon: MoreHorizontal },
   ];
@@ -1624,6 +1656,139 @@ function Overview({
   );
 }
 
+function TransactionsPage({
+  groupId,
+  sessionToken = "",
+  botApiUrl = "",
+  loading,
+  transactions,
+  query,
+  setQuery,
+  fromDate,
+  setFromDate,
+  toDate,
+  setToDate,
+  onExport,
+  onSaved,
+}: {
+  groupId: string;
+  sessionToken?: string;
+  botApiUrl?: string;
+  loading: boolean;
+  transactions: Transaction[];
+  query: string;
+  setQuery: (value: string) => void;
+  fromDate: string;
+  setFromDate: (value: string) => void;
+  toDate: string;
+  setToDate: (value: string) => void;
+  onExport: () => void;
+  onSaved: () => void;
+}) {
+  const income = transactions
+    .filter((item) => item.type === "income")
+    .reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const expense = transactions
+    .filter((item) => item.type === "expense")
+    .reduce((sum, item) => sum + Number(item.amount || 0), 0);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-normal">Transaksi</h1>
+          <p className="mt-1 text-sm text-[var(--muted)]">
+            Kelola kas masuk dan keluar yang tersimpan untuk grup aktif.
+          </p>
+        </div>
+        {groupId ? (
+          <TransactionSheet
+            groupId={groupId}
+            sessionToken={sessionToken}
+            botApiUrl={botApiUrl}
+            onSaved={onSaved}
+          />
+        ) : null}
+      </div>
+
+      <section className="grid gap-3 md:grid-cols-3">
+        <CompactMoneyStat label="Pemasukan filter" value={income} tone="income" loading={loading} />
+        <CompactMoneyStat label="Pengeluaran filter" value={expense} tone="expense" loading={loading} />
+        <div className="rounded-[14px] border border-[var(--line)] bg-[var(--panel)] p-3">
+          <p className="text-xs font-medium text-[var(--muted)]">Saldo filter</p>
+          {loading ? (
+            <Skeleton className="mt-2 h-6 w-28" />
+          ) : (
+            <p className="mt-1 font-mono text-base font-semibold tabular-nums">
+              {formatRupiah(income - expense)}
+            </p>
+          )}
+        </div>
+      </section>
+
+      <DashboardPanel>
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h2 className="text-sm font-semibold uppercase tracking-wide">Daftar Transaksi</h2>
+            <p className="text-sm text-[var(--muted)]">
+              Cari, edit, hapus, atau ekspor transaksi grup.
+            </p>
+          </div>
+          <Button variant="outline" onClick={onExport} disabled={!transactions.length}>
+            <Download className="h-4 w-4" />
+            Export CSV
+          </Button>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-[1fr_160px_160px]">
+          <label className="relative">
+            <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-[var(--muted)]" />
+            <Input
+              className="pl-9"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Cari catatan atau pengirim"
+            />
+          </label>
+          <Input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} />
+          <Input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} />
+        </div>
+        <TransactionsView
+          groupId={groupId}
+          sessionToken={sessionToken}
+          botApiUrl={botApiUrl}
+          loading={loading}
+          transactions={transactions}
+          onSaved={onSaved}
+        />
+      </DashboardPanel>
+    </div>
+  );
+}
+
+function CalculatorPage() {
+  return (
+    <div className="mx-auto grid max-w-5xl gap-4 lg:grid-cols-[minmax(0,420px)_1fr]">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-normal">Kalkulator</h1>
+        <p className="mt-1 text-sm text-[var(--muted)]">
+          Hitung nominal kas cepat dengan dukungan k, rb, dan jt.
+        </p>
+        <div className="mt-4">
+          <FinanceCalculator />
+        </div>
+      </div>
+      <DashboardPanel className="self-start">
+        <h2 className="text-sm font-semibold uppercase tracking-wide">Contoh cepat</h2>
+        <div className="mt-3 grid gap-2 text-sm text-[var(--muted)]">
+          <p>150k x 3 - 25rb</p>
+          <p>1.5jt / 6</p>
+          <p>(500k + 250k) / 5</p>
+        </div>
+      </DashboardPanel>
+    </div>
+  );
+}
+
 function DashboardPanel({
   children,
   className,
@@ -1697,13 +1862,13 @@ function OverviewAiPanel({
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-wide">BotUang AI</h2>
           <p className="mt-1 text-sm text-[var(--muted)]">
-            Tanyakan tentang keuangan atau catat data cepat.
+            Catat data cepat dari bahasa sehari-hari.
           </p>
         </div>
         <span className="botuang-ai-orb botuang-ai-orb-sm" aria-hidden="true" />
       </div>
       <div className="mt-4 grid gap-2">
-        {["Pengeluaran 5k beli Pop Ice", "Saldo sekarang?", "Rekap bulan ini"].map(
+        {["Pengeluaran 5k beli Pop Ice", "Reminder besok 08:00 rapat", "Todo beli konsumsi"].map(
           (item) => (
             <AiAssistantSheet
               key={item}
@@ -1980,6 +2145,12 @@ function AiAssistantSheet({
       }
     }
 
+    if (intent.action === "transaction" && botApiUrl && !botOk) {
+      setSaving(false);
+      toast.error("Transaksi belum disimpan karena bot WA tidak menerima data.");
+      return;
+    }
+
     const { error } =
       intent.action === "transaction"
         ? await supabase.from("transactions").insert({
@@ -1987,6 +2158,7 @@ function AiAssistantSheet({
             type: intent.type,
             amount: intent.amount,
             note: intent.note,
+            sender_id: DASHBOARD_SYNCED_SENDER_ID,
             sender_name: "AI Dashboard",
             created_at: intent.date
               ? new Date(`${intent.date}T12:00:00`).toISOString()
@@ -2012,7 +2184,7 @@ function AiAssistantSheet({
               });
     setSaving(false);
 
-    if (error && !botOk) {
+    if (error) {
       toast.error(error.message);
       return;
     }
@@ -2225,6 +2397,107 @@ function MoneyCalculator() {
               onClick={() => setExpression((current) => `${current}${suffix}`)}
             >
               {suffix}
+            </Button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FinanceCalculator() {
+  const [expression, setExpression] = useState("");
+  const result = useMemo(() => calculateMoneyExpression(expression), [expression]);
+  const buttons = [
+    "C",
+    "Del",
+    "%",
+    "/",
+    "7",
+    "8",
+    "9",
+    "x",
+    "4",
+    "5",
+    "6",
+    "-",
+    "1",
+    "2",
+    "3",
+    "+",
+    "0",
+    ".",
+    "rb",
+    "=",
+  ];
+
+  function press(value: string) {
+    if (value === "C") {
+      setExpression("");
+      return;
+    }
+    if (value === "Del") {
+      setExpression((current) => current.slice(0, -1));
+      return;
+    }
+    if (value === "=") {
+      if (result.ok) setExpression(String(Math.round(result.value)));
+      return;
+    }
+    if (value === "%") {
+      setExpression((current) => (current ? `(${current})/100` : ""));
+      return;
+    }
+    setExpression((current) => `${current}${value}`);
+  }
+
+  return (
+    <div className="rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-3 shadow-[var(--soft-shadow)]">
+      <div className="flex items-center gap-2">
+        <Calculator className="h-5 w-5 text-emerald-500" />
+        <h2 className="font-semibold">Kalkulator</h2>
+      </div>
+      <div className="mt-3 rounded-[14px] border border-[var(--line)] bg-[var(--background)] p-3">
+        <Input
+          className="h-12 font-mono text-right text-base tabular-nums"
+          value={expression}
+          onChange={(event) => setExpression(event.target.value)}
+          placeholder="150k x 3 - 25rb"
+          inputMode="decimal"
+          aria-label="Input kalkulator"
+        />
+        <div className="mt-3 min-h-16 rounded-[12px] border border-[var(--line)] bg-[var(--panel)] p-3 text-right">
+          <p className="text-xs font-medium text-[var(--muted)]">Hasil</p>
+          <p className="mt-1 font-mono text-2xl font-semibold tabular-nums">
+            {result.ok ? formatRupiah(result.value) : "Format salah"}
+          </p>
+        </div>
+        <div className="mt-3 grid grid-cols-4 gap-2">
+          {buttons.map((button) => (
+            <Button
+              key={button}
+              type="button"
+              variant={button === "=" ? "default" : "outline"}
+              className={cn(
+                "min-h-12 px-0 font-mono text-base",
+                ["/", "x", "-", "+", "="].includes(button) ? "font-semibold" : "",
+              )}
+              onClick={() => press(button)}
+            >
+              {button}
+            </Button>
+          ))}
+        </div>
+        <div className="mt-2 grid grid-cols-4 gap-2">
+          {["k", "jt", "(", ")"].map((token) => (
+            <Button
+              key={token}
+              type="button"
+              variant="ghost"
+              className="min-h-10 font-mono"
+              onClick={() => setExpression((current) => `${current}${token}`)}
+            >
+              {token}
             </Button>
           ))}
         </div>
@@ -2687,16 +2960,23 @@ function TransactionSheet({
       botOk = Boolean(botRes.ok);
     }
 
+    if (botApiUrl && !botOk) {
+      setSaving(false);
+      toast.error("Transaksi belum disimpan karena bot WA tidak menerima data.");
+      return;
+    }
+
     const { error } = await supabase.from("transactions").insert({
       group_id: groupId,
       type,
       amount: Number(amount),
       note,
+      sender_id: DASHBOARD_SYNCED_SENDER_ID,
       sender_name: "Dashboard",
       created_at: new Date(`${date}T12:00:00`).toISOString(),
     });
     setSaving(false);
-    if (error && !botOk) {
+    if (error) {
       toast.error(error.message);
       return;
     }
