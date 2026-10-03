@@ -1,57 +1,43 @@
 "use client";
 
 import type { FormEvent, InputHTMLAttributes, ReactNode } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, KeyRound, Mail, ShieldCheck } from "lucide-react";
+import {
+  ArrowRight,
+  Check,
+  Eye,
+  EyeOff,
+  KeyRound,
+  Mail,
+  ShieldCheck,
+  User,
+  WalletCards,
+} from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { toast } from "sonner";
 import {
   AUTH_REDIRECT_KEY,
   DASHBOARD_SESSION_KEY,
 } from "@/app/lib/constants";
 import { supabase } from "@/app/lib/supabase";
+import { cn } from "@/app/lib/utils";
+import { Button } from "./ui/button";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 
 const ownerEmails = new Set(["dits144@gmail.com"]);
 
 export function LoginPage() {
   const router = useRouter();
-  const blobRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const reduceMotion = useReducedMotion();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [groupId, setGroupId] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const blobsData = useMemo(
-    () => [
-      { size: 340, left: 8, top: 6, delay: -8, duration: 24 },
-      { size: 260, left: 68, top: 10, delay: -18, duration: 28 },
-      { size: 300, left: 72, top: 62, delay: -4, duration: 22 },
-      { size: 210, left: 18, top: 68, delay: -12, duration: 26 },
-      { size: 180, left: 48, top: 34, delay: -20, duration: 30 },
-      { size: 150, left: 86, top: 38, delay: -6, duration: 20 },
-    ],
-    [],
-  );
-
-  useEffect(() => {
-    function handleMouseMove(event: MouseEvent) {
-      const x = event.clientX / window.innerWidth - 0.5;
-      const y = event.clientY / window.innerHeight - 0.5;
-
-      blobRefs.current.forEach((blob, index) => {
-        if (!blob) return;
-        const speed = (index + 1) * 8;
-        blob.style.marginLeft = `${x * speed}px`;
-        blob.style.marginTop = `${y * speed}px`;
-      });
-    }
-
-    document.addEventListener("mousemove", handleMouseMove);
-    return () => document.removeEventListener("mousemove", handleMouseMove);
-  }, []);
 
   async function routeToDashboard(
     userGroupId?: string,
@@ -100,12 +86,12 @@ export function LoginPage() {
     const previousSession = stored
       ? (JSON.parse(stored) as {
           groupId?: string;
-        groupName?: string;
-        apiUrl?: string;
-        token?: string;
-        userName?: string;
-        userEmail?: string;
-      })
+          groupName?: string;
+          apiUrl?: string;
+          token?: string;
+          userName?: string;
+          userEmail?: string;
+        })
       : {};
     const targetGroup =
       groupId ||
@@ -218,45 +204,12 @@ export function LoginPage() {
   }
 
   return (
-    <main className="mercury-login relative min-h-screen overflow-hidden bg-[#05090f] text-white">
-      <svg className="absolute h-0 w-0" aria-hidden="true">
-        <defs>
-          <filter id="botuang-gooey">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="12" result="blur" />
-            <feColorMatrix
-              in="blur"
-              mode="matrix"
-              values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 19 -9"
-              result="goo"
-            />
-            <feComposite in="SourceGraphic" in2="goo" operator="atop" />
-          </filter>
-        </defs>
-      </svg>
-
-      <div className="mercury-stage" aria-hidden="true">
-        {blobsData.map((blob, index) => (
-          <div
-            key={index}
-            ref={(element) => {
-              blobRefs.current[index] = element;
-            }}
-            className="mercury-blob"
-            style={{
-              width: `${blob.size}px`,
-              height: `${blob.size}px`,
-              left: `${blob.left}%`,
-              top: `${blob.top}%`,
-              animationDelay: `${blob.delay}s`,
-              animationDuration: `${blob.duration}s`,
-            }}
-          />
-        ))}
-      </div>
-
-      <section className="relative z-10 grid min-h-screen px-5 py-6 lg:grid-cols-[minmax(0,1fr)_480px] lg:px-8">
-        <div className="hidden min-h-full flex-col justify-between lg:flex">
-          <Link href="/" className="flex w-fit items-center gap-3">
+    <main className="min-h-screen bg-[var(--background)] px-4 py-6 text-[var(--foreground)]">
+      <section className="mx-auto grid min-h-[calc(100vh-3rem)] max-w-6xl overflow-hidden rounded-[18px] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--soft-shadow)] lg:grid-cols-[1fr_440px]">
+        <aside className="relative hidden min-h-full overflow-hidden border-r border-[var(--line)] bg-[#07111d] p-8 text-white lg:flex lg:flex-col lg:justify-between">
+          <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-emerald-400/15 blur-3xl" />
+          <div className="absolute -bottom-28 left-12 h-72 w-72 rounded-full bg-cyan-400/10 blur-3xl" />
+          <Link href="/" className="relative flex w-fit items-center gap-3">
             <span className="flex h-11 w-11 items-center justify-center rounded-[14px] border border-emerald-300/25 bg-emerald-300/10">
               <img src="/botuang-mark.svg" alt="" className="h-8 w-8" />
             </span>
@@ -265,91 +218,130 @@ export function LoginPage() {
             </span>
           </Link>
 
-          <div className="max-w-2xl pb-10">
-            <p className="font-mono text-[11px] uppercase tracking-[0.42em] text-white/45">
+          <div className="relative max-w-xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-emerald-200/70">
               WhatsApp Finance Workspace
             </p>
-            <h1 className="mt-4 max-w-xl text-6xl font-black leading-[0.92] tracking-[-0.06em]">
-              Manage
-              <br />
-              Keuangan
+            <h1 className="mt-4 max-w-lg text-5xl font-semibold leading-tight tracking-[-0.04em]">
+              Kelola kas grup tanpa dashboard yang berat.
             </h1>
-            <p className="mt-5 max-w-md text-sm leading-6 text-white/55">
-              Akses dashboard kas grup, reminder, todo, dan command WhatsApp dari satu ruang kerja finansial.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex min-h-full items-center justify-center lg:justify-end">
-          <div className="w-full max-w-[440px] px-1 py-8 sm:px-6 lg:px-0">
-            <div className="mb-10 lg:hidden">
-              <Link href="/" className="flex w-fit items-center gap-3">
-                <img src="/botuang-mark.svg" alt="" className="h-10 w-10" />
-                <span className="font-semibold">
-                  Bot<span className="text-emerald-300">Uang</span>
-                </span>
-              </Link>
+            <div className="mt-7 grid gap-3 text-sm text-white/72">
+              {["Catat pemasukan dan pengeluaran", "Kelola todo, reminder, dan command", "Akses owner dan admin dalam satu akun"].map(
+                (item) => (
+                  <div key={item} className="flex items-center gap-3">
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-400 text-[#07111d]">
+                      <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                    </span>
+                    {item}
+                  </div>
+                ),
+              )}
             </div>
+          </div>
 
-            <header className="mb-10">
-              <span className="font-mono text-[10px] uppercase tracking-[0.38em] text-white/45">
-                {mode === "login" ? "Secure Account Access" : "Create Admin Access"}
+          <p className="relative text-xs text-white/45">
+            Ringan, cepat, dan terhubung ke data grup BotUang.
+          </p>
+        </aside>
+
+        <div className="flex items-center justify-center p-5 sm:p-8">
+          <div className="w-full max-w-sm">
+            <Link href="/" className="mb-8 flex w-fit items-center gap-3 lg:hidden">
+              <img src="/botuang-mark.svg" alt="" className="h-10 w-10" />
+              <span className="font-semibold">
+                Bot<span className="text-emerald-500">Uang</span>
               </span>
-              <h2 className="mt-3 text-5xl font-black leading-[0.9] tracking-[-0.06em] sm:text-6xl">
-                {mode === "login" ? (
-                  <>
-                    Login
-                    <br />
-                    BotUang
-                  </>
-                ) : (
-                  <>
-                    Admin
-                    <br />
-                    Baru
-                  </>
-                )}
-              </h2>
-            </header>
+            </Link>
+
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={mode}
+                initial={reduceMotion ? { opacity: 0 } : { opacity: 0, x: mode === "register" ? 16 : -16 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: mode === "register" ? -16 : 16 }}
+                transition={{ duration: reduceMotion ? 0 : 0.18 }}
+              >
+                <h1 className="text-2xl font-semibold">
+                  {mode === "register" ? "Buat akun admin" : "Selamat datang kembali"}
+                </h1>
+                <p className="mt-1 text-sm text-[var(--muted)]">
+                  {mode === "register"
+                    ? "Daftar dengan nama, email, dan password untuk mulai mengelola grup."
+                    : "Masuk untuk lanjut mengelola dashboard BotUang."}
+                </p>
+              </motion.div>
+            </AnimatePresence>
 
             <Tabs value={mode} onValueChange={(value) => setMode(value as typeof mode)}>
-              <TabsList className="mb-8 grid w-full grid-cols-2 border-white/10 bg-white/[0.05]">
+              <TabsList className="mt-6 grid w-full grid-cols-2">
                 <TabsTrigger value="login">Login</TabsTrigger>
                 <TabsTrigger value="register">Register</TabsTrigger>
               </TabsList>
             </Tabs>
 
-            <form onSubmit={handleSubmit} className="space-y-7" autoComplete="off">
-              {mode === "register" ? (
-                <MercuryField
-                  label="Nama"
-                  icon={<ShieldCheck className="h-4 w-4" />}
-                  value={fullName}
-                  onChange={setFullName}
-                  placeholder="Nama admin"
-                  required
-                />
-              ) : null}
-              <MercuryField
-                label="Email Admin"
+            <form onSubmit={handleSubmit} className="mt-5 grid gap-4" autoComplete="off">
+              <AnimatePresence initial={false}>
+                {mode === "register" ? (
+                  <motion.div
+                    key="name"
+                    initial={reduceMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
+                    animate={reduceMotion ? { opacity: 1 } : { height: "auto", opacity: 1 }}
+                    exit={reduceMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
+                    transition={{ duration: reduceMotion ? 0 : 0.18 }}
+                    className="overflow-hidden"
+                  >
+                    <AuthField
+                      label="Nama"
+                      icon={<User className="h-4 w-4" />}
+                      value={fullName}
+                      onChange={setFullName}
+                      placeholder="Nama admin"
+                      required
+                    />
+                  </motion.div>
+                ) : null}
+              </AnimatePresence>
+
+              <AuthField
+                label="Email"
                 icon={<Mail className="h-4 w-4" />}
                 type="email"
                 value={email}
                 onChange={setEmail}
                 placeholder="dits144@gmail.com"
+                autoComplete="email"
                 required
               />
-              <MercuryField
+
+              <AuthField
                 label="Password"
                 icon={<KeyRound className="h-4 w-4" />}
-                type="password"
+                type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={setPassword}
-                placeholder="********"
+                placeholder="Minimal 6 karakter"
+                autoComplete={mode === "register" ? "new-password" : "current-password"}
                 minLength={6}
                 required
+                action={
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((value) => !value)}
+                    className="rounded-[10px] p-2 text-[var(--muted)] transition hover:bg-[var(--panel)] hover:text-[var(--foreground)]"
+                    aria-label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                }
               />
-              <MercuryField
+
+              {mode === "register" ? (
+                <div className="grid gap-1 text-xs text-[var(--muted)]">
+                  <PasswordRule passed={password.length >= 6}>Minimal 6 karakter</PasswordRule>
+                </div>
+              ) : null}
+
+              <AuthField
                 label="Group ID"
                 icon={<ShieldCheck className="h-4 w-4" />}
                 value={groupId}
@@ -357,22 +349,28 @@ export function LoginPage() {
                 placeholder="Opsional bila sudah connect"
               />
 
-              <div className="mercury-submit-wrap">
-                <div className="mercury-drop" aria-hidden="true" />
-                <button type="submit" className="mercury-submit" disabled={loading}>
-                  <span>
-                    {loading ? "Memproses" : mode === "login" ? "Masuk Dashboard" : "Buat Akun"}
-                  </span>
-                  <ArrowRight className="h-4 w-4" />
-                </button>
-              </div>
+              <Button className="mt-1 w-full" disabled={loading}>
+                {loading ? "Memproses..." : mode === "register" ? "Buat Akun" : "Masuk Dashboard"}
+                <ArrowRight className="h-4 w-4" />
+              </Button>
             </form>
 
-            <footer className="mt-8 flex items-center justify-between gap-4 font-mono text-[10px] uppercase tracking-[0.16em] text-white/45">
-              <Link href="/connect" className="transition hover:text-white">
+            <p className="mt-5 text-center text-sm text-[var(--muted)]">
+              {mode === "register" ? "Sudah punya akun?" : "Belum punya akun?"}{" "}
+              <button
+                type="button"
+                onClick={() => setMode(mode === "register" ? "login" : "register")}
+                className="font-semibold text-emerald-500 underline-offset-4 hover:underline"
+              >
+                {mode === "register" ? "Login" : "Register"}
+              </button>
+            </p>
+
+            <footer className="mt-6 flex items-center justify-between text-xs text-[var(--muted)]">
+              <Link href="/connect" className="transition hover:text-[var(--foreground)]">
                 Connect Group
               </Link>
-              <Link href="/" className="transition hover:text-white">
+              <Link href="/" className="transition hover:text-[var(--foreground)]">
                 Back Home
               </Link>
             </footer>
@@ -383,33 +381,59 @@ export function LoginPage() {
   );
 }
 
-function MercuryField({
+function AuthField({
   label,
   icon,
   value,
   onChange,
+  action,
   ...props
 }: {
   label: string;
   icon: ReactNode;
   value: string;
   onChange: (value: string) => void;
+  action?: ReactNode;
 } & Omit<InputHTMLAttributes<HTMLInputElement>, "value" | "onChange">) {
   return (
-    <label className="mercury-field group block">
-      <span className="mb-3 flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-white/45">
+    <label className="grid gap-1.5">
+      <span className="flex items-center gap-2 text-sm font-medium text-[var(--foreground)]">
         {icon}
         {label}
       </span>
-      <span className="relative block">
+      <span className="flex min-h-11 items-center rounded-[11px] border border-[var(--line)] bg-[var(--background)] px-3 shadow-sm transition focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-emerald-400">
         <input
           {...props}
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className="w-full border-0 border-b border-white/12 bg-transparent px-0 py-3 text-lg text-white outline-none transition placeholder:text-white/22 focus:border-white/20"
+          className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--muted)]"
         />
-        <span className="mercury-input-glow" />
+        {action}
       </span>
     </label>
+  );
+}
+
+function PasswordRule({
+  passed,
+  children,
+}: {
+  passed: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <p className={cn("flex items-center gap-2", passed ? "text-emerald-500" : "")}>
+      <span
+        className={cn(
+          "flex h-4 w-4 items-center justify-center rounded-full border",
+          passed
+            ? "border-emerald-500 bg-emerald-500 text-white"
+            : "border-[var(--line)] text-transparent",
+        )}
+      >
+        <Check className="h-3 w-3" strokeWidth={3} />
+      </span>
+      {children}
+    </p>
   );
 }
