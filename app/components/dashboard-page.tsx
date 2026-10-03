@@ -197,17 +197,6 @@ type BotReminderPayload = {
   deleted_at?: string | null;
 };
 
-type BotTransactionPayload = {
-  id?: string | number;
-  group_id?: string;
-  type?: "income" | "expense";
-  amount?: number | string;
-  note?: string | null;
-  date?: string;
-  created_at?: string;
-  sender_name?: string | null;
-};
-
 type BotParticipantPayload = {
   id?: string | number;
   group_id?: string;
@@ -302,29 +291,6 @@ function normalizeBotReminders(data: unknown, groupId: string): Reminder[] | nul
       created_by: reminder.created_by ?? "BotUang",
       created_at: createdAt,
       deleted_at: reminder.deleted_at ?? null,
-    };
-  });
-}
-
-function normalizeBotTransactions(data: unknown, groupId: string): Transaction[] | null {
-  if (!Array.isArray(data)) return null;
-
-  return data.map((item) => {
-    const transaction = item as BotTransactionPayload;
-    const createdAt =
-      transaction.created_at ?? transaction.date ?? new Date().toISOString();
-
-    return {
-      id: String(transaction.id ?? `${groupId}-${createdAt}`),
-      group_id: transaction.group_id ?? groupId,
-      type: transaction.type === "expense" ? "expense" : "income",
-      amount: Number(transaction.amount ?? 0),
-      note: transaction.note ?? "",
-      sender_id: "bot",
-      sender_name: transaction.sender_name ?? "BotUang",
-      created_at: createdAt,
-      edited_at: null,
-      deleted_at: null,
     };
   });
 }
@@ -540,7 +506,6 @@ export function DashboardPage() {
       rentalResult,
       settingResult,
       botResult,
-      botTransactionResult,
       botParticipantResult,
       botTodoResult,
       botReminderResult,
@@ -599,12 +564,6 @@ export function DashboardPage() {
         .then((response) => response.json())
         .catch(() => ({ ok: false, message: "Status bot tidak tersedia" })),
       fetchBotGroupData({
-        resource: "transactions",
-        groupId: targetGroupId,
-        apiUrl,
-        token: authToken,
-      }),
-      fetchBotGroupData({
         resource: "participants",
         groupId: targetGroupId,
         apiUrl,
@@ -631,9 +590,6 @@ export function DashboardPage() {
     ]);
 
     if (txResult.error) toast.error(txResult.error.message);
-    const botTransactions = botTransactionResult.ok
-      ? normalizeBotTransactions(botTransactionResult.data, targetGroupId)
-      : null;
     const botParticipants = botParticipantResult.ok
       ? normalizeBotParticipants(botParticipantResult.data, targetGroupId)
       : null;
@@ -647,9 +603,7 @@ export function DashboardPage() {
       ? normalizeBotCommands(botCommandResult.data, targetGroupId)
       : null;
 
-    setTransactions(
-      resolveDataList(botTransactions, (txResult.data ?? []) as Transaction[]),
-    );
+    setTransactions((txResult.data ?? []) as Transaction[]);
     setParticipants(
       resolveDataList(botParticipants, (participantResult.data ?? []) as Participant[]),
     );
