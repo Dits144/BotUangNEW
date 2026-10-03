@@ -19,6 +19,7 @@ export function LoginPage() {
   const router = useRouter();
   const blobRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [mode, setMode] = useState<"login" | "register">("login");
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [groupId, setGroupId] = useState("");
@@ -52,7 +53,11 @@ export function LoginPage() {
     return () => document.removeEventListener("mousemove", handleMouseMove);
   }, []);
 
-  async function routeToDashboard(userGroupId?: string, role: "admin" | "owner" = "admin") {
+  async function routeToDashboard(
+    userGroupId?: string,
+    role: "admin" | "owner" = "admin",
+    userName = "",
+  ) {
     const redirectTo = window.sessionStorage.getItem(AUTH_REDIRECT_KEY);
     if (redirectTo?.startsWith("/connect")) {
       window.sessionStorage.removeItem(AUTH_REDIRECT_KEY);
@@ -95,10 +100,12 @@ export function LoginPage() {
     const previousSession = stored
       ? (JSON.parse(stored) as {
           groupId?: string;
-          groupName?: string;
-          apiUrl?: string;
-          token?: string;
-        })
+        groupName?: string;
+        apiUrl?: string;
+        token?: string;
+        userName?: string;
+        userEmail?: string;
+      })
       : {};
     const targetGroup =
       groupId ||
@@ -117,6 +124,8 @@ export function LoginPage() {
             firstGroup?.group_name ?? previousSession.groupName ?? targetGroup,
           apiUrl: previousSession.apiUrl,
           role: "owner" as const,
+          userName: userName || previousSession.userName,
+          userEmail: email.trim().toLowerCase(),
           ownerEmail: email.trim().toLowerCase(),
           connectedAt: new Date().toISOString(),
         }),
@@ -134,6 +143,8 @@ export function LoginPage() {
           groupName:
             firstGroup?.group_name ?? previousSession.groupName ?? targetGroup,
           role: platformRole,
+          userName: userName || previousSession.userName,
+          userEmail: email.trim().toLowerCase(),
           connectedAt: new Date().toISOString(),
         }),
       );
@@ -155,6 +166,8 @@ export function LoginPage() {
           groupId: data.group_id,
           groupName: data.group_name,
           role: "admin",
+          userName,
+          userEmail: email.trim().toLowerCase(),
           connectedAt: new Date().toISOString(),
         }),
       );
@@ -175,7 +188,13 @@ export function LoginPage() {
         : await supabase.auth.signUp({
             email,
             password,
-            options: { data: { group_id: groupId || undefined } },
+            options: {
+              data: {
+                full_name: fullName.trim() || undefined,
+                name: fullName.trim() || undefined,
+                group_id: groupId || undefined,
+              },
+            },
           });
 
     if (auth.error) {
@@ -185,13 +204,17 @@ export function LoginPage() {
     }
 
     const userGroupId = auth.data.user?.user_metadata?.group_id as string | undefined;
+    const userName =
+      (auth.data.user?.user_metadata?.full_name as string | undefined) ??
+      (auth.data.user?.user_metadata?.name as string | undefined) ??
+      fullName.trim();
     const userRole =
       auth.data.user?.user_metadata?.role === "owner" ||
       ownerEmails.has((auth.data.user?.email ?? email).trim().toLowerCase())
         ? "owner"
         : "admin";
     toast.success(mode === "login" ? "Login berhasil." : "Akun admin dibuat.");
-    await routeToDashboard(userGroupId, userRole);
+    await routeToDashboard(userGroupId, userRole, userName);
   }
 
   return (
@@ -297,6 +320,16 @@ export function LoginPage() {
             </Tabs>
 
             <form onSubmit={handleSubmit} className="space-y-7" autoComplete="off">
+              {mode === "register" ? (
+                <MercuryField
+                  label="Nama"
+                  icon={<ShieldCheck className="h-4 w-4" />}
+                  value={fullName}
+                  onChange={setFullName}
+                  placeholder="Nama admin"
+                  required
+                />
+              ) : null}
               <MercuryField
                 label="Email Admin"
                 icon={<Mail className="h-4 w-4" />}

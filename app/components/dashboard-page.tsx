@@ -165,6 +165,11 @@ type AccessibleGroup = {
   role: "admin" | "owner";
 };
 
+type DashboardUser = {
+  name: string;
+  email: string;
+};
+
 type BotStatus = {
   ok: boolean;
   status?: string;
@@ -266,6 +271,16 @@ function displayGroupName(groupName: string, groupId?: string) {
   if (value.includes("@g.us")) return "Grup WhatsApp";
   if (value.length > 34) return `${value.slice(0, 31)}...`;
   return value;
+}
+
+function getUserInitials(user: DashboardUser) {
+  const source = user.name || user.email || "U";
+  const parts = source
+    .replace(/@.*/, "")
+    .split(/[\s._-]+/)
+    .filter(Boolean)
+    .slice(0, 2);
+  return parts.map((part) => part[0]?.toUpperCase()).join("") || "U";
 }
 
 function normalizeBotReminders(data: unknown, groupId: string): Reminder[] | null {
@@ -472,6 +487,10 @@ export function DashboardPage() {
   const [settings, setSettings] = useState<GroupSettings | null>(null);
   const [botStatus, setBotStatus] = useState<BotStatus | null>(null);
   const [role, setRole] = useState<"admin" | "owner">("admin");
+  const [currentUser, setCurrentUser] = useState<DashboardUser>({
+    name: "",
+    email: "",
+  });
   const [query, setQuery] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -732,12 +751,27 @@ export function DashboardPage() {
       token?: string;
       apiUrl?: string;
       role?: "admin" | "owner";
+      userName?: string;
+      userEmail?: string;
+      ownerEmail?: string;
     };
 
     async function bootDashboard() {
       const accessibleGroups = await loadAccessibleGroups(session);
       const auth = await supabase.auth.getSession();
       const accessToken = auth.data.session?.access_token ?? "";
+      const authUser = auth.data.session?.user;
+      const authUserName =
+        (authUser?.user_metadata?.full_name as string | undefined) ??
+        (authUser?.user_metadata?.name as string | undefined) ??
+        session.userName ??
+        "";
+      const authUserEmail =
+        authUser?.email ?? session.userEmail ?? session.ownerEmail ?? "";
+      setCurrentUser({
+        name: authUserName,
+        email: authUserEmail,
+      });
       let platformRole = session.role ?? "admin";
 
       if (accessToken) {
@@ -794,6 +828,8 @@ export function DashboardPage() {
         role: platformRole,
         groupId: activeGroup.group_id,
         groupName: activeGroup.group_name ?? activeGroup.group_id,
+        userName: authUserName,
+        userEmail: authUserEmail,
       };
 
       window.localStorage.setItem(
@@ -1009,11 +1045,24 @@ export function DashboardPage() {
                 {groupId && activeSection !== "owner" && activeSection !== "overview" ? (
                   <TransactionSheet groupId={groupId} onSaved={() => loadData()} />
                 ) : null}
+                <div className="hidden min-h-11 items-center gap-3 rounded-[12px] border border-[var(--line)] bg-[var(--background)] px-2.5 pr-3 md:flex">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-emerald-500 text-xs font-bold text-white">
+                    {getUserInitials(currentUser)}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="max-w-32 truncate text-sm font-semibold leading-tight">
+                      {currentUser.name || "User BotUang"}
+                    </p>
+                    <p className="max-w-32 truncate text-xs leading-tight text-[var(--muted)]">
+                      {currentUser.email || role}
+                    </p>
+                  </div>
+                </div>
                 <Button
                   variant="ghost"
                   size="icon"
                   onClick={logout}
-                  aria-label="Logout"
+                  aria-label={`Logout ${currentUser.name || currentUser.email || "user"}`}
                 >
                   <LogOut className="h-5 w-5" />
                 </Button>
@@ -1122,6 +1171,24 @@ export function DashboardPage() {
       <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
         <SheetContent>
           <SheetTitle>Menu BotUang</SheetTitle>
+          <div className="mt-5 flex items-center justify-between gap-3 rounded-[14px] border border-[var(--line)] bg-[var(--panel)] p-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-emerald-500 text-sm font-bold text-white">
+                {getUserInitials(currentUser)}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold">
+                  {currentUser.name || "User BotUang"}
+                </p>
+                <p className="truncate text-xs text-[var(--muted)]">
+                  {currentUser.email || role}
+                </p>
+              </div>
+            </div>
+            <Button variant="ghost" size="icon" onClick={logout} aria-label="Logout user">
+              <LogOut className="h-4 w-4" />
+            </Button>
+          </div>
           <div className="mt-5 grid gap-2">
             {visibleNavItems.map((item) => (
               <NavLink
