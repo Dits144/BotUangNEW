@@ -4,6 +4,7 @@ import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  ArrowUp,
   Bell,
   Bot,
   CalendarClock,
@@ -60,7 +61,13 @@ import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { ImageDropzone } from "./ui/image-dropzone";
 import { Input, Textarea } from "./ui/input";
-import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "./ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetTitle,
+  SheetTrigger,
+} from "./ui/sheet";
 import { Skeleton } from "./ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 
@@ -894,7 +901,7 @@ export function DashboardPage() {
   return (
     <main className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
       <div className="flex min-h-screen">
-        <aside className="hidden w-64 shrink-0 border-r border-[var(--line)] bg-[var(--surface)] p-4 md:block">
+        <aside className="hidden w-[244px] shrink-0 border-r border-[var(--line)] bg-[#08111d]/95 p-4 md:block">
           <Brand
             groupId={groupId}
             groupName={groupName}
@@ -931,13 +938,25 @@ export function DashboardPage() {
         </aside>
 
         <div className="min-w-0 flex-1 pb-24 md:pb-0">
-          <header className="sticky top-0 z-30 border-b border-[var(--line)] bg-[var(--background)]/92 px-4 py-3 backdrop-blur md:px-8 md:py-5">
+          <header className="sticky top-0 z-30 border-b border-[var(--line)] bg-[var(--background)]/88 px-4 py-3 backdrop-blur-xl md:px-7 md:py-4">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-500">
-                  {displayGroupName(groupName, groupId)}
-                </p>
-                <h1 className="truncate text-xl font-semibold md:text-2xl">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={cn(
+                      "h-2.5 w-2.5 shrink-0 rounded-full",
+                      botStatus === null
+                        ? "bg-amber-400"
+                        : botStatus.ok
+                          ? "bg-emerald-400"
+                          : "bg-rose-400",
+                    )}
+                  />
+                  <p className="truncate text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+                    {displayGroupName(groupName, groupId)}
+                  </p>
+                </div>
+                <h1 className="truncate text-lg font-semibold md:text-xl">
                   {visibleNavItems.find((item) => item.key === activeSection)?.label}
                 </h1>
                 {activeSection !== "owner" && groups.length > 1 ? (
@@ -960,7 +979,25 @@ export function DashboardPage() {
                   </select>
                 ) : null}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="hidden min-w-[260px] max-w-sm flex-1 items-center rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 lg:flex">
+                <Search className="h-4 w-4 text-[var(--muted)]" />
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Cari transaksi, anggota, catatan..."
+                  className="h-10 min-w-0 flex-1 bg-transparent px-2 text-sm outline-none placeholder:text-[var(--muted)]"
+                  aria-label="Cari data dashboard"
+                />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Notifikasi"
+                  className="hidden md:inline-flex"
+                >
+                  <Bell className="h-5 w-5" />
+                </Button>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -1115,11 +1152,13 @@ function Brand({
   return (
     <div>
       <div className="flex items-center gap-3">
-        <span className="flex h-11 w-11 items-center justify-center rounded-[12px] bg-emerald-500 text-slate-950">
-          <WalletCards className="h-5 w-5" />
+        <span className="flex h-11 w-11 items-center justify-center rounded-[14px] border border-emerald-400/25 bg-emerald-400/10">
+          <img src="/botuang-mark.svg" alt="" className="h-8 w-8" />
         </span>
         <div className="min-w-0">
-          <p className="font-semibold">BotUang</p>
+          <p className="font-semibold leading-tight">
+            Bot<span className="text-emerald-400">Uang</span>
+          </p>
           <p className="truncate text-sm text-[var(--muted)]">
             {displayGroupName(groupName, groupId)}
           </p>
@@ -1153,12 +1192,12 @@ function Brand({
         </label>
         <Link
           href="/connect"
-          className="mt-2 block text-sm font-semibold text-emerald-500 hover:text-emerald-400"
+          className="mt-2 block text-sm font-semibold text-emerald-400 hover:text-emerald-300"
         >
           + Connect Group
         </Link>
       </div>
-      <div className="mt-5 rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-3">
+      <div className="mt-5 rounded-[16px] border border-[var(--line)] bg-white/[0.035] p-3">
         <p className="text-xs text-[var(--muted)]">Status Bot</p>
         <p className="mt-1 flex items-center gap-2 text-sm font-semibold">
           <span
@@ -1198,10 +1237,10 @@ function NavLink({
       prefetch
       onClick={onNavigate}
       className={cn(
-        "flex min-h-11 w-full items-center gap-3 rounded-[12px] px-3 text-left text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400",
+        "flex min-h-11 w-full items-center gap-3 rounded-[12px] border border-transparent px-3 text-left text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400",
         active
-          ? "bg-emerald-500 text-slate-950"
-          : "text-[var(--muted)] hover:bg-[var(--panel)] hover:text-[var(--foreground)]",
+          ? "border-emerald-400/20 bg-emerald-400/12 text-emerald-300"
+          : "text-[var(--muted)] hover:bg-white/[0.045] hover:text-[var(--foreground)]",
       )}
     >
       <Icon className="h-4 w-4" />
@@ -1232,7 +1271,7 @@ function MobileNav({
   ];
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--line)] bg-[var(--background)]/95 px-3 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 backdrop-blur md:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--line)] bg-[var(--background)]/96 px-3 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl md:hidden">
       <div className="grid grid-cols-5 items-end gap-1">
         {items.slice(0, 2).map((item) => {
           const Icon = item.icon;
@@ -1246,7 +1285,7 @@ function MobileNav({
               className={cn(
                 "flex min-h-14 min-w-16 flex-col items-center justify-center gap-1 rounded-[12px] text-[11px] font-semibold transition",
                 active
-                  ? "bg-emerald-500 text-slate-950"
+                  ? "bg-emerald-400/12 text-emerald-300"
                   : "text-[var(--muted)] active:bg-[var(--panel)]",
               )}
               aria-label={item.label}
@@ -1258,10 +1297,23 @@ function MobileNav({
         })}
         <div className="flex justify-center">
           {groupId ? (
-            <TransactionSheet groupId={groupId} onSaved={onSaved} compact />
+            <AiAssistantSheet
+              groupId={groupId}
+              onSaved={onSaved}
+              trigger={
+                <button
+                  type="button"
+                  className="relative -mt-5 flex min-h-[68px] min-w-[68px] flex-col items-center justify-center gap-1 rounded-[22px] border border-emerald-300/30 bg-[#0a1422] text-[11px] font-semibold text-emerald-100 shadow-[0_14px_36px_rgba(16,185,129,0.22)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-300"
+                  aria-label="Buka AI BotUang"
+                >
+                  <span className="botuang-ai-orb botuang-ai-orb-sm" aria-hidden="true" />
+                  <span>AI</span>
+                </button>
+              }
+            />
           ) : (
-            <Button size="icon" disabled className="rounded-full">
-              <Plus className="h-5 w-5" />
+            <Button size="icon" disabled className="h-[60px] w-[60px] rounded-[20px]">
+              <Sparkles className="h-5 w-5" />
             </Button>
           )}
         </div>
@@ -1280,7 +1332,7 @@ function MobileNav({
               className={cn(
                 "flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-[12px] text-[11px] font-semibold transition",
                 active
-                  ? "bg-emerald-500 text-slate-950"
+                  ? "bg-emerald-400/12 text-emerald-300"
                   : "text-[var(--muted)] active:bg-[var(--panel)]",
               )}
               aria-label={item.label}
@@ -1548,6 +1600,35 @@ function AiCommandBar({
   groupId: string;
   onSaved: () => void;
 }) {
+  return (
+    <div className="fixed bottom-5 right-5 z-40 hidden md:block">
+      <AiAssistantSheet
+        groupId={groupId}
+        onSaved={onSaved}
+        trigger={
+          <button
+            type="button"
+            className="group flex min-h-12 items-center gap-3 rounded-[16px] border border-emerald-300/20 bg-[#0a1422]/95 px-3 pr-4 text-sm font-semibold text-emerald-100 shadow-[0_18px_45px_rgba(0,0,0,0.32)] backdrop-blur transition hover:border-emerald-300/35 hover:bg-[#0d1a2a] focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-300"
+            aria-label="Buka AI Assistant BotUang"
+          >
+            <span className="botuang-ai-orb botuang-ai-orb-sm" aria-hidden="true" />
+            <span>AI Assistant</span>
+          </button>
+        }
+      />
+    </div>
+  );
+}
+
+function AiAssistantSheet({
+  groupId,
+  onSaved,
+  trigger,
+}: {
+  groupId: string;
+  onSaved: () => void;
+  trigger: ReactNode;
+}) {
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [intent, setIntent] = useState<BotAiIntent | null>(null);
@@ -1626,45 +1707,94 @@ function AiCommandBar({
   }
 
   return (
-    <div className="fixed inset-x-3 bottom-20 z-40 mx-auto max-w-2xl md:bottom-5 md:left-auto md:right-5 md:mx-0 md:w-[440px]">
-      {open ? (
-        <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-3 shadow-2xl">
-          <form onSubmit={parse} className="flex gap-2">
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>{trigger}</SheetTrigger>
+      <SheetContent className="overflow-hidden bg-[#08111d] p-0 md:w-[460px]">
+        <div className="border-b border-[var(--line)] px-5 pb-5 pt-2 md:pt-5">
+          <div className="flex items-center gap-4">
+            <div className="relative flex h-20 w-20 shrink-0 items-center justify-center rounded-[22px] border border-emerald-300/20 bg-[#0b1726]">
+              <span className="botuang-ai-orb" aria-hidden="true" />
+            </div>
+            <div className="min-w-0">
+              <SheetTitle className="text-lg font-semibold">AI Assistant BotUang</SheetTitle>
+              <SheetDescription className="mt-1 text-sm text-[var(--muted)]">
+                Catat transaksi, todo, reminder, atau custom command dari bahasa sehari-hari.
+              </SheetDescription>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-4 p-5">
+          <form
+            onSubmit={parse}
+            className="flex min-h-12 items-center gap-2 rounded-[16px] border border-[var(--line)] bg-white/[0.045] px-2"
+          >
+            <Sparkles className="ml-1 h-4 w-4 shrink-0 text-emerald-300" />
             <Input
               value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
-              placeholder="Tulis: pengeluaran 5k pop ice, reminder besok 08:00..."
-              className="min-w-0"
+              onChange={(event) => {
+                setPrompt(event.target.value);
+                if (intent) setIntent(null);
+              }}
+              placeholder="Contoh: pengeluaran 5k beli pop ice"
+              className="min-h-11 min-w-0 border-0 bg-transparent px-1 shadow-none focus-visible:outline-none"
             />
-            <Button disabled={loading || !prompt.trim()} className="shrink-0">
-              {loading ? "..." : "AI"}
+            <Button
+              type="submit"
+              size="icon"
+              disabled={loading || !prompt.trim()}
+              className="h-9 w-9 shrink-0 rounded-full"
+              aria-label="Kirim perintah AI"
+            >
+              {loading ? "..." : <ArrowUp className="h-4 w-4" />}
             </Button>
           </form>
+
+          <div className="grid gap-2 text-sm">
+            {[
+              "pemasukan 250k iuran kas",
+              "reminder besok 08:00 rapat bendahara",
+              "todo beli konsumsi rapat",
+              "command qris@ini qris pembayaran kas",
+            ].map((example) => (
+              <button
+                key={example}
+                type="button"
+                onClick={() => setPrompt(example)}
+                className="rounded-[12px] border border-[var(--line)] px-3 py-2 text-left text-[var(--muted)] transition hover:border-emerald-300/25 hover:bg-emerald-400/8 hover:text-[var(--foreground)]"
+              >
+                {example}
+              </button>
+            ))}
+          </div>
+
           {intent ? (
-            <div className="mt-3 rounded-[14px] border border-[var(--line)] bg-[var(--panel)] p-3">
+            <div className="rounded-[16px] border border-emerald-300/18 bg-emerald-400/8 p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold">{formatAiAction(intent.action)}</p>
-                  <p className="mt-1 truncate text-sm text-[var(--muted)]">
+                  <p className="text-sm font-semibold text-emerald-200">
+                    {formatAiAction(intent.action)}
+                  </p>
+                  <p className="mt-1 truncate text-sm font-semibold">
                     {formatAiPrimaryValue(intent)}
                   </p>
-                  <p className="mt-1 line-clamp-2 text-sm">{formatAiDescription(intent)}</p>
+                  <p className="mt-1 line-clamp-2 text-sm text-[var(--muted)]">
+                    {formatAiDescription(intent)}
+                  </p>
                 </div>
-                <Button size="sm" onClick={saveIntent} disabled={saving}>
+                <Button size="sm" onClick={saveIntent} disabled={saving} className="shrink-0">
                   Simpan
                 </Button>
               </div>
             </div>
           ) : null}
+
+          <p className="text-xs leading-relaxed text-[var(--muted)]">
+            AI memakai Gemini jika project diizinkan. Kalau akses Gemini ditolak, parser lokal tetap membaca perintah umum BotUang.
+          </p>
         </div>
-      ) : null}
-      <div className="mt-2 flex justify-end">
-        <Button onClick={() => setOpen((value) => !value)} className="shadow-lg">
-          <Sparkles className="h-4 w-4" />
-          AI
-        </Button>
-      </div>
-    </div>
+      </SheetContent>
+    </Sheet>
   );
 }
 

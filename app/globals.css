@@ -74,6 +74,50 @@ a {
   background: rgba(16, 185, 129, 0.28);
 }
 
+.botuang-ai-orb {
+  position: relative;
+  display: inline-flex;
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 32% 24%, rgba(255, 255, 255, 0.9), transparent 18%),
+    radial-gradient(circle at 58% 42%, rgba(52, 211, 153, 0.95), transparent 34%),
+    linear-gradient(135deg, #16a34a 0%, #10b981 42%, #2563eb 100%);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.12) inset,
+    0 0 28px rgba(16, 185, 129, 0.35);
+  overflow: hidden;
+}
+
+.botuang-ai-orb::before,
+.botuang-ai-orb::after {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  border-radius: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  animation: botuang-orb-spin 7s linear infinite;
+}
+
+.botuang-ai-orb::after {
+  inset: 13px;
+  border-color: rgba(187, 247, 208, 0.32);
+  animation-duration: 4.5s;
+  animation-direction: reverse;
+}
+
+.botuang-ai-orb-sm {
+  width: 28px;
+  height: 28px;
+}
+
+@keyframes botuang-orb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
