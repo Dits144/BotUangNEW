@@ -16,7 +16,7 @@ import { Skeleton } from "./ui/skeleton";
 type RentalRow = {
   group_id: string;
   group_name: string | null;
-  password: string | null;
+  has_pin: boolean | null;
   is_active: boolean | null;
   expire_at: string | null;
 };
@@ -38,12 +38,15 @@ export function ConnectPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [needsLogin, setNeedsLogin] = useState(false);
+  const [needsDashToken, setNeedsDashToken] = useState(false);
 
-  const hasPin = botGate.enabled ? botGate.hasPin : Boolean(rental?.password);
+  const hasPin = botGate.enabled ? botGate.hasPin : Boolean(rental?.has_pin);
+  const tokenFlow = Boolean(token);
   const title = useMemo(() => {
+    if (!tokenFlow && !rental) return "Hubungkan grup";
     if (!rental) return "Hubungkan grup";
     return hasPin ? "Masukkan PIN grup" : "Buat PIN dashboard";
-  }, [hasPin, rental]);
+  }, [hasPin, rental, tokenFlow]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -58,7 +61,6 @@ export function ConnectPage() {
 
     async function load() {
       if (!queryGroup || !queryToken) {
-        setError("Link dashboard belum lengkap. Ketik dashboard di WhatsApp grup untuk membuat link baru.");
         setLoading(false);
         return;
       }
@@ -95,15 +97,20 @@ export function ConnectPage() {
 
         const { data } = await supabase
           .from("group_rentals")
-          .select("group_id, group_name, password, is_active, expire_at")
+          .select("group_id, group_name, is_active, expire_at")
           .eq("group_id", queryGroup)
           .maybeSingle();
 
         setRental(
-          (data as RentalRow | null) ?? {
+          data
+            ? {
+                ...(data as Omit<RentalRow, "has_pin">),
+                has_pin: Boolean(validation.hasPin),
+              }
+            : {
             group_id: queryGroup,
             group_name: validation.groupName ?? queryGroup,
-            password: validation.hasPin ? "protected" : null,
+            has_pin: Boolean(validation.hasPin),
             is_active: null,
             expire_at: null,
           },
@@ -133,7 +140,7 @@ export function ConnectPage() {
 
       const { data, error: rentalError } = await supabase
         .from("group_rentals")
-        .select("group_id, group_name, password, is_active, expire_at")
+        .select("group_id, group_name, is_active, expire_at")
         .eq("group_id", queryGroup)
         .maybeSingle();
 
@@ -143,7 +150,20 @@ export function ConnectPage() {
         return;
       }
 
-      setRental(data as RentalRow);
+      const info = await fetch(`/api/access/groups?group_id=${encodeURIComponent(queryGroup)}`, {
+        headers: { Authorization: `Bearer ${auth.data.session.access_token}` },
+      })
+        .then((response) => response.json() as Promise<{
+          ok?: boolean;
+          group?: { group_name?: string | null; has_pin?: boolean };
+        }>)
+        .catch(() => ({ ok: false, group: undefined }));
+
+      setRental({
+        ...(data as Omit<RentalRow, "has_pin">),
+        group_name: info.group?.group_name ?? data.group_name,
+        has_pin: Boolean(info.group?.has_pin),
+      });
       setLoading(false);
     }
 
@@ -152,7 +172,6 @@ export function ConnectPage() {
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    if (!rental) return;
     const auth = await supabase.auth.getSession();
     const accessToken = auth.data.session?.access_token;
     if (!accessToken) {
@@ -165,56 +184,55 @@ export function ConnectPage() {
       return;
     }
 
+    if (!tokenFlow && !rental) {
+      if (!groupId.trim()) {
+        toast.error("Group ID wajib diisi.");
+        return;
+      }
+
+      setSaving(true);
+      const info = await fetch(`/api/access/groups?group_id=${encodeURIComponent(groupId.trim())}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
+        .then((response) => response.json() as Promise<{
+          ok?: boolean;
+          message?: string;
+          group?: { group_id: string; group_name?: string | null; has_pin?: boolean };
+        }>)
+        .catch(() => ({ ok: false, message: "Data grup belum bisa dicek.", group: undefined }));
+      setSaving(false);
+
+      if (!info.ok || !info.group) {
+        toast.error(info.message ?? "Grup tidak ditemukan.");
+        return;
+      }
+
+      setRental({
+        group_id: info.group.group_id,
+        group_name: info.group.group_name ?? "Grup WhatsApp",
+        has_pin: Boolean(info.group.has_pin),
+        is_active: null,
+        expire_at: null,
+      });
+      setNeedsDashToken(!info.group.has_pin);
+      return;
+    }
+
+    if (!rental) return;
+
+    if (needsDashToken) return;
+
     if (pin.length < 4) {
       toast.error("PIN minimal 4 digit.");
       return;
     }
 
-    setSaving(true);
-    if (botGate.enabled) {
-      const validation = await validateViaBotApi({
-        apiUrl,
-        groupId,
-        token,
-        password: pin,
-      });
-
-      if (!validation.ok) {
-        setSaving(false);
-        toast.error(validation.error);
-        return;
-      }
-    } else if (hasPin) {
-      if (pin !== rental.password) {
-        setSaving(false);
-        toast.error("PIN tidak sesuai.");
-        return;
-      }
-    } else {
-      if (pin !== confirmPin) {
-        setSaving(false);
-        toast.error("Konfirmasi PIN tidak sama.");
-        return;
-      }
-      const { error: updateError } = await supabase
-        .from("group_rentals")
-        .update({ password: pin, updated_at: new Date().toISOString() })
-        .eq("group_id", groupId);
-      if (updateError) {
-        setSaving(false);
-        toast.error(updateError.message);
-        return;
-      }
+    if (!hasPin && pin !== confirmPin) {
+      toast.error("Konfirmasi PIN tidak sama.");
+      return;
     }
 
-    await supabase
-      .from("dashboard_tokens")
-      .update({ pin_verified: true })
-      .eq("token", token)
-      .eq("group_id", groupId);
-
-    let linkedGroupName = rental.group_name;
-
+    setSaving(true);
     const linked = await fetch("/api/access/groups", {
       method: "POST",
       headers: {
@@ -222,7 +240,7 @@ export function ConnectPage() {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        group_id: groupId,
+        group_id: rental.group_id || groupId,
         group_name: rental.group_name ?? botGate.groupName,
         token,
         password: pin,
@@ -240,12 +258,12 @@ export function ConnectPage() {
       toast.error(linked.message ?? "Akses grup belum bisa disimpan ke akun.");
       return;
     }
-    linkedGroupName = linked.group?.group_name ?? linkedGroupName;
+    const linkedGroupName = linked.group?.group_name ?? rental.group_name ?? "Grup WhatsApp";
 
     window.localStorage.setItem(
       DASHBOARD_SESSION_KEY,
       JSON.stringify({
-        groupId,
+        groupId: rental.group_id || groupId,
         token,
         apiUrl,
         groupName: linkedGroupName,
@@ -295,14 +313,53 @@ export function ConnectPage() {
               <Link href="/">Kembali ke Beranda</Link>
             </Button>
           </div>
+        ) : !tokenFlow && !rental ? (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <label className="block text-sm font-medium">
+              Group ID
+              <Input
+                className="mt-2"
+                value={groupId}
+                onChange={(event) => setGroupId(event.target.value)}
+                placeholder="120363427301916965@g.us"
+                autoComplete="off"
+              />
+            </label>
+            <p className="text-sm text-zinc-400">
+              Hubungkan grup menggunakan Group ID atau link/token Dashboard dari WhatsApp.
+            </p>
+            <Button className="w-full" disabled={saving}>
+              {saving ? "Memeriksa..." : "Lanjut"}
+            </Button>
+          </form>
+        ) : needsDashToken ? (
+          <div className="rounded-2xl border border-amber-300/20 bg-amber-400/10 p-4 text-sm text-amber-50">
+            <p className="font-semibold">Grup ini belum memiliki PIN.</p>
+            <p className="mt-2 text-amber-100/80">
+              Untuk keamanan, buat akses Dashboard terlebih dahulu melalui WhatsApp.
+              Ketik perintah ini di grup:
+            </p>
+            <p className="mt-3 rounded-xl bg-black/25 p-3 font-mono text-emerald-200">dash</p>
+            <Button
+              className="mt-4 w-full"
+              onClick={() => {
+                setRental(null);
+                setNeedsDashToken(false);
+                setPin("");
+                setConfirmPin("");
+              }}
+            >
+              Cek Group ID Lain
+            </Button>
+          </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="rounded-2xl border border-white/[0.08] bg-white/[0.035] p-4">
               <p className="text-sm text-zinc-400">Grup</p>
-              <p className="mt-1 font-semibold">{rental?.group_name ?? groupId}</p>
+              <p className="mt-1 font-semibold">{rental?.group_name ?? "Grup WhatsApp"}</p>
               <p className="mt-2 flex items-center gap-2 text-sm text-zinc-400">
                 <ShieldCheck className="h-4 w-4 text-emerald-300" />
-                Token WhatsApp tervalidasi
+                {tokenFlow ? "Token WhatsApp tervalidasi" : "PIN grup diperlukan untuk menghubungkan akun"}
               </p>
             </div>
             <label className="block text-sm font-medium">

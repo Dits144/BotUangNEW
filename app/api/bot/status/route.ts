@@ -4,16 +4,17 @@ import { getServerBotApiUrls, getServerBotToken } from "@/app/lib/bot-server-con
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const groupId = url.searchParams.get("group_id") ?? "";
-  const sessionToken = url.searchParams.get("token") ?? "";
-  const headerToken =
-    request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
   const queryApiUrl = url.searchParams.get("api_url") ?? "";
   const baseUrls = getServerBotApiUrls(queryApiUrl || BOT_API_URL);
-  const authToken = getServerBotToken(headerToken || sessionToken);
+  const authToken = getServerBotToken();
 
   if (!baseUrls.length || !authToken) {
     return Response.json(
-      { ok: false, message: "Bot API belum dikonfigurasi" },
+      {
+        ok: false,
+        status: "configuration_error",
+        message: "Status Bot Tidak Tersedia",
+      },
       { status: 200 },
     );
   }
@@ -42,7 +43,14 @@ export async function GET(request: Request) {
 
           if (!endpointMissing) {
             return Response.json(
-              { ok: response.ok, source: path, apiUrl: baseUrl, ...data },
+              {
+                ok: response.ok,
+                status: response.ok ? "connected" : "disconnected",
+                message: response.ok ? "Bot Terhubung" : "Bot Tidak Terhubung",
+                source: path,
+                apiUrl: baseUrl,
+                ...data,
+              },
               { status: 200 },
             );
           }
@@ -53,12 +61,20 @@ export async function GET(request: Request) {
     }
 
     return Response.json(
-      { ok: false, message: "Endpoint status bot belum tersedia" },
+      {
+        ok: false,
+        status: "api_unreachable",
+        message: "Server Bot Tidak Dapat Dijangkau",
+      },
       { status: 200 },
     );
   } catch {
     return Response.json(
-      { ok: false, message: "Status bot tidak tersedia" },
+      {
+        ok: false,
+        status: "configuration_error",
+        message: "Status Bot Tidak Tersedia",
+      },
       { status: 200 },
     );
   }

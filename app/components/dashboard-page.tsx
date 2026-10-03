@@ -21,6 +21,7 @@ import {
   LogOut,
   MapPin,
   Menu,
+  MessageCircle,
   Moon,
   MoreHorizontal,
   Pencil,
@@ -269,6 +270,26 @@ function displayGroupName(groupName: string, groupId?: string) {
   return value;
 }
 
+function getBotStatusDisplay(botStatus: BotStatus | null) {
+  if (botStatus === null) {
+    return { label: "Memeriksa koneksi...", tone: "checking" as const };
+  }
+
+  if (botStatus.ok || botStatus.status === "connected") {
+    return { label: "Bot Terhubung", tone: "connected" as const };
+  }
+
+  if (botStatus.status === "api_unreachable") {
+    return { label: "Server Bot Tidak Dapat Dijangkau", tone: "unreachable" as const };
+  }
+
+  if (botStatus.status === "configuration_error") {
+    return { label: "Status Bot Tidak Tersedia", tone: "configuration" as const };
+  }
+
+  return { label: "Bot Tidak Terhubung", tone: "disconnected" as const };
+}
+
 function getUserInitials(user: DashboardUser) {
   const source = user.name || user.email || "U";
   const parts = source
@@ -468,7 +489,7 @@ export function DashboardPage() {
   const [groupId, setGroupId] = useState("");
   const [sessionToken, setSessionToken] = useState("");
   const [botApiUrl, setBotApiUrl] = useState("");
-  const [groupName, setGroupName] = useState("BotUang Group");
+  const [groupName, setGroupName] = useState("Grup WhatsApp");
   const [groups, setGroups] = useState<AccessibleGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -633,7 +654,7 @@ export function DashboardPage() {
     setSettings((settingResult.data as GroupSettings | null) ?? null);
     setBotStatus(botResult as BotStatus);
     setGroupName(
-      (rentalResult.data as Rental | null)?.group_name ?? targetGroupId,
+      (rentalResult.data as Rental | null)?.group_name ?? "Grup WhatsApp",
     );
     setLoading(false);
   }
@@ -645,16 +666,7 @@ export function DashboardPage() {
   }) {
     const auth = await supabase.auth.getSession();
     const accessToken = auth.data.session?.access_token ?? "";
-    const sessionRole = session.role ?? "admin";
     const collected = new Map<string, AccessibleGroup>();
-
-    if (session.groupId) {
-      collected.set(session.groupId, {
-        group_id: session.groupId,
-        group_name: session.groupName ?? session.groupId,
-        role: sessionRole,
-      });
-    }
 
     if (accessToken) {
       const accessGroups = await fetch("/api/access/groups", {
@@ -697,13 +709,13 @@ export function DashboardPage() {
     const nextSession = {
       ...session,
       groupId: group.group_id,
-      groupName: group.group_name ?? group.group_id,
+      groupName: group.group_name ?? "Grup WhatsApp",
       role,
     };
 
     window.localStorage.setItem(DASHBOARD_SESSION_KEY, JSON.stringify(nextSession));
     setGroupId(group.group_id);
-    setGroupName(group.group_name ?? group.group_id);
+    setGroupName(group.group_name ?? "Grup WhatsApp");
     setTransactions([]);
     setParticipants([]);
     setTodos([]);
@@ -726,11 +738,7 @@ export function DashboardPage() {
     document.documentElement.dataset.theme = selected;
 
     const stored = window.localStorage.getItem(DASHBOARD_SESSION_KEY);
-    if (!stored) {
-      router.push("/connect");
-      return;
-    }
-    const session = JSON.parse(stored) as {
+    const session = (stored ? JSON.parse(stored) : {}) as {
       groupId?: string;
       groupName?: string;
       token?: string;
@@ -742,9 +750,14 @@ export function DashboardPage() {
     };
 
     async function bootDashboard() {
-      const accessibleGroups = await loadAccessibleGroups(session);
       const auth = await supabase.auth.getSession();
       const accessToken = auth.data.session?.access_token ?? "";
+      if (!accessToken) {
+        router.push("/login");
+        return;
+      }
+
+      const accessibleGroups = await loadAccessibleGroups(session);
       const authUser = auth.data.session?.user;
       const authUserName =
         (authUser?.user_metadata?.full_name as string | undefined) ??
@@ -803,7 +816,17 @@ export function DashboardPage() {
           setBotStatus({ ok: false, message: "Pilih grup untuk status bot" });
           setLoading(false);
         } else {
-          router.push("/connect");
+          setGroupId("");
+          setGroupName("Grup WhatsApp");
+          setBotStatus({ ok: false, message: "Pilih grup untuk status bot" });
+          setTransactions([]);
+          setParticipants([]);
+          setTodos([]);
+          setReminders([]);
+          setCommands([]);
+          setRental(null);
+          setSettings(null);
+          setLoading(false);
         }
         return;
       }
@@ -812,7 +835,7 @@ export function DashboardPage() {
         ...session,
         role: platformRole,
         groupId: activeGroup.group_id,
-        groupName: activeGroup.group_name ?? activeGroup.group_id,
+        groupName: activeGroup.group_name ?? "Grup WhatsApp",
         userName: authUserName,
         userEmail: authUserEmail,
       };
@@ -994,7 +1017,7 @@ export function DashboardPage() {
                   >
                     {groups.map((group) => (
                       <option key={group.group_id} value={group.group_id}>
-                        {group.group_name ?? group.group_id}
+                        {group.group_name ?? "Grup WhatsApp"}
                       </option>
                     ))}
                   </select>
@@ -1078,7 +1101,10 @@ export function DashboardPage() {
               transition={{ duration: 0.18 }}
               className="w-full px-4 py-5 md:px-6 md:py-6"
             >
-              {activeSection === "overview" ? (
+              {!loading && !groupId && activeSection !== "owner" ? (
+                <NoGroupsEmptyState />
+              ) : null}
+              {groupId && activeSection === "overview" ? (
                 <Overview
                   groupId={groupId}
                   groupName={groupName}
@@ -1101,7 +1127,7 @@ export function DashboardPage() {
                   onSaved={() => loadData()}
                 />
               ) : null}
-              {activeSection === "transactions" ? (
+              {groupId && activeSection === "transactions" ? (
                 <TransactionsPage
                   groupId={groupId}
                   sessionToken={sessionToken}
@@ -1118,7 +1144,7 @@ export function DashboardPage() {
                   onSaved={() => loadData()}
                 />
               ) : null}
-              {activeSection === "participants" ? (
+              {groupId && activeSection === "participants" ? (
                 <ParticipantsPage
                   loading={loading}
                   groupId={groupId}
@@ -1128,7 +1154,7 @@ export function DashboardPage() {
                   onChanged={() => loadData()}
                 />
               ) : null}
-              {activeSection === "todos" ? (
+              {groupId && activeSection === "todos" ? (
                 <TodosPage
                   loading={loading}
                   groupId={groupId}
@@ -1138,7 +1164,7 @@ export function DashboardPage() {
                   onChanged={() => loadData()}
                 />
               ) : null}
-              {activeSection === "reminders" ? (
+              {groupId && activeSection === "reminders" ? (
                 <RemindersPage
                   loading={loading}
                   groupId={groupId}
@@ -1148,7 +1174,7 @@ export function DashboardPage() {
                   onChanged={() => loadData()}
                 />
               ) : null}
-              {activeSection === "commands" ? (
+              {groupId && activeSection === "commands" ? (
                 <CommandsPage
                   loading={loading}
                   groupId={groupId}
@@ -1158,7 +1184,7 @@ export function DashboardPage() {
                   onChanged={() => loadData()}
                 />
               ) : null}
-              {activeSection === "settings" ? (
+              {groupId && activeSection === "settings" ? (
                 <SettingsPage
                   loading={loading}
                   groupId={groupId}
@@ -1168,7 +1194,7 @@ export function DashboardPage() {
                   onChanged={() => loadData()}
                 />
               ) : null}
-              {activeSection === "calculator" ? <CalculatorPage /> : null}
+              {groupId && activeSection === "calculator" ? <CalculatorPage /> : null}
               {activeSection === "owner" ? <OwnerDashboardPage embedded /> : null}
             </motion.div>
           </AnimatePresence>
@@ -1251,6 +1277,7 @@ function Brand({
   botStatus: BotStatus | null;
   onSelectGroup: (group: AccessibleGroup) => void;
 }) {
+  const statusDisplay = getBotStatusDisplay(botStatus);
   return (
     <div>
       <div className="flex items-center gap-3">
@@ -1284,11 +1311,11 @@ function Brand({
             {groups.length ? (
               groups.map((group) => (
                 <option key={group.group_id} value={group.group_id}>
-                  {group.group_name ?? group.group_id}
+                  {group.group_name ?? "Grup WhatsApp"}
                 </option>
               ))
             ) : (
-              <option value={groupId}>{groupName}</option>
+              <option value={groupId}>{groupName || "Grup WhatsApp"}</option>
             )}
           </select>
         </label>
@@ -1305,18 +1332,14 @@ function Brand({
           <span
             className={cn(
               "h-2.5 w-2.5 rounded-full",
-              botStatus === null
+              statusDisplay.tone === "checking"
                 ? "bg-amber-400"
-                : botStatus.ok
+                : statusDisplay.tone === "connected"
                   ? "bg-emerald-400"
                   : "bg-rose-400",
             )}
           />
-          {botStatus === null
-            ? "Memuat status"
-            : botStatus.ok
-              ? "Terhubung"
-              : botStatus.message ?? "Tidak terhubung"}
+          {statusDisplay.label}
         </p>
       </div>
     </div>
@@ -1464,6 +1487,26 @@ function MobileNav({
   );
 }
 
+function NoGroupsEmptyState() {
+  return (
+    <div className="mx-auto flex min-h-[62vh] max-w-xl flex-col items-center justify-center text-center">
+      <div className="flex h-14 w-14 items-center justify-center rounded-[16px] border border-emerald-300/20 bg-emerald-400/10 text-emerald-400">
+        <MessageCircle className="h-7 w-7" />
+      </div>
+      <h1 className="mt-5 text-2xl font-semibold">Belum Ada Grup</h1>
+      <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+        Kamu belum menghubungkan akun BotUang dengan grup WhatsApp.
+      </p>
+      <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
+        Hubungkan grup menggunakan Group ID atau link/token Dashboard dari WhatsApp.
+      </p>
+      <Button asChildLike="true" className="mt-5">
+        <Link href="/connect">Hubungkan Grup</Link>
+      </Button>
+    </div>
+  );
+}
+
 function Overview({
   groupId,
   groupName,
@@ -1518,7 +1561,7 @@ function Overview({
         <div>
           <h1 className="text-2xl font-semibold tracking-normal">Overview</h1>
           <p className="mt-1 text-sm text-[var(--muted)]">
-            Ringkasan keuangan GEN-CB
+            Ringkasan keuangan {displayGroupName(groupName, groupId)}
           </p>
         </div>
         {groupId ? (
@@ -4725,7 +4768,7 @@ function SettingsPage({
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="font-semibold">Rental Status</h2>
-            <p className="mt-1 text-sm text-[var(--muted)]">{rental?.group_name ?? groupId}</p>
+            <p className="mt-1 text-sm text-[var(--muted)]">{rental?.group_name ?? "Grup WhatsApp"}</p>
           </div>
           <Badge tone={rental?.is_active ? "income" : "warning"}>
             {rental?.is_active ? "Aktif" : "Tidak aktif"}

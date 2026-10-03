@@ -1,4 +1,3 @@
-import { BOT_API_URL } from "@/app/lib/constants";
 import { resolveTrustedBotApiUrl } from "@/app/lib/bot-api";
 import {
   createSupabaseAdminClient,
@@ -69,6 +68,43 @@ export async function GET(request: Request) {
 
   const admin = createSupabaseAdminClient();
   const supabase = createSupabaseServerClient(user.accessToken);
+  const url = new URL(request.url);
+  const requestedGroupId = url.searchParams.get("group_id") ?? "";
+
+  if (requestedGroupId) {
+    if (!admin) {
+      return Response.json(
+        { ok: false, message: "SUPABASE_SERVICE_ROLE_KEY belum diset di server." },
+        { status: 200 },
+      );
+    }
+
+    const rental = await admin
+      .from("group_rentals")
+      .select("group_id, group_name, password")
+      .eq("group_id", requestedGroupId)
+      .maybeSingle();
+
+    if (rental.error || !rental.data) {
+      return Response.json(
+        { ok: false, message: "Grup tidak ditemukan di BotUang." },
+        { status: 200 },
+      );
+    }
+
+    return Response.json(
+      {
+        ok: true,
+        group: {
+          group_id: rental.data.group_id,
+          group_name: rental.data.group_name ?? "Grup WhatsApp",
+          has_pin: Boolean(rental.data.password),
+        },
+      },
+      { status: 200 },
+    );
+  }
+
   const normalizedEmail = user.email.trim().toLowerCase();
   const fallbackRole = ownerEmails.has(normalizedEmail) ? "owner" : "admin";
   let platformRole: "admin" | "owner" = fallbackRole;
@@ -123,7 +159,7 @@ export async function GET(request: Request) {
   for (const row of (data ?? []) as GroupAccessRow[]) {
     collected.set(row.group_id, {
       group_id: row.group_id,
-      group_name: row.group_name ?? row.group_id,
+      group_name: row.group_name ?? "Grup WhatsApp",
       role: row.role,
     });
   }
@@ -140,7 +176,7 @@ export async function GET(request: Request) {
       if (!collected.has(rental.group_id)) {
         collected.set(rental.group_id, {
           group_id: rental.group_id,
-          group_name: rental.group_name ?? rental.group_id,
+          group_name: rental.group_name ?? "Grup WhatsApp",
           role: "owner",
         });
       }
@@ -149,7 +185,7 @@ export async function GET(request: Request) {
 
   const groups = Array.from(collected.values()).map((row) => ({
     group_id: row.group_id,
-    group_name: row.group_name ?? row.group_id,
+    group_name: row.group_name ?? "Grup WhatsApp",
     role: row.role,
   }));
 
@@ -177,44 +213,135 @@ export async function POST(request: Request) {
   const groupId = body.group_id ?? body.groupId ?? "";
   const token = body.token ?? "";
   const password = body.password;
-  const apiUrl = resolveTrustedBotApiUrl(body.api_url ?? body.apiUrl ?? BOT_API_URL);
+  const apiUrl = resolveTrustedBotApiUrl(body.api_url ?? body.apiUrl ?? "");
 
-  if (!groupId || !token) {
+  if (!groupId) {
     return Response.json(
-      { ok: false, message: "Group ID dan token wajib diisi." },
+      { ok: false, message: "Group ID wajib diisi." },
       { status: 200 },
     );
   }
 
-  const validation: { ok: boolean; data: BotConnectValidation } = await fetch(
-    `${apiUrl}/api/groups/${encodeURIComponent(groupId)}/connect/validate`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token, password }),
-    },
-  )
-    .then(async (response) => ({
-      ok: response.ok,
-      data: (await response.json().catch(() => ({}))) as BotConnectValidation,
-    }))
-    .catch(() => ({
-      ok: false,
-      data: { error: "Bot API belum bisa dihubungi." } satisfies BotConnectValidation,
-    }));
+  let groupName = body.group_name ?? body.groupName ?? "Grup WhatsApp";
 
-  if (!validation.ok) {
-    return Response.json(
+  if (token && apiUrl) {
+    const validation: { ok: boolean; data: BotConnectValidation } = await fetch(
+      `${apiUrl}/api/groups/${encodeURIComponent(groupId)}/connect/validate`,
       {
-        ok: false,
-        message: validation.data.error ?? "Token dashboard tidak valid.",
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, password }),
       },
-      { status: 200 },
-    );
+    )
+      .then(async (response) => ({
+        ok: response.ok,
+        data: (await response.json().catch(() => ({}))) as BotConnectValidation,
+      }))
+      .catch(() => ({
+        ok: false,
+        data: { error: "Bot API belum bisa dihubungi." } satisfies BotConnectValidation,
+      }));
+
+    if (!validation.ok) {
+      return Response.json(
+        {
+          ok: false,
+          message: validation.data.error ?? "Token dashboard tidak valid.",
+        },
+        { status: 200 },
+      );
+    }
+
+    groupName = validation.data.group?.name ?? groupName;
+  } else if (token) {
+    const tokenRow = await admin
+      .from("dashboard_tokens")
+      .select("token, group_id, expires_at")
+      .eq("token", token)
+      .eq("group_id", groupId)
+      .maybeSingle();
+
+    if (tokenRow.error || !tokenRow.data) {
+      return Response.json(
+        { ok: false, message: "Link dashboard tidak valid atau sudah kedaluwarsa." },
+        { status: 200 },
+      );
+    }
+
+    if (tokenRow.data.expires_at && new Date(tokenRow.data.expires_at) < new Date()) {
+      return Response.json(
+        { ok: false, message: "Link dashboard tidak valid atau sudah kedaluwarsa." },
+        { status: 200 },
+      );
+    }
+
+    const rental = await admin
+      .from("group_rentals")
+      .select("group_id, group_name, password")
+      .eq("group_id", groupId)
+      .maybeSingle();
+
+    if (rental.error || !rental.data) {
+      return Response.json(
+        { ok: false, message: "Data grup belum terdaftar di BotUang." },
+        { status: 200 },
+      );
+    }
+
+    groupName = rental.data.group_name ?? "Grup WhatsApp";
+    if (rental.data.password) {
+      if (!password || password !== rental.data.password) {
+        return Response.json({ ok: false, message: "PIN tidak sesuai." }, { status: 200 });
+      }
+    } else {
+      if (!password || password.length < 4) {
+        return Response.json({ ok: false, message: "PIN minimal 4 digit." }, { status: 200 });
+      }
+      const pinUpdate = await admin
+        .from("group_rentals")
+        .update({ password, updated_at: new Date().toISOString() })
+        .eq("group_id", groupId);
+      if (pinUpdate.error) {
+        return Response.json({ ok: false, message: pinUpdate.error.message }, { status: 200 });
+      }
+    }
+
+    await admin
+      .from("dashboard_tokens")
+      .update({ pin_verified: true })
+      .eq("token", token)
+      .eq("group_id", groupId);
+  } else {
+    const rental = await admin
+      .from("group_rentals")
+      .select("group_id, group_name, password")
+      .eq("group_id", groupId)
+      .maybeSingle();
+
+    if (rental.error || !rental.data) {
+      return Response.json(
+        { ok: false, message: "Grup tidak ditemukan di BotUang." },
+        { status: 200 },
+      );
+    }
+
+    groupName = rental.data.group_name ?? "Grup WhatsApp";
+    if (!rental.data.password) {
+      return Response.json(
+        {
+          ok: false,
+          code: "PIN_REQUIRED_FROM_WHATSAPP",
+          message: "Grup ini belum memiliki PIN. Ketik dash di grup WhatsApp untuk membuat akses Dashboard.",
+        },
+        { status: 200 },
+      );
+    }
+
+    if (!password || password !== rental.data.password) {
+      return Response.json({ ok: false, message: "PIN tidak sesuai." }, { status: 200 });
+    }
   }
 
-  const groupName =
-    body.group_name ?? body.groupName ?? validation.data.group?.name ?? groupId;
   const role = body.role === "owner" ? "owner" : "admin";
 
   const profile = await admin.from("user_profiles").upsert({

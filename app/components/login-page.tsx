@@ -11,7 +11,6 @@ import {
   EyeOff,
   KeyRound,
   Mail,
-  ShieldCheck,
   User,
   WalletCards,
 } from "lucide-react";
@@ -35,7 +34,8 @@ export function LoginPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [groupId, setGroupId] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [verificationEmail, setVerificationEmail] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -94,9 +94,7 @@ export function LoginPage() {
         })
       : {};
     const targetGroup =
-      groupId ||
       userGroupId ||
-      previousSession.groupId ||
       firstGroup?.group_id ||
       "";
 
@@ -107,7 +105,7 @@ export function LoginPage() {
           ...previousSession,
           groupId: targetGroup || undefined,
           groupName:
-            firstGroup?.group_name ?? previousSession.groupName ?? targetGroup,
+            firstGroup?.group_name ?? previousSession.groupName ?? "Grup WhatsApp",
           apiUrl: previousSession.apiUrl,
           role: "owner" as const,
           userName: userName || previousSession.userName,
@@ -127,7 +125,7 @@ export function LoginPage() {
           ...previousSession,
           groupId: targetGroup,
           groupName:
-            firstGroup?.group_name ?? previousSession.groupName ?? targetGroup,
+            firstGroup?.group_name ?? previousSession.groupName ?? "Grup WhatsApp",
           role: platformRole,
           userName: userName || previousSession.userName,
           userEmail: email.trim().toLowerCase(),
@@ -138,35 +136,16 @@ export function LoginPage() {
       return;
     }
 
-    const { data } = await supabase
-      .from("group_rentals")
-      .select("group_id, group_name")
-      .eq("is_active", true)
-      .limit(1)
-      .maybeSingle();
-
-    if (data?.group_id) {
-      window.localStorage.setItem(
-        DASHBOARD_SESSION_KEY,
-        JSON.stringify({
-          groupId: data.group_id,
-          groupName: data.group_name,
-          role: "admin",
-          userName,
-          userEmail: email.trim().toLowerCase(),
-          connectedAt: new Date().toISOString(),
-        }),
-      );
-      router.push("/dashboard");
-      return;
-    }
-
-    toast.message("Login berhasil. Hubungkan grup dari WhatsApp untuk membuka dashboard.");
-    router.push("/connect");
+    toast.message("Login berhasil. Hubungkan grup untuk mulai memakai dashboard.");
+    router.push("/dashboard");
   }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
+    if (mode === "register" && password !== confirmPassword) {
+      toast.error("Konfirmasi password tidak sama.");
+      return;
+    }
     setLoading(true);
     const auth =
       mode === "login"
@@ -175,10 +154,10 @@ export function LoginPage() {
             email,
             password,
             options: {
+              emailRedirectTo: `${window.location.origin}/login`,
               data: {
                 full_name: fullName.trim() || undefined,
                 name: fullName.trim() || undefined,
-                group_id: groupId || undefined,
               },
             },
           });
@@ -186,6 +165,14 @@ export function LoginPage() {
     if (auth.error) {
       setLoading(false);
       toast.error(auth.error.message);
+      return;
+    }
+
+    if (mode === "register") {
+      setLoading(false);
+      setVerificationEmail(email.trim());
+      toast.success("Periksa email kamu.");
+      setMode("login");
       return;
     }
 
@@ -279,6 +266,15 @@ export function LoginPage() {
               </TabsList>
             </Tabs>
 
+            {verificationEmail ? (
+              <div className="mt-5 rounded-[14px] border border-emerald-300/20 bg-emerald-400/8 p-4 text-sm">
+                <p className="font-semibold text-emerald-500">Periksa email kamu</p>
+                <p className="mt-1 text-[var(--muted)]">
+                  Kami mengirim link verifikasi ke {verificationEmail}.
+                </p>
+              </div>
+            ) : null}
+
             <form onSubmit={handleSubmit} className="mt-5 grid gap-4" autoComplete="off">
               <AnimatePresence initial={false}>
                 {mode === "register" ? (
@@ -341,13 +337,19 @@ export function LoginPage() {
                 </div>
               ) : null}
 
-              <AuthField
-                label="Group ID"
-                icon={<ShieldCheck className="h-4 w-4" />}
-                value={groupId}
-                onChange={setGroupId}
-                placeholder="Opsional bila sudah connect"
-              />
+              {mode === "register" ? (
+                <AuthField
+                  label="Konfirmasi Password"
+                  icon={<KeyRound className="h-4 w-4" />}
+                  type={showPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={setConfirmPassword}
+                  placeholder="Ulangi password"
+                  autoComplete="new-password"
+                  minLength={6}
+                  required
+                />
+              ) : null}
 
               <Button className="mt-1 w-full" disabled={loading}>
                 {loading ? "Memproses..." : mode === "register" ? "Buat Akun" : "Masuk Dashboard"}
