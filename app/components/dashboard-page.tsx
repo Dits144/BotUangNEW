@@ -236,7 +236,6 @@ const navItems = [
   { key: "reminders", label: "Reminder", href: "/dashboard/reminders", icon: Bell },
   { key: "commands", label: "Command", href: "/dashboard/commands", icon: Bot },
   { key: "settings", label: "Setting", href: "/dashboard/settings", icon: Settings },
-  { key: "calculator", label: "Kalkulator", href: "/dashboard/calculator", icon: Calculator },
   { key: "owner", label: "Owner", href: "/dashboard/owner", icon: ShieldCheck },
 ] as const;
 
@@ -251,7 +250,7 @@ const navGroups = [
   },
   {
     label: "Utilitas",
-    items: ["settings", "calculator"],
+    items: ["settings"],
   },
   {
     label: "Owner",
@@ -1174,15 +1173,18 @@ export function DashboardPage() {
             </motion.div>
           </AnimatePresence>
           {groupId && activeSection !== "owner" ? (
-            <AiCommandBar
-              groupId={groupId}
-              groupName={groupName}
-              sessionToken={sessionToken}
-              botApiUrl={botApiUrl}
-              summary={summary}
-              transactions={transactions}
-              onSaved={() => loadData()}
-            />
+            <>
+              <CalculatorBubble />
+              <AiCommandBar
+                groupId={groupId}
+                groupName={groupName}
+                sessionToken={sessionToken}
+                botApiUrl={botApiUrl}
+                summary={summary}
+                transactions={transactions}
+                onSaved={() => loadData()}
+              />
+            </>
           ) : null}
         </div>
       </div>
@@ -2087,6 +2089,32 @@ function AiCommandBar({
         }
       />
     </div>
+  );
+}
+
+function CalculatorBubble() {
+  return (
+    <Sheet>
+      <SheetTrigger asChild>
+        <button
+          type="button"
+          className="fixed bottom-[calc(6.5rem+env(safe-area-inset-bottom))] right-4 z-40 flex min-h-12 items-center gap-2 rounded-[16px] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--foreground)] shadow-[0_14px_36px_rgba(0,0,0,0.22)] transition hover:border-emerald-300/35 hover:bg-[var(--panel)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-300 md:bottom-[82px] md:right-5"
+          aria-label="Buka kalkulator"
+        >
+          <Calculator className="h-4 w-4 text-emerald-500" />
+          <span className="hidden sm:inline">Kalkulator</span>
+        </button>
+      </SheetTrigger>
+      <SheetContent className="p-4 md:w-[390px]">
+        <SheetTitle>Kalkulator</SheetTitle>
+        <SheetDescription className="mt-1 text-sm text-[var(--muted)]">
+          Hitung nominal kas tanpa meninggalkan halaman.
+        </SheetDescription>
+        <div className="mt-4">
+          <FinanceCalculator />
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }
 
