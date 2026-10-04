@@ -156,12 +156,47 @@ type GroupSettings = {
   weather_location: string | null;
   azan_location?: string | null;
   emergency_location?: string | null;
+  location_name?: string | null;
+  location_latitude?: number | string | null;
+  location_longitude?: number | string | null;
+  location_timezone?: string | null;
   weather_enabled?: boolean | null;
   azan_enabled?: boolean | null;
   emergency_enabled?: boolean | null;
+  prayer_enabled?: boolean | null;
+  prayer_method?: number | string | null;
+  prayer_subuh_enabled?: boolean | null;
+  prayer_dzuhur_enabled?: boolean | null;
+  prayer_ashar_enabled?: boolean | null;
+  prayer_maghrib_enabled?: boolean | null;
+  prayer_isya_enabled?: boolean | null;
+  prayer_reminder_offset_minutes?: number | string | null;
+  prayer_last_check_at?: string | null;
+  prayer_last_error?: string | null;
   typo_enabled: boolean | null;
   spreadsheet_url?: string | null;
   updated_at: string | null;
+};
+
+type PrayerStatus = {
+  ok: boolean;
+  configured?: boolean;
+  status?: "active" | "disabled" | "incomplete" | "error";
+  message?: string;
+  location?: string;
+  timezone?: string;
+  timezoneLabel?: string;
+  scheduleLoaded?: boolean;
+  schedule?: Record<string, string>;
+  nextPrayer?: {
+    key: string;
+    time: string;
+    minutesUntil: number | null;
+  } | null;
+  reminderOffsetMinutes?: number;
+  scheduler?: string;
+  lastCheckAt?: string;
+  lastError?: string | null;
 };
 
 type AccessibleGroup = {
@@ -1188,6 +1223,8 @@ export function DashboardPage() {
                 <SettingsPage
                   loading={loading}
                   groupId={groupId}
+                  sessionToken={sessionToken}
+                  botApiUrl={botApiUrl}
                   rental={rental}
                   settings={settings}
                   days={days}
@@ -4768,6 +4805,8 @@ function LocationInput({
 function SettingsPage({
   loading,
   groupId,
+  sessionToken,
+  botApiUrl,
   rental,
   settings,
   days,
@@ -4775,17 +4814,35 @@ function SettingsPage({
 }: {
   loading: boolean;
   groupId: string;
+  sessionToken: string;
+  botApiUrl: string;
   rental: Rental | null;
   settings: GroupSettings | null;
   days: number | null;
   onChanged: () => void;
 }) {
   const [header, setHeader] = useState("");
+  const [locationName, setLocationName] = useState("");
+  const [latitude, setLatitude] = useState("");
+  const [longitude, setLongitude] = useState("");
+  const [timezone, setTimezone] = useState("Asia/Jakarta");
   const [location, setLocation] = useState("");
   const [azanLocation, setAzanLocation] = useState("");
   const [emergencyLocation, setEmergencyLocation] = useState("");
   const [weatherEnabled, setWeatherEnabled] = useState(true);
-  const [azanEnabled, setAzanEnabled] = useState(false);
+  const [prayerEnabled, setPrayerEnabled] = useState(false);
+  const [prayerMethod, setPrayerMethod] = useState("20");
+  const [enabledPrayers, setEnabledPrayers] = useState({
+    subuh: true,
+    dzuhur: true,
+    ashar: true,
+    maghrib: true,
+    isya: true,
+  });
+  const [prayerOffset, setPrayerOffset] = useState("0");
+  const [prayerStatus, setPrayerStatus] = useState<PrayerStatus | null>(null);
+  const [prayerStatusLoading, setPrayerStatusLoading] = useState(false);
+  const [testSending, setTestSending] = useState(false);
   const [emergencyEnabled, setEmergencyEnabled] = useState(false);
   const [typoEnabled, setTypoEnabled] = useState(true);
   const [spreadsheetUrl, setSpreadsheetUrl] = useState("");
@@ -4799,15 +4856,33 @@ function SettingsPage({
 
   useEffect(() => {
     setHeader(settings?.header_text ?? "");
+    setLocationName(settings?.location_name ?? "");
+    setLatitude(settings?.location_latitude == null ? "" : String(settings.location_latitude));
+    setLongitude(settings?.location_longitude == null ? "" : String(settings.location_longitude));
+    setTimezone(settings?.location_timezone ?? "Asia/Jakarta");
     setLocation(settings?.weather_location ?? "");
     setAzanLocation(settings?.azan_location ?? settings?.weather_location ?? "");
     setEmergencyLocation(settings?.emergency_location ?? settings?.weather_location ?? "");
     setWeatherEnabled(settings?.weather_enabled ?? true);
-    setAzanEnabled(settings?.azan_enabled ?? false);
+    setPrayerEnabled(settings?.prayer_enabled ?? settings?.azan_enabled ?? false);
+    setPrayerMethod(String(settings?.prayer_method ?? 20));
+    setEnabledPrayers({
+      subuh: settings?.prayer_subuh_enabled ?? true,
+      dzuhur: settings?.prayer_dzuhur_enabled ?? true,
+      ashar: settings?.prayer_ashar_enabled ?? true,
+      maghrib: settings?.prayer_maghrib_enabled ?? true,
+      isya: settings?.prayer_isya_enabled ?? true,
+    });
+    setPrayerOffset(String(settings?.prayer_reminder_offset_minutes ?? 0));
     setEmergencyEnabled(settings?.emergency_enabled ?? false);
     setTypoEnabled(settings?.typo_enabled ?? true);
     setSpreadsheetUrl(settings?.spreadsheet_url ?? "");
   }, [settings]);
+
+  useEffect(() => {
+    if (!groupId || settingsSection !== "location") return;
+    void loadPrayerStatus();
+  }, [groupId, settingsSection, settings?.updated_at]);
 
   useEffect(() => {
     supabase
@@ -4827,11 +4902,27 @@ function SettingsPage({
     const payload = {
       group_id: groupId,
       header_text: header,
+      location_name: locationName,
+      location_latitude: latitude ? Number(latitude) : null,
+      location_longitude: longitude ? Number(longitude) : null,
+      location_timezone: timezone,
       weather_location: location,
       azan_location: azanLocation,
       emergency_location: emergencyLocation,
       weather_enabled: weatherEnabled,
-      azan_enabled: azanEnabled,
+      azan_enabled: prayerEnabled,
+      prayer_enabled: prayerEnabled,
+      prayer_method: Number(prayerMethod),
+      prayer_subuh_enabled: enabledPrayers.subuh,
+      prayer_dzuhur_enabled: enabledPrayers.dzuhur,
+      prayer_ashar_enabled: enabledPrayers.ashar,
+      prayer_maghrib_enabled: enabledPrayers.maghrib,
+      prayer_isya_enabled: enabledPrayers.isya,
+      prayer_reminder_offset_minutes: Number(prayerOffset),
+      prayer_schedule_cache: null,
+      prayer_schedule_cached_for: null,
+      prayer_schedule_cached_at: null,
+      prayer_last_error: null,
       emergency_enabled: emergencyEnabled,
       typo_enabled: typoEnabled,
       spreadsheet_url: spreadsheetUrl,
@@ -4841,11 +4932,20 @@ function SettingsPage({
     if (error) toast.error(error.message);
     else {
       toast.success("Setting grup disimpan.");
+      void fetchBotGroupData({
+        resource: "settings",
+        groupId,
+        apiUrl: botApiUrl,
+        token: sessionToken,
+        method: "POST",
+        body: payload,
+      });
+      void loadPrayerStatus();
       onChanged();
     }
   }
 
-  function useBrowserLocation(target: "weather" | "azan" | "emergency") {
+  function fillBrowserLocation(target: "weather" | "azan" | "emergency") {
     if (!navigator.geolocation) {
       toast.error("Browser tidak mendukung share lokasi.");
       return;
@@ -4854,6 +4954,8 @@ function SettingsPage({
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const value = `${position.coords.latitude.toFixed(5)},${position.coords.longitude.toFixed(5)}`;
+        setLatitude(position.coords.latitude.toFixed(6));
+        setLongitude(position.coords.longitude.toFixed(6));
         if (target === "weather") setLocation(value);
         if (target === "azan") setAzanLocation(value);
         if (target === "emergency") setEmergencyLocation(value);
@@ -4862,6 +4964,49 @@ function SettingsPage({
       () => toast.error("Izin lokasi ditolak atau tidak tersedia."),
       { enableHighAccuracy: true, timeout: 10_000 },
     );
+  }
+
+  async function loadPrayerStatus() {
+    if (!groupId || !sessionToken) return;
+    setPrayerStatusLoading(true);
+    try {
+      const query = new URLSearchParams({ group_id: groupId });
+      const response = await fetch(`/api/prayer/status?${query}`, {
+        headers: {
+          Authorization: `Bearer ${sessionToken}`,
+        },
+      });
+      const data = (await response.json()) as PrayerStatus;
+      setPrayerStatus(data);
+    } catch {
+      setPrayerStatus({ ok: false, configured: false, message: "Status azan tidak tersedia." });
+    } finally {
+      setPrayerStatusLoading(false);
+    }
+  }
+
+  async function sendPrayerTest() {
+    setTestSending(true);
+    try {
+      const response = await fetch("/api/prayer/test", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${sessionToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          group_id: groupId,
+          api_url: botApiUrl,
+        }),
+      });
+      const data = (await response.json()) as { ok?: boolean; message?: string };
+      if (data.ok) toast.success(data.message ?? "Test berhasil dikirim ke WhatsApp.");
+      else toast.error(data.message ?? "Test pengingat azan gagal.");
+    } catch {
+      toast.error("Test pengingat azan gagal.");
+    } finally {
+      setTestSending(false);
+    }
   }
 
   async function changePin(event: FormEvent) {
@@ -5016,6 +5161,54 @@ function SettingsPage({
         <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
           <h2 className="font-semibold">Location & Services</h2>
           <form onSubmit={saveSettings} className="mt-4 space-y-3">
+            <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-3">
+              <p className="text-sm font-semibold">Lokasi Grup</p>
+              <p className="mt-1 text-xs text-[var(--muted)]">
+                Lokasi ini dipakai bersama untuk Weather, Azan, dan Peringatan Darurat.
+              </p>
+              <div className="mt-3 grid gap-2">
+                <Input
+                  value={locationName}
+                  onChange={(event) => {
+                    setLocationName(event.target.value);
+                    if (!location) setLocation(event.target.value);
+                    if (!azanLocation) setAzanLocation(event.target.value);
+                    if (!emergencyLocation) setEmergencyLocation(event.target.value);
+                  }}
+                  placeholder="Nama lokasi, contoh: Bogor, Jawa Barat"
+                />
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Input
+                    value={latitude}
+                    onChange={(event) => setLatitude(event.target.value)}
+                    inputMode="decimal"
+                    placeholder="Latitude, contoh: -6.595"
+                  />
+                  <Input
+                    value={longitude}
+                    onChange={(event) => setLongitude(event.target.value)}
+                    inputMode="decimal"
+                    placeholder="Longitude, contoh: 106.816"
+                  />
+                </div>
+                <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                  <select
+                    value={timezone}
+                    onChange={(event) => setTimezone(event.target.value)}
+                    className="min-h-11 w-full rounded-[11px] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm"
+                  >
+                    <option value="Asia/Jakarta">Asia/Jakarta - WIB</option>
+                    <option value="Asia/Makassar">Asia/Makassar - WITA</option>
+                    <option value="Asia/Jayapura">Asia/Jayapura - WIT</option>
+                  </select>
+                  <Button type="button" variant="outline" onClick={() => fillBrowserLocation("azan")}>
+                    <MapPin className="h-4 w-4" />
+                    Share lokasi
+                  </Button>
+                </div>
+              </div>
+            </div>
+
             <SettingToggle
               icon={CloudSun}
               title="Weather"
@@ -5026,20 +5219,116 @@ function SettingsPage({
               value={location}
               onChange={setLocation}
               placeholder="Lokasi cuaca, contoh: Jakarta atau -6.20,106.81"
-              onUseLocation={() => useBrowserLocation("weather")}
+              onUseLocation={() => fillBrowserLocation("weather")}
             />
             <SettingToggle
               icon={CalendarClock}
-              title="Azan"
-              enabled={azanEnabled}
-              onEnabledChange={setAzanEnabled}
+              title="Pengingat Azan"
+              enabled={prayerEnabled}
+              onEnabledChange={setPrayerEnabled}
             />
-            <LocationInput
-              value={azanLocation}
-              onChange={setAzanLocation}
-              placeholder="Lokasi azan"
-              onUseLocation={() => useBrowserLocation("azan")}
-            />
+            {prayerEnabled ? (
+              <div className="space-y-3 rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-3">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                  {[
+                    ["subuh", "Subuh"],
+                    ["dzuhur", "Dzuhur"],
+                    ["ashar", "Ashar"],
+                    ["maghrib", "Maghrib"],
+                    ["isya", "Isya"],
+                  ].map(([key, label]) => (
+                    <label
+                      key={key}
+                      className="flex min-h-11 items-center gap-2 rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm font-medium"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={enabledPrayers[key as keyof typeof enabledPrayers]}
+                        onChange={(event) =>
+                          setEnabledPrayers((current) => ({
+                            ...current,
+                            [key]: event.target.checked,
+                          }))
+                        }
+                        className="h-4 w-4 accent-emerald-500"
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <label className="block text-sm font-medium">
+                    Reminder
+                    <select
+                      value={prayerOffset}
+                      onChange={(event) => setPrayerOffset(event.target.value)}
+                      className="mt-2 min-h-11 w-full rounded-[11px] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm"
+                    >
+                      <option value="0">Tepat waktu</option>
+                      <option value="5">5 menit sebelum</option>
+                      <option value="10">10 menit sebelum</option>
+                    </select>
+                  </label>
+                  <label className="block text-sm font-medium">
+                    Metode jadwal
+                    <select
+                      value={prayerMethod}
+                      onChange={(event) => setPrayerMethod(event.target.value)}
+                      className="mt-2 min-h-11 w-full rounded-[11px] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm"
+                    >
+                      <option value="20">Kemenag Indonesia</option>
+                      <option value="3">Muslim World League</option>
+                      <option value="5">Egyptian General Authority</option>
+                    </select>
+                  </label>
+                </div>
+                <div className="rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold">Status Pengingat Azan</p>
+                      <p className="mt-1 text-xs text-[var(--muted)]">
+                        {prayerStatusLoading
+                          ? "Memeriksa jadwal..."
+                          : prayerStatus?.configured
+                            ? "Konfigurasi aktif dan jadwal berhasil dimuat."
+                            : prayerStatus?.message ?? "Simpan konfigurasi untuk mengecek jadwal."}
+                      </p>
+                    </div>
+                    <Badge tone={prayerStatus?.configured ? "income" : "warning"}>
+                      {prayerStatus?.configured ? "Aktif" : "Belum lengkap"}
+                    </Badge>
+                  </div>
+                  {prayerStatus?.configured ? (
+                    <div className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
+                      <div>
+                        <p className="text-xs text-[var(--muted)]">Location</p>
+                        <p className="font-medium">{prayerStatus.location || locationName || "-"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-[var(--muted)]">Timezone</p>
+                        <p className="font-medium">{prayerStatus.timezoneLabel ?? "WIB"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-[var(--muted)]">Next Prayer</p>
+                        <p className="font-mono font-semibold tabular-nums">
+                          {prayerStatus.nextPrayer
+                            ? `${prayerStatus.nextPrayer.key} ${prayerStatus.nextPrayer.time}`
+                            : "-"}
+                        </p>
+                      </div>
+                    </div>
+                  ) : null}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button type="button" variant="outline" onClick={() => loadPrayerStatus()} disabled={prayerStatusLoading}>
+                      {prayerStatusLoading ? "Mengecek..." : "Cek Jadwal"}
+                    </Button>
+                    <Button type="button" variant="secondary" onClick={sendPrayerTest} disabled={testSending}>
+                      {testSending ? "Mengirim..." : "Kirim Test Reminder"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
             <SettingToggle
               icon={Siren}
               title="Peringatan darurat"
@@ -5050,7 +5339,7 @@ function SettingsPage({
               value={emergencyLocation}
               onChange={setEmergencyLocation}
               placeholder="Lokasi pantauan darurat/gempa"
-              onUseLocation={() => useBrowserLocation("emergency")}
+              onUseLocation={() => fillBrowserLocation("emergency")}
             />
             <Button className="w-full">Simpan Layanan</Button>
           </form>
