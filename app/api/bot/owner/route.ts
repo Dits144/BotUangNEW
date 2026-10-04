@@ -140,6 +140,62 @@ export async function GET(request: Request) {
     );
   }
 
+  if (resource === "rental-requests") {
+    const admin = createSupabaseAdminClient();
+    const localResult = admin
+      ? await admin
+          .from("rental_requests")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(100)
+      : { data: [], error: null };
+    let botData: unknown[] = [];
+    let botMessage = "";
+    const botToken = getBotToken();
+
+    if (botToken) {
+      try {
+        const response = await fetch(`${apiUrl}/api${path}`, {
+          headers: {
+            Authorization: `Bearer ${botToken}`,
+            "Content-Type": "application/json",
+          },
+        });
+        const data = await response.json().catch(() => null);
+        if (response.ok && Array.isArray(data)) botData = data;
+        else if (response.ok && Array.isArray((data as { data?: unknown[] } | null)?.data)) {
+          botData = (data as { data: unknown[] }).data;
+        } else {
+          botMessage =
+            (data as { message?: string; error?: string } | null)?.message ??
+            (data as { error?: string } | null)?.error ??
+            "";
+        }
+      } catch {
+        botMessage = "Owner Bot API tidak tersedia";
+      }
+    }
+
+    const merged = new Map<string, unknown>();
+    for (const item of botData) {
+      const row = item as { id?: string | number };
+      merged.set(String(row.id ?? JSON.stringify(item)), item);
+    }
+    for (const item of localResult.data ?? []) {
+      const row = item as { id?: string | number };
+      merged.set(String(row.id ?? JSON.stringify(item)), item);
+    }
+
+    return Response.json(
+      {
+        ok: !localResult.error,
+        data: Array.from(merged.values()),
+        message: localResult.error?.message ?? botMessage,
+      },
+      { status: 200 },
+    );
+  }
+
   return callOwnerApi({ apiUrl, path });
 }
 

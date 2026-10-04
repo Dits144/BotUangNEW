@@ -1,16 +1,44 @@
 import { BOT_API_URL } from "@/app/lib/constants";
 import { getServerBotApiUrls, getServerBotToken } from "@/app/lib/bot-server-config";
-import { createSupabaseServerClient } from "@/app/lib/supabase-server";
+import {
+  createSupabaseAdminClient,
+  createSupabaseServerClient,
+} from "@/app/lib/supabase-server";
+
+const ownerEmails = new Set(
+  (process.env.OWNER_EMAILS ?? "dits144@gmail.com")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean),
+);
 
 function getAccessToken(request: Request) {
   return request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
 }
 
 async function canAccessGroup(request: Request, groupId: string) {
-  const supabase = createSupabaseServerClient(getAccessToken(request));
-  const { data, error } = await supabase
+  const accessToken = getAccessToken(request);
+  const supabase = createSupabaseServerClient(accessToken);
+  const auth = await supabase.auth.getUser(accessToken);
+  const user = auth.data.user;
+  if (auth.error || !user) return false;
+
+  const admin = createSupabaseAdminClient();
+  if (!admin) return false;
+
+  if (ownerEmails.has((user.email ?? "").trim().toLowerCase())) return true;
+
+  const profile = await admin
+    .from("user_profiles")
+    .select("platform_role")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (profile.data?.platform_role === "owner") return true;
+
+  const { data, error } = await admin
     .from("user_group_access")
     .select("group_id")
+    .eq("user_id", user.id)
     .eq("group_id", groupId)
     .maybeSingle();
 

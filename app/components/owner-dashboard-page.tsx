@@ -284,6 +284,19 @@ export function OwnerDashboardPage({ embedded = false }: { embedded?: boolean })
     setQrisFile(null);
   }
 
+  async function openProofImage(path?: string | null) {
+    if (!path) {
+      toast.error("Bukti pembayaran belum diupload.");
+      return;
+    }
+    const url = await resolveDashboardImage(path);
+    if (!url) {
+      toast.error("Bukti pembayaran tidak bisa dibuka.");
+      return;
+    }
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
   async function logout() {
     window.localStorage.removeItem(DASHBOARD_SESSION_KEY);
     await supabase.auth.signOut().catch(() => undefined);
@@ -572,6 +585,14 @@ export function OwnerDashboardPage({ embedded = false }: { embedded?: boolean })
                     </div>
                     {request.status === "pending" ? (
                       <div className="mt-3 grid grid-cols-2 gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="col-span-2"
+                          onClick={() => openProofImage(request.proof_image)}
+                        >
+                          Lihat Bukti
+                        </Button>
                         <Button
                           size="sm"
                           onClick={() =>

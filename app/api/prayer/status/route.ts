@@ -10,8 +10,54 @@ import {
   type PrayerSettingsLike,
 } from "@/app/lib/prayer";
 
+const ownerEmails = new Set(
+  (process.env.OWNER_EMAILS ?? "dits144@gmail.com")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean),
+);
+
 function getAccessToken(request: Request) {
   return request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
+}
+
+async function getAuthorizedClient(request: Request, groupId: string) {
+  const accessToken = getAccessToken(request);
+  const supabase = createSupabaseServerClient(accessToken);
+  const auth = await supabase.auth.getUser(accessToken);
+  const user = auth.data.user;
+  if (auth.error || !user) {
+    return { ok: false, message: "Session tidak valid", client: supabase };
+  }
+
+  const admin = createSupabaseAdminClient();
+  if (!admin) return { ok: true, client: supabase };
+
+  if (ownerEmails.has((user.email ?? "").trim().toLowerCase())) {
+    return { ok: true, client: admin };
+  }
+
+  const profile = await admin
+    .from("user_profiles")
+    .select("platform_role")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (profile.data?.platform_role === "owner") {
+    return { ok: true, client: admin };
+  }
+
+  const access = await admin
+    .from("user_group_access")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("group_id", groupId)
+    .maybeSingle();
+
+  if (!access.data) {
+    return { ok: false, message: "Akses grup tidak valid", client: supabase };
+  }
+
+  return { ok: true, client: admin };
 }
 
 function getCoordinates(settings: PrayerSettingsLike & { azan_location?: string | null; weather_location?: string | null }) {
@@ -25,13 +71,17 @@ function getCoordinates(settings: PrayerSettingsLike & { azan_location?: string 
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const groupId = url.searchParams.get("group_id") ?? "";
-  const accessToken = getAccessToken(request);
 
   if (!groupId) {
     return Response.json({ ok: false, message: "Group ID tidak ditemukan" }, { status: 200 });
   }
 
-  const supabase = createSupabaseServerClient(accessToken);
+  const authClient = await getAuthorizedClient(request, groupId);
+  if (!authClient.ok) {
+    return Response.json({ ok: false, message: authClient.message }, { status: 200 });
+  }
+
+  const supabase = authClient.client;
   const { data, error } = await supabase
     .from("group_settings")
     .select("*")

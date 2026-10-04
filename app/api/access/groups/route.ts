@@ -8,6 +8,8 @@ type GroupAccessRow = {
   group_id: string;
   group_name?: string | null;
   role: "admin" | "owner";
+  is_active?: boolean | null;
+  expire_at?: string | null;
 };
 
 const ownerEmails = new Set(
@@ -164,22 +166,41 @@ export async function GET(request: Request) {
     });
   }
 
+  if (admin && collected.size) {
+    const rentals = await admin
+      .from("group_rentals")
+      .select("group_id, group_name, is_active, expire_at")
+      .in("group_id", Array.from(collected.keys()));
+
+    for (const rental of rentals.data ?? []) {
+      const existing = collected.get(rental.group_id);
+      if (!existing) continue;
+      collected.set(rental.group_id, {
+        ...existing,
+        group_name: rental.group_name ?? existing.group_name ?? "Grup WhatsApp",
+        is_active: rental.is_active,
+        expire_at: rental.expire_at,
+      });
+    }
+  }
+
   if (platformRole === "owner" && admin) {
     const rentals = await admin
       .from("group_rentals")
-      .select("group_id, group_name")
+      .select("group_id, group_name, is_active, expire_at")
       .order("is_active", { ascending: false })
       .order("expire_at", { ascending: false })
       .limit(100);
 
     for (const rental of rentals.data ?? []) {
-      if (!collected.has(rental.group_id)) {
-        collected.set(rental.group_id, {
-          group_id: rental.group_id,
-          group_name: rental.group_name ?? "Grup WhatsApp",
-          role: "owner",
-        });
-      }
+      const existing = collected.get(rental.group_id);
+      collected.set(rental.group_id, {
+        group_id: rental.group_id,
+        group_name: rental.group_name ?? existing?.group_name ?? "Grup WhatsApp",
+        role: existing?.role ?? "owner",
+        is_active: rental.is_active,
+        expire_at: rental.expire_at,
+      });
     }
   }
 
@@ -187,6 +208,8 @@ export async function GET(request: Request) {
     group_id: row.group_id,
     group_name: row.group_name ?? "Grup WhatsApp",
     role: row.role,
+    is_active: row.is_active,
+    expire_at: row.expire_at,
   }));
 
   return Response.json({ ok: true, groups, platform_role: platformRole }, { status: 200 });

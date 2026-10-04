@@ -203,6 +203,8 @@ type AccessibleGroup = {
   group_id: string;
   group_name: string | null;
   role: "admin" | "owner";
+  is_active?: boolean | null;
+  expire_at?: string | null;
 };
 
 type DashboardUser = {
@@ -1348,13 +1350,18 @@ function Brand({
             {groups.length ? (
               groups.map((group) => (
                 <option key={group.group_id} value={group.group_id}>
-                  {group.group_name ?? "Grup WhatsApp"}
+                  {group.group_name ?? "Grup WhatsApp"} - {group.group_id}
                 </option>
               ))
             ) : (
               <option value={groupId}>{groupName || "Grup WhatsApp"}</option>
             )}
           </select>
+          {groupId ? (
+            <span className="mt-1 block break-all text-[11px] font-medium normal-case tracking-normal text-[var(--muted)]">
+              ID: {groupId}
+            </span>
+          ) : null}
         </label>
         <Link
           href="/connect"
@@ -4967,13 +4974,15 @@ function SettingsPage({
   }
 
   async function loadPrayerStatus() {
-    if (!groupId || !sessionToken) return;
+    if (!groupId) return;
     setPrayerStatusLoading(true);
     try {
+      const auth = await supabase.auth.getSession();
+      const accessToken = auth.data.session?.access_token ?? "";
       const query = new URLSearchParams({ group_id: groupId });
       const response = await fetch(`/api/prayer/status?${query}`, {
         headers: {
-          Authorization: `Bearer ${sessionToken}`,
+          Authorization: `Bearer ${accessToken}`,
         },
       });
       const data = (await response.json()) as PrayerStatus;
@@ -4988,10 +4997,12 @@ function SettingsPage({
   async function sendPrayerTest() {
     setTestSending(true);
     try {
+      const auth = await supabase.auth.getSession();
+      const accessToken = auth.data.session?.access_token ?? "";
       const response = await fetch("/api/prayer/test", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${sessionToken}`,
+          Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -5042,15 +5053,28 @@ function SettingsPage({
       }
       proofPath = upload.storagePath;
     }
-    const { error } = await supabase.from("rental_requests").insert({
-      group_id: groupId,
-      months: Number(months),
-      status: "pending",
-      proof_image: proofPath,
+    const auth = await supabase.auth.getSession();
+    const accessToken = auth.data.session?.access_token ?? "";
+    const response = await fetch("/api/rental/request", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        group_id: groupId,
+        group_name: rental?.group_name ?? "Grup WhatsApp",
+        months: Number(months),
+        proof_image: proofPath,
+      }),
     });
-    if (error) toast.error(error.message);
+    const data = (await response.json().catch(() => ({}))) as {
+      ok?: boolean;
+      message?: string;
+    };
+    if (!data.ok) toast.error(data.message ?? "Permintaan perpanjangan gagal.");
     else {
-      toast.success("Permintaan perpanjangan dikirim.");
+      toast.success(data.message ?? "Permintaan perpanjangan dikirim.");
       setProof(null);
       onChanged();
     }
