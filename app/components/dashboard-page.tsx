@@ -2601,15 +2601,11 @@ function AiIntentCard({
             />
           </label>
           {intent.action === "reminder" ? (
-            <label className="block text-sm font-medium">
-              Jadwal
-              <Input
-                className="mt-2"
-                value={intent.remind_value ?? ""}
-                onChange={(event) => onChange({ remind_value: event.target.value })}
-                placeholder="besok 08:00"
-              />
-            </label>
+            <ReminderScheduleFields
+              type={toReminderScheduleType(intent.remind_type)}
+              value={intent.remind_value ?? ""}
+              onChange={(patch) => onChange({ remind_type: patch.type, remind_value: patch.value })}
+            />
           ) : null}
           {intent.action === "command" ? (
             <label className="block text-sm font-medium">
@@ -4139,6 +4135,189 @@ function parseTodo(value: string) {
   return { priority: match?.[1] ?? "normal", text: match?.[2] ?? value };
 }
 
+type ReminderScheduleType = "time" | "date" | "datetime";
+
+function isReminderScheduleType(value: string): value is ReminderScheduleType {
+  return value === "time" || value === "date" || value === "datetime";
+}
+
+function toReminderScheduleType(value: string | undefined): ReminderScheduleType {
+  return isReminderScheduleType(value ?? "") ? value as ReminderScheduleType : "time";
+}
+
+function toReminderDateValue(value: string) {
+  const [year, month, day] = value.split("-");
+  if (!year || !month || !day) return "";
+  return `${day}/${month}/${year}`;
+}
+
+function toDateInputValue(value: string) {
+  const trimmed = value.trim();
+  const isoMatch = trimmed.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
+  if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+
+  const localMatch = trimmed.match(/\b(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?\b/);
+  if (!localMatch) return "";
+
+  const day = localMatch[1].padStart(2, "0");
+  const month = localMatch[2].padStart(2, "0");
+  const rawYear = localMatch[3] ?? String(new Date().getFullYear());
+  const year = rawYear.length === 2 ? `20${rawYear}` : rawYear;
+  return `${year}-${month}-${day}`;
+}
+
+function toTimeInputValue(value: string) {
+  const match = value.match(/\b(\d{1,2}):(\d{2})\b/);
+  if (!match) return "";
+  return `${match[1].padStart(2, "0")}:${match[2]}`;
+}
+
+function buildReminderValue(type: ReminderScheduleType, dateValue: string, timeValue: string) {
+  if (type === "time") return timeValue;
+  if (type === "date") return toReminderDateValue(dateValue);
+  return [toReminderDateValue(dateValue), timeValue].filter(Boolean).join(" ");
+}
+
+function formatReminderTypeLabel(type: string) {
+  if (type === "time") return "Jam";
+  if (type === "date") return "Tanggal";
+  if (type === "datetime") return "Tanggal & jam";
+  return type || "Reminder";
+}
+
+function formatReminderScheduleValue(type: string, value: string) {
+  if (type !== "datetime") return value;
+  const date = toDateInputValue(value);
+  const time = toTimeInputValue(value);
+  return [date ? toReminderDateValue(date) : "", time].filter(Boolean).join(" · ") || value;
+}
+
+function ReminderScheduleFields({
+  type,
+  value,
+  onChange,
+  label = "Jadwal",
+}: {
+  type: ReminderScheduleType;
+  value: string;
+  onChange: (patch: { type: ReminderScheduleType; value: string }) => void;
+  label?: string;
+}) {
+  const [dateValue, setDateValue] = useState(() => toDateInputValue(value));
+  const [timeValue, setTimeValue] = useState(() => toTimeInputValue(value));
+
+  useEffect(() => {
+    setDateValue(toDateInputValue(value));
+    setTimeValue(toTimeInputValue(value));
+  }, [value, type]);
+
+  function update(nextType: ReminderScheduleType, nextDate: string, nextTime: string) {
+    onChange({
+      type: nextType,
+      value: buildReminderValue(nextType, nextDate, nextTime),
+    });
+  }
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="mb-2 text-sm font-medium">{label}</p>
+        <div className="grid grid-cols-3 rounded-[13px] border border-[var(--line)] bg-[var(--panel)] p-1">
+          {[
+            { value: "time", label: "Jam" },
+            { value: "date", label: "Tanggal" },
+            { value: "datetime", label: "Tanggal + jam" },
+          ].map((item) => {
+            const active = type === item.value;
+            return (
+              <button
+                key={item.value}
+                type="button"
+                className={cn(
+                  "min-h-10 rounded-[10px] px-2 text-xs font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 sm:text-sm",
+                  active
+                    ? "bg-emerald-500 text-slate-950"
+                    : "text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--foreground)]",
+                )}
+                onClick={() => update(item.value as ReminderScheduleType, dateValue, timeValue)}
+              >
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {type === "time" ? (
+        <label className="block text-sm font-medium">
+          Jam
+          <Input
+            className="mt-2 font-mono tabular-nums"
+            type="time"
+            value={timeValue}
+            required
+            onChange={(event) => {
+              const nextTime = event.target.value;
+              setTimeValue(nextTime);
+              update(type, dateValue, nextTime);
+            }}
+          />
+        </label>
+      ) : null}
+
+      {type === "date" ? (
+        <label className="block text-sm font-medium">
+          Tanggal
+          <Input
+            className="mt-2 font-mono tabular-nums"
+            type="date"
+            value={dateValue}
+            required
+            onChange={(event) => {
+              const nextDate = event.target.value;
+              setDateValue(nextDate);
+              update(type, nextDate, timeValue);
+            }}
+          />
+        </label>
+      ) : null}
+
+      {type === "datetime" ? (
+        <div className="grid gap-3 sm:grid-cols-[1fr_140px]">
+          <label className="block text-sm font-medium">
+            Tanggal
+            <Input
+              className="mt-2 font-mono tabular-nums"
+              type="date"
+              value={dateValue}
+              required
+              onChange={(event) => {
+                const nextDate = event.target.value;
+                setDateValue(nextDate);
+                update(type, nextDate, timeValue);
+              }}
+            />
+          </label>
+          <label className="block text-sm font-medium">
+            Jam
+            <Input
+              className="mt-2 font-mono tabular-nums"
+              type="time"
+              value={timeValue}
+              required
+              onChange={(event) => {
+                const nextTime = event.target.value;
+                setTimeValue(nextTime);
+                update(type, dateValue, nextTime);
+              }}
+            />
+          </label>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function RemindersPage({
   loading,
   groupId,
@@ -4154,7 +4333,7 @@ function RemindersPage({
   reminders: Reminder[];
   onChanged: () => void;
 }) {
-  const [type, setType] = useState("time");
+  const [type, setType] = useState<ReminderScheduleType>("time");
   const [value, setValue] = useState("");
   const [text, setText] = useState("");
   const [saving, setSaving] = useState(false);
@@ -4195,6 +4374,7 @@ function RemindersPage({
       toast.success("Reminder disimpan.");
       setText("");
       setValue("");
+      setType("time");
       setOpen(false);
       onChanged();
     } catch (error) {
@@ -4246,12 +4426,14 @@ function RemindersPage({
             <SheetContent>
               <SheetTitle>Reminder Baru</SheetTitle>
               <form onSubmit={add} className="mt-5 space-y-3">
-                <select value={type} onChange={(event) => setType(event.target.value)} className="min-h-11 w-full rounded-[11px] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm">
-                  <option value="time">Jam harian</option>
-                  <option value="date">Tanggal khusus</option>
-                  <option value="datetime">Tanggal dan jam</option>
-                </select>
-                <Input value={value} onChange={(event) => setValue(event.target.value)} placeholder="08:00, 29/01/2027, atau 08:00&29/01/2027" required />
+                <ReminderScheduleFields
+                  type={type}
+                  value={value}
+                  onChange={(patch) => {
+                    setType(patch.type);
+                    setValue(patch.value);
+                  }}
+                />
                 <Textarea value={text} onChange={(event) => setText(event.target.value)} placeholder="Isi reminder" required />
                 <Button className="w-full" disabled={saving}>
                   {saving ? "Menyimpan..." : "Simpan Reminder"}
@@ -4277,10 +4459,12 @@ function RemindersPage({
                   <div className="flex items-start justify-between gap-3">
                     <p className="font-semibold">{reminder.remind_text}</p>
                     <span className="rounded-full bg-[var(--panel)] px-2 py-1 text-xs text-[var(--muted)]">
-                      {reminder.remind_type}
+                      {formatReminderTypeLabel(reminder.remind_type)}
                     </span>
                   </div>
-                  <p className="mt-1 text-sm text-[var(--muted)]">{reminder.remind_value}</p>
+                  <p className="mt-1 text-sm text-[var(--muted)]">
+                    {formatReminderScheduleValue(reminder.remind_type, reminder.remind_value)}
+                  </p>
                   <p className="mt-1 text-xs text-[var(--muted)]">Dibuat oleh {reminder.created_by ?? "Dashboard"}</p>
                 </div>
                 <Button
