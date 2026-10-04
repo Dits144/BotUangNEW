@@ -6,6 +6,7 @@ import {
   ShieldCheck,
   WalletCards,
 } from "lucide-react";
+import Link from "next/link";
 import { Button } from "./ui/button";
 
 const features = [
@@ -19,18 +20,18 @@ export function LandingPage() {
     <main className="min-h-screen bg-[#0B0F19] text-white">
       <section className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-5 py-5 md:px-8">
         <nav className="flex items-center justify-between">
-          <a href="/" className="flex items-center gap-3 font-semibold">
+          <Link href="/" className="flex items-center gap-3 font-semibold">
             <span className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-emerald-500 text-slate-950">
               <WalletCards className="h-5 w-5" />
             </span>
             BotUang
-          </a>
+          </Link>
           <div className="flex items-center gap-2">
             <Button asChildLike="true" variant="ghost" className="hidden text-zinc-300 md:inline-flex">
-              <a href="/login">Masuk</a>
+              <Link href="/login">Masuk</Link>
             </Button>
             <Button asChildLike="true">
-              <a href="/dashboard">Buka Dashboard</a>
+              <Link href="/dashboard">Buka Dashboard</Link>
             </Button>
           </div>
         </nav>
@@ -50,12 +51,12 @@ export function LandingPage() {
             </p>
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
               <Button asChildLike="true" className="w-full sm:w-auto">
-                <a href="/dashboard">
+                <Link href="/dashboard">
                   Hubungkan Grup <ArrowRight className="h-4 w-4" />
-                </a>
+                </Link>
               </Button>
               <Button asChildLike="true" variant="secondary" className="w-full sm:w-auto">
-                <a href="/login">Login Admin</a>
+                <Link href="/login">Login Admin</Link>
               </Button>
             </div>
             <div className="mt-8 grid gap-3">

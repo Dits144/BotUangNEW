@@ -68,7 +68,7 @@ function getBotToken() {
   return getServerBotToken();
 }
 
-async function callOwnerApi({
+async function callOwnerApiData({
   apiUrl,
   path,
   method = "GET",
@@ -81,10 +81,11 @@ async function callOwnerApi({
 }) {
   const botToken = getBotToken();
   if (!botToken) {
-    return Response.json(
-      { ok: false, message: "BOT_API_TOKEN belum diset di Vercel." },
-      { status: 200 },
-    );
+    return {
+      ok: false,
+      data: null,
+      message: "BOT_API_TOKEN belum diset di Vercel.",
+    };
   }
 
   try {
@@ -98,22 +99,31 @@ async function callOwnerApi({
     });
     const data = await response.json().catch(() => null);
 
-    return Response.json(
-      {
-        ok: response.ok,
-        data,
-        message:
-          (data as { message?: string; error?: string } | null)?.message ??
-          (data as { error?: string } | null)?.error,
-      },
-      { status: 200 },
-    );
+    return {
+      ok: response.ok,
+      data,
+      message:
+        (data as { message?: string; error?: string } | null)?.message ??
+        (data as { error?: string } | null)?.error,
+    };
   } catch {
-    return Response.json(
-      { ok: false, message: "Owner Bot API tidak tersedia" },
-      { status: 200 },
-    );
+    return {
+      ok: false,
+      data: null,
+      message: "Owner Bot API tidak tersedia",
+    };
   }
+}
+
+async function callOwnerApi(args: Parameters<typeof callOwnerApiData>[0]) {
+  const result = await callOwnerApiData(args);
+  return Response.json(result, { status: 200 });
+}
+
+function isUuid(value: unknown) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    String(value ?? ""),
+  );
 }
 
 export async function GET(request: Request) {
@@ -213,6 +223,89 @@ export async function POST(request: Request) {
     [key: string]: unknown;
   };
   const action = payload.action;
+
+  if (
+    (action === "approve-rental" || action === "reject-rental") &&
+    isUuid(payload.id)
+  ) {
+    const admin = createSupabaseAdminClient();
+    if (!admin) {
+      return Response.json(
+        { ok: false, message: "Konfigurasi server belum siap." },
+        { status: 200 },
+      );
+    }
+
+    const requestResult = await admin
+      .from("rental_requests")
+      .select("id, group_id, months, status")
+      .eq("id", String(payload.id))
+      .maybeSingle();
+
+    if (requestResult.error) {
+      return Response.json(
+        { ok: false, message: requestResult.error.message },
+        { status: 200 },
+      );
+    }
+
+    if (requestResult.data) {
+      const rentalRequest = requestResult.data as {
+        id: string;
+        group_id: string;
+        months: number | null;
+        status: string | null;
+      };
+      const status = action === "approve-rental" ? "approved" : "rejected";
+
+      if (action === "approve-rental") {
+        const months = Math.max(Number(rentalRequest.months ?? 1), 1);
+        const activation = await callOwnerApiData({
+          apiUrl,
+          path: "/owner/rentals/activate",
+          method: "POST",
+          body: {
+            group_id: rentalRequest.group_id,
+            days: months * 30,
+          },
+        });
+
+        if (!activation.ok) {
+          return Response.json(
+            {
+              ok: false,
+              data: activation.data,
+              message: activation.message ?? "Aktivasi sewa bot gagal.",
+            },
+            { status: 200 },
+          );
+        }
+      }
+
+      const updateResult = await admin
+        .from("rental_requests")
+        .update({ status, updated_at: new Date().toISOString() })
+        .eq("id", rentalRequest.id);
+
+      if (updateResult.error) {
+        return Response.json(
+          { ok: false, message: updateResult.error.message },
+          { status: 200 },
+        );
+      }
+
+      return Response.json(
+        {
+          ok: true,
+          message:
+            action === "approve-rental"
+              ? "Request perpanjangan disetujui dan sewa grup diaktifkan."
+              : "Request perpanjangan ditolak.",
+        },
+        { status: 200 },
+      );
+    }
+  }
 
   const actionMap: Record<OwnerAction, { path: string; method: "POST" }> = {
     activate: { path: "/owner/rentals/activate", method: "POST" },
