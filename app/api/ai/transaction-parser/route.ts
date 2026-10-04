@@ -260,11 +260,9 @@ function validateIntent(value: ParsedIntent) {
 function getFallbackResponse({
   text,
   today,
-  debug,
 }: {
   text: string;
   today: string;
-  debug?: string;
 }) {
   const localIntent = parseLocalIntent(text, today);
   if (!localIntent) return null;
@@ -273,7 +271,6 @@ function getFallbackResponse({
     ok: true,
     intent: localIntent,
     source: "local",
-    debug,
   };
 }
 
@@ -300,11 +297,7 @@ export async function POST(request: Request) {
   const today = new Date().toISOString().slice(0, 10);
 
   if (!apiKey) {
-    const fallback = getFallbackResponse({
-      text,
-      today,
-      debug: "GEMINI_API_KEY/GOOGLE_AI_API_KEY belum diset.",
-    });
+    const fallback = getFallbackResponse({ text, today });
     if (fallback) {
       return Response.json(fallback, { status: 200 });
     }
@@ -312,7 +305,7 @@ export async function POST(request: Request) {
     return Response.json(
       {
         ok: false,
-        message: "API key Gemini belum diset dan parser lokal belum memahami perintah ini.",
+        message: "AI cloud belum aktif dan parser lokal belum memahami perintah ini.",
       },
       { status: 200 },
     );
@@ -379,7 +372,8 @@ export async function POST(request: Request) {
       return Response.json({ ok: true, intent, source: "gemini", model }, { status: 200 });
     }
 
-    const fallback = getFallbackResponse({ text, today, debug: lastError });
+    console.warn("[AI parser] Gemini fallback:", lastError);
+    const fallback = getFallbackResponse({ text, today });
     if (fallback) {
       return Response.json(fallback, { status: 200 });
     }
@@ -394,11 +388,8 @@ export async function POST(request: Request) {
       { status: 200 },
     );
   } catch {
-    const fallback = getFallbackResponse({
-      text,
-      today,
-      debug: "AI cloud tidak tersedia.",
-    });
+    console.warn("[AI parser] AI cloud tidak tersedia.");
+    const fallback = getFallbackResponse({ text, today });
     if (fallback) {
       return Response.json(fallback, { status: 200 });
     }

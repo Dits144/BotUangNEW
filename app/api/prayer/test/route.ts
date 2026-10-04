@@ -56,7 +56,7 @@ export async function POST(request: Request) {
   }
 
   if (!token) {
-    return Response.json({ ok: false, message: "BOT_API_TOKEN belum dipasang di server." }, { status: 200 });
+    return Response.json({ ok: false, message: "Koneksi Bot API belum dikonfigurasi." }, { status: 200 });
   }
 
   if (!(await canAccessGroup(request, groupId))) {

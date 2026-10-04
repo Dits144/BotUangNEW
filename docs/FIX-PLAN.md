@@ -13,12 +13,14 @@ This plan follows the audit rule: fix reliability before adding features or poli
 2. **Stop exposing server configuration errors to users**
    - Problem: user-facing messages can mention `SUPABASE_SERVICE_ROLE_KEY` or raw provider errors.
    - Risk: poor production UX and information leakage.
-   - Fix: map server errors to user-friendly messages, keep detail in server logs.
+   - Status: fixed for active dashboard API routes. User-facing responses no longer expose raw env names for Supabase service role, Bot API token, or Gemini key configuration.
+   - Verification: `rg` confirms remaining secret env names are internal reads/log-safe code paths; `npm run build` passes.
 
 3. **Protect production data from tests**
    - Problem: no dedicated E2E test data setup exists.
    - Risk: destructive tests could hit real financial data.
-   - Fix: require `E2E_RUN_MUTATION=true`, a test group, and preferably a separate Supabase project before mutation tests run.
+   - Status: implemented guard already exists in `e2e/authenticated-flows.spec.ts`.
+   - Remaining: run authenticated tests only with a safe test account/group and `E2E_RUN_MUTATION=true`.
 
 ## P1 - Core Finance Broken / Inconsistent
 
@@ -77,6 +79,7 @@ This plan follows the audit rule: fix reliability before adding features or poli
 2. **Fix lint debt**
    - Exclude legacy `BotUang/` from root Next lint or create separate lint config.
    - Fix React hook lint issues in dashboard and owner components.
+   - Status: root lint now ignores `BotUang/` after classification as bot runtime. Active lint exits 0 with 10 warnings remaining.
 
 3. **Remove hardcoded marketing-like sample data from product surfaces**
    - Landing preview can remain clearly illustrative.

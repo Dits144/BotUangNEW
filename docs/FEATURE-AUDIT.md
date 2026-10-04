@@ -17,8 +17,9 @@ Scope: Next.js dashboard, Supabase integration, Bot API proxy routes, and the lo
 - `node --check BotUang/api-routes.js`: ✅ passed before VPS deploy.
 - `node --check BotUang/commands/help.js`: ✅ passed before VPS deploy.
 - VPS bot endpoint test: ✅ `/api/prayer/test` returned `{"ok":true,"success":true,...}` after deploying bot route.
-- `npm run lint`: ❌ currently fails due existing lint debt in ignored/legacy bot folder and React hook lint rules in dashboard components.
+- `npm run lint`: ✅ exits successfully after classifying `BotUang/` as bot runtime and ignoring it from root dashboard lint. Current dashboard lint still reports 9 warnings and 0 errors.
 - Browser E2E: Playwright added. Public navigation/responsive smoke test passed: 12/12. Authenticated/mutation tests require safe test env variables and were not run against production data.
+- Codebase map: ✅ `docs/CODEBASE-MAP.md` classifies active dashboard code, bot runtime code, shared docs/tests, generated output, and legacy/unknown candidates.
 
 ## Feature Matrix
 
@@ -104,7 +105,7 @@ Good:
 - Bot status has user-facing states.
 
 Needs work:
-- Some API error messages expose backend implementation details, e.g. `SUPABASE_SERVICE_ROLE_KEY belum diset`.
+- Fixed: server configuration errors no longer expose raw env names such as `SUPABASE_SERVICE_ROLE_KEY`, `BOT_API_TOKEN`, or Gemini API key names in user-facing API responses.
 - AI degraded mode can still surface provider-specific messages.
 - Owner/Bot API fallback merge can show success-like UI while approval action fails later.
 
@@ -132,10 +133,10 @@ E2E_RUN_MUTATION=true
 ## Current Tooling Status
 
 - Build: ✅ passes.
-- Lint: ❌ fails due pre-existing lint debt:
-  - `BotUang/` CommonJS files are linted by root script.
-  - React hook lint flags existing setState-in-effect patterns.
-  - `ai-thinking-orb-and-input.tsx` has a `useMemo(createOrbPoints, [])` lint issue.
+- Lint: ✅ exits successfully.
+  - `BotUang/` is ignored by root dashboard lint because it is classified as bot runtime CommonJS code.
+  - Remaining active dashboard lint status: 9 warnings, 0 errors.
+  - Active setState-in-effect errors were fixed in connect/dashboard/settings/owner/AI orb code paths.
 - E2E package: ✅ `@playwright/test` installed.
 - Playwright browser binaries: ✅ Chromium installed.
 - Public Playwright smoke test: ✅ `npx playwright test e2e/public-navigation.spec.ts` passed 12/12.

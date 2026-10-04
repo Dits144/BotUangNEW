@@ -63,7 +63,7 @@ function buildPrayerMessage({
 
 async function sendWhatsAppMessage(groupId: string, message: string) {
   const token = getServerBotToken();
-  if (!token) return { ok: false, message: "BOT_API_TOKEN belum dikonfigurasi." };
+  if (!token) return { ok: false, message: "Koneksi Bot API belum dikonfigurasi." };
 
   const payload = {
     group_id: groupId,
@@ -134,7 +134,7 @@ export async function POST(request: Request) {
 
   const supabase = createSupabaseAdminClient();
   if (!supabase) {
-    return Response.json({ ok: false, message: "SUPABASE_SERVICE_ROLE_KEY belum dikonfigurasi." }, { status: 200 });
+    return Response.json({ ok: false, message: "Konfigurasi server belum siap." }, { status: 200 });
   }
 
   const { data, error } = await supabase

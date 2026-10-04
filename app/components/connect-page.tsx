@@ -21,11 +21,25 @@ type RentalRow = {
   expire_at: string | null;
 };
 
+function getConnectQuery() {
+  if (typeof window === "undefined") {
+    return { groupId: "", token: "", apiUrl: "" };
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  return {
+    groupId: params.get("group_id") ?? "",
+    token: params.get("token") ?? "",
+    apiUrl: resolveTrustedBotApiUrl(params.get("apiUrl") ?? params.get("api_url")),
+  };
+}
+
 export function ConnectPage() {
   const router = useRouter();
-  const [groupId, setGroupId] = useState("");
-  const [token, setToken] = useState("");
-  const [apiUrl, setApiUrl] = useState("");
+  const initialQuery = useMemo(() => getConnectQuery(), []);
+  const [groupId, setGroupId] = useState(initialQuery.groupId);
+  const [token] = useState(initialQuery.token);
+  const [apiUrl] = useState(initialQuery.apiUrl);
   const [rental, setRental] = useState<RentalRow | null>(null);
   const [botGate, setBotGate] = useState<{
     enabled: boolean;
@@ -49,15 +63,9 @@ export function ConnectPage() {
   }, [hasPin, rental, tokenFlow]);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const queryGroup = params.get("group_id") ?? "";
-    const queryToken = params.get("token") ?? "";
-    const queryApiUrl = resolveTrustedBotApiUrl(
-      params.get("apiUrl") ?? params.get("api_url"),
-    );
-    setGroupId(queryGroup);
-    setToken(queryToken);
-    setApiUrl(queryApiUrl);
+    const queryGroup = initialQuery.groupId;
+    const queryToken = initialQuery.token;
+    const queryApiUrl = initialQuery.apiUrl;
 
     async function load() {
       if (!queryGroup || !queryToken) {
@@ -187,7 +195,7 @@ export function ConnectPage() {
     }
 
     load();
-  }, []);
+  }, [initialQuery, router]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();

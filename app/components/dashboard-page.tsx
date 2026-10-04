@@ -1,7 +1,15 @@
 "use client";
 
-import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
+import {
+  FormEvent,
+  ReactNode,
+  useEffect,
+  useMemo,
+  useReducer,
+  useState,
+} from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Bell,
@@ -9,13 +17,10 @@ import {
   CalendarClock,
   Calculator,
   Check,
-  ChevronDown,
   CircleDollarSign,
   CloudSun,
   ClipboardCheck,
   Download,
-  FileSpreadsheet,
-  Filter,
   Home,
   ListTodo,
   LogOut,
@@ -84,6 +89,14 @@ type DashboardSection =
   | "settings"
   | "calculator"
   | "owner";
+
+function getInitialDashboardTheme() {
+  if (typeof window === "undefined") return "dark";
+  return (
+    (window.localStorage.getItem("botuang.theme") as "dark" | "light" | null) ??
+    "light"
+  );
+}
 
 type Transaction = {
   id: string;
@@ -545,7 +558,7 @@ export function DashboardPage() {
   const [query, setQuery] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [theme, setTheme] = useState<"dark" | "light">(getInitialDashboardTheme);
   const [menuOpen, setMenuOpen] = useState(false);
 
   async function loadData(
@@ -766,14 +779,6 @@ export function DashboardPage() {
   }
 
   useEffect(() => {
-    const storedTheme = window.localStorage.getItem("botuang.theme") as
-      | "dark"
-      | "light"
-      | null;
-    const selected = storedTheme ?? "light";
-    setTheme(selected);
-    document.documentElement.dataset.theme = selected;
-
     const stored = window.localStorage.getItem(DASHBOARD_SESSION_KEY);
     const session = (stored ? JSON.parse(stored) : {}) as {
       groupId?: string;
@@ -890,6 +895,10 @@ export function DashboardPage() {
 
     bootDashboard();
   }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
 
   useEffect(() => {
     if (!loading && activeSection === "owner" && role !== "owner") {
@@ -1321,7 +1330,7 @@ function Brand({
     <div>
       <div className="flex items-center gap-3">
         <span className="flex h-11 w-11 items-center justify-center rounded-[14px] border border-emerald-400/25 bg-emerald-400/10">
-          <img src="/botuang-mark.svg" alt="" className="h-8 w-8" />
+          <Image src="/botuang-mark.svg" alt="" width={32} height={32} className="h-8 w-8" />
         </span>
         <div className="min-w-0">
           <p className="font-semibold leading-tight">
@@ -2065,24 +2074,6 @@ function CompactMoneyStat({
           {formatRupiah(value)}
         </p>
       )}
-    </div>
-  );
-}
-
-function FinancialInsight({
-  title,
-  value,
-  description,
-}: {
-  title: string;
-  value: string;
-  description: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
-      <p className="text-sm text-[var(--muted)]">{title}</p>
-      <p className="mt-1 font-mono text-2xl font-semibold tabular-nums">{value}</p>
-      <p className="mt-1 text-sm text-[var(--muted)]">{description}</p>
     </div>
   );
 }
@@ -4247,13 +4238,8 @@ function ReminderScheduleFields({
   onChange: (patch: { type: ReminderScheduleType; value: string }) => void;
   label?: string;
 }) {
-  const [dateValue, setDateValue] = useState(() => toDateInputValue(value));
-  const [timeValue, setTimeValue] = useState(() => toTimeInputValue(value));
-
-  useEffect(() => {
-    setDateValue(toDateInputValue(value));
-    setTimeValue(toTimeInputValue(value));
-  }, [value, type]);
+  const dateValue = toDateInputValue(value);
+  const timeValue = toTimeInputValue(value);
 
   function update(nextType: ReminderScheduleType, nextDate: string, nextTime: string) {
     onChange({
@@ -4302,7 +4288,6 @@ function ReminderScheduleFields({
             required
             onChange={(event) => {
               const nextTime = event.target.value;
-              setTimeValue(nextTime);
               update(type, dateValue, nextTime);
             }}
           />
@@ -4319,7 +4304,6 @@ function ReminderScheduleFields({
             required
             onChange={(event) => {
               const nextDate = event.target.value;
-              setDateValue(nextDate);
               update(type, nextDate, timeValue);
             }}
           />
@@ -4337,7 +4321,6 @@ function ReminderScheduleFields({
               required
               onChange={(event) => {
                 const nextDate = event.target.value;
-                setDateValue(nextDate);
                 update(type, nextDate, timeValue);
               }}
             />
@@ -4351,7 +4334,6 @@ function ReminderScheduleFields({
               required
               onChange={(event) => {
                 const nextTime = event.target.value;
-                setTimeValue(nextTime);
                 update(type, dateValue, nextTime);
               }}
             />
@@ -4809,6 +4791,89 @@ function LocationInput({
   );
 }
 
+type EnabledPrayers = {
+  subuh: boolean;
+  dzuhur: boolean;
+  ashar: boolean;
+  maghrib: boolean;
+  isya: boolean;
+};
+
+type SettingsFormState = {
+  header: string;
+  locationName: string;
+  latitude: string;
+  longitude: string;
+  timezone: string;
+  location: string;
+  azanLocation: string;
+  emergencyLocation: string;
+  weatherEnabled: boolean;
+  prayerEnabled: boolean;
+  prayerMethod: string;
+  enabledPrayers: EnabledPrayers;
+  prayerOffset: string;
+  emergencyEnabled: boolean;
+  typoEnabled: boolean;
+  spreadsheetUrl: string;
+};
+
+type SettingsFormAction =
+  | { type: "reset"; value: SettingsFormState }
+  | { type: "set"; field: keyof SettingsFormState; value: unknown }
+  | { type: "set-prayer"; prayer: keyof EnabledPrayers; value: boolean };
+
+function getSettingsFormState(settings: GroupSettings | null): SettingsFormState {
+  return {
+    header: settings?.header_text ?? "",
+    locationName: settings?.location_name ?? "",
+    latitude:
+      settings?.location_latitude == null
+        ? ""
+        : String(settings.location_latitude),
+    longitude:
+      settings?.location_longitude == null
+        ? ""
+        : String(settings.location_longitude),
+    timezone: settings?.location_timezone ?? "Asia/Jakarta",
+    location: settings?.weather_location ?? "",
+    azanLocation: settings?.azan_location ?? settings?.weather_location ?? "",
+    emergencyLocation:
+      settings?.emergency_location ?? settings?.weather_location ?? "",
+    weatherEnabled: settings?.weather_enabled ?? true,
+    prayerEnabled: settings?.prayer_enabled ?? settings?.azan_enabled ?? false,
+    prayerMethod: String(settings?.prayer_method ?? 20),
+    enabledPrayers: {
+      subuh: settings?.prayer_subuh_enabled ?? true,
+      dzuhur: settings?.prayer_dzuhur_enabled ?? true,
+      ashar: settings?.prayer_ashar_enabled ?? true,
+      maghrib: settings?.prayer_maghrib_enabled ?? true,
+      isya: settings?.prayer_isya_enabled ?? true,
+    },
+    prayerOffset: String(settings?.prayer_reminder_offset_minutes ?? 0),
+    emergencyEnabled: settings?.emergency_enabled ?? false,
+    typoEnabled: settings?.typo_enabled ?? true,
+    spreadsheetUrl: settings?.spreadsheet_url ?? "",
+  };
+}
+
+function settingsFormReducer(
+  state: SettingsFormState,
+  action: SettingsFormAction,
+): SettingsFormState {
+  if (action.type === "reset") return action.value;
+  if (action.type === "set-prayer") {
+    return {
+      ...state,
+      enabledPrayers: {
+        ...state.enabledPrayers,
+        [action.prayer]: action.value,
+      },
+    };
+  }
+  return { ...state, [action.field]: action.value } as SettingsFormState;
+}
+
 function SettingsPage({
   loading,
   groupId,
@@ -4828,31 +4893,32 @@ function SettingsPage({
   days: number | null;
   onChanged: () => void;
 }) {
-  const [header, setHeader] = useState("");
-  const [locationName, setLocationName] = useState("");
-  const [latitude, setLatitude] = useState("");
-  const [longitude, setLongitude] = useState("");
-  const [timezone, setTimezone] = useState("Asia/Jakarta");
-  const [location, setLocation] = useState("");
-  const [azanLocation, setAzanLocation] = useState("");
-  const [emergencyLocation, setEmergencyLocation] = useState("");
-  const [weatherEnabled, setWeatherEnabled] = useState(true);
-  const [prayerEnabled, setPrayerEnabled] = useState(false);
-  const [prayerMethod, setPrayerMethod] = useState("20");
-  const [enabledPrayers, setEnabledPrayers] = useState({
-    subuh: true,
-    dzuhur: true,
-    ashar: true,
-    maghrib: true,
-    isya: true,
-  });
-  const [prayerOffset, setPrayerOffset] = useState("0");
+  const [form, dispatchForm] = useReducer(
+    settingsFormReducer,
+    settings,
+    getSettingsFormState,
+  );
+  const {
+    header,
+    locationName,
+    latitude,
+    longitude,
+    timezone,
+    location,
+    azanLocation,
+    emergencyLocation,
+    weatherEnabled,
+    prayerEnabled,
+    prayerMethod,
+    enabledPrayers,
+    prayerOffset,
+    emergencyEnabled,
+    typoEnabled,
+    spreadsheetUrl,
+  } = form;
   const [prayerStatus, setPrayerStatus] = useState<PrayerStatus | null>(null);
   const [prayerStatusLoading, setPrayerStatusLoading] = useState(false);
   const [testSending, setTestSending] = useState(false);
-  const [emergencyEnabled, setEmergencyEnabled] = useState(false);
-  const [typoEnabled, setTypoEnabled] = useState(true);
-  const [spreadsheetUrl, setSpreadsheetUrl] = useState("");
   const [qrisPreviewUrl, setQrisPreviewUrl] = useState("");
   const [newPin, setNewPin] = useState("");
   const [months, setMonths] = useState("1");
@@ -4862,29 +4928,19 @@ function SettingsPage({
   >("rental");
 
   useEffect(() => {
-    setHeader(settings?.header_text ?? "");
-    setLocationName(settings?.location_name ?? "");
-    setLatitude(settings?.location_latitude == null ? "" : String(settings.location_latitude));
-    setLongitude(settings?.location_longitude == null ? "" : String(settings.location_longitude));
-    setTimezone(settings?.location_timezone ?? "Asia/Jakarta");
-    setLocation(settings?.weather_location ?? "");
-    setAzanLocation(settings?.azan_location ?? settings?.weather_location ?? "");
-    setEmergencyLocation(settings?.emergency_location ?? settings?.weather_location ?? "");
-    setWeatherEnabled(settings?.weather_enabled ?? true);
-    setPrayerEnabled(settings?.prayer_enabled ?? settings?.azan_enabled ?? false);
-    setPrayerMethod(String(settings?.prayer_method ?? 20));
-    setEnabledPrayers({
-      subuh: settings?.prayer_subuh_enabled ?? true,
-      dzuhur: settings?.prayer_dzuhur_enabled ?? true,
-      ashar: settings?.prayer_ashar_enabled ?? true,
-      maghrib: settings?.prayer_maghrib_enabled ?? true,
-      isya: settings?.prayer_isya_enabled ?? true,
-    });
-    setPrayerOffset(String(settings?.prayer_reminder_offset_minutes ?? 0));
-    setEmergencyEnabled(settings?.emergency_enabled ?? false);
-    setTypoEnabled(settings?.typo_enabled ?? true);
-    setSpreadsheetUrl(settings?.spreadsheet_url ?? "");
+    dispatchForm({ type: "reset", value: getSettingsFormState(settings) });
   }, [settings]);
+
+  function setFormField<K extends keyof SettingsFormState>(
+    field: K,
+    value: SettingsFormState[K],
+  ) {
+    dispatchForm({ type: "set", field, value });
+  }
+
+  function setEnabledPrayer(prayer: keyof EnabledPrayers, value: boolean) {
+    dispatchForm({ type: "set-prayer", prayer, value });
+  }
 
   useEffect(() => {
     if (!groupId || settingsSection !== "location") return;
@@ -4961,11 +5017,11 @@ function SettingsPage({
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const value = `${position.coords.latitude.toFixed(5)},${position.coords.longitude.toFixed(5)}`;
-        setLatitude(position.coords.latitude.toFixed(6));
-        setLongitude(position.coords.longitude.toFixed(6));
-        if (target === "weather") setLocation(value);
-        if (target === "azan") setAzanLocation(value);
-        if (target === "emergency") setEmergencyLocation(value);
+        setFormField("latitude", position.coords.latitude.toFixed(6));
+        setFormField("longitude", position.coords.longitude.toFixed(6));
+        if (target === "weather") setFormField("location", value);
+        if (target === "azan") setFormField("azanLocation", value);
+        if (target === "emergency") setFormField("emergencyLocation", value);
         toast.success("Lokasi browser diisi.");
       },
       () => toast.error("Izin lokasi ditolak atau tidak tersedia."),
@@ -5143,9 +5199,12 @@ function SettingsPage({
                 <QrCode className="h-5 w-5 text-emerald-500" />
                 <p className="font-semibold">QRIS Owner</p>
               </div>
-              <img
+              <Image
                 src={qrisPreviewUrl}
                 alt="QRIS pembayaran owner"
+                width={512}
+                height={512}
+                unoptimized
                 className="max-h-72 w-full rounded-[14px] object-contain"
               />
             </div>
@@ -5170,10 +5229,10 @@ function SettingsPage({
         <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
           <h2 className="font-semibold">Group Settings</h2>
           <form onSubmit={saveSettings} className="mt-4 space-y-3">
-            <Textarea value={header} onChange={(event) => setHeader(event.target.value)} placeholder="Header teks laporan grup" />
+            <Textarea value={header} onChange={(event) => setFormField("header", event.target.value)} placeholder="Header teks laporan grup" />
             <Input
               value={spreadsheetUrl}
-              onChange={(event) => setSpreadsheetUrl(event.target.value)}
+              onChange={(event) => setFormField("spreadsheetUrl", event.target.value)}
               placeholder="Link Google Sheets / spreadsheet"
             />
             <Button className="w-full">Simpan Setting</Button>
@@ -5194,23 +5253,23 @@ function SettingsPage({
                 <Input
                   value={locationName}
                   onChange={(event) => {
-                    setLocationName(event.target.value);
-                    if (!location) setLocation(event.target.value);
-                    if (!azanLocation) setAzanLocation(event.target.value);
-                    if (!emergencyLocation) setEmergencyLocation(event.target.value);
+                    setFormField("locationName", event.target.value);
+                    if (!location) setFormField("location", event.target.value);
+                    if (!azanLocation) setFormField("azanLocation", event.target.value);
+                    if (!emergencyLocation) setFormField("emergencyLocation", event.target.value);
                   }}
                   placeholder="Nama lokasi, contoh: Bogor, Jawa Barat"
                 />
                 <div className="grid gap-2 sm:grid-cols-2">
                   <Input
                     value={latitude}
-                    onChange={(event) => setLatitude(event.target.value)}
+                    onChange={(event) => setFormField("latitude", event.target.value)}
                     inputMode="decimal"
                     placeholder="Latitude, contoh: -6.595"
                   />
                   <Input
                     value={longitude}
-                    onChange={(event) => setLongitude(event.target.value)}
+                    onChange={(event) => setFormField("longitude", event.target.value)}
                     inputMode="decimal"
                     placeholder="Longitude, contoh: 106.816"
                   />
@@ -5218,7 +5277,7 @@ function SettingsPage({
                 <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
                   <select
                     value={timezone}
-                    onChange={(event) => setTimezone(event.target.value)}
+                    onChange={(event) => setFormField("timezone", event.target.value)}
                     className="min-h-11 w-full rounded-[11px] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm"
                   >
                     <option value="Asia/Jakarta">Asia/Jakarta - WIB</option>
@@ -5237,11 +5296,11 @@ function SettingsPage({
               icon={CloudSun}
               title="Weather"
               enabled={weatherEnabled}
-              onEnabledChange={setWeatherEnabled}
+              onEnabledChange={(value) => setFormField("weatherEnabled", value)}
             />
             <LocationInput
               value={location}
-              onChange={setLocation}
+              onChange={(value) => setFormField("location", value)}
               placeholder="Lokasi cuaca, contoh: Jakarta atau -6.20,106.81"
               onUseLocation={() => fillBrowserLocation("weather")}
             />
@@ -5249,7 +5308,7 @@ function SettingsPage({
               icon={CalendarClock}
               title="Pengingat Azan"
               enabled={prayerEnabled}
-              onEnabledChange={setPrayerEnabled}
+              onEnabledChange={(value) => setFormField("prayerEnabled", value)}
             />
             {prayerEnabled ? (
               <div className="space-y-3 rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-3">
@@ -5269,10 +5328,10 @@ function SettingsPage({
                         type="checkbox"
                         checked={enabledPrayers[key as keyof typeof enabledPrayers]}
                         onChange={(event) =>
-                          setEnabledPrayers((current) => ({
-                            ...current,
-                            [key]: event.target.checked,
-                          }))
+                          setEnabledPrayer(
+                            key as keyof EnabledPrayers,
+                            event.target.checked,
+                          )
                         }
                         className="h-4 w-4 accent-emerald-500"
                       />
@@ -5285,7 +5344,7 @@ function SettingsPage({
                     Reminder
                     <select
                       value={prayerOffset}
-                      onChange={(event) => setPrayerOffset(event.target.value)}
+                      onChange={(event) => setFormField("prayerOffset", event.target.value)}
                       className="mt-2 min-h-11 w-full rounded-[11px] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm"
                     >
                       <option value="0">Tepat waktu</option>
@@ -5297,7 +5356,7 @@ function SettingsPage({
                     Metode jadwal
                     <select
                       value={prayerMethod}
-                      onChange={(event) => setPrayerMethod(event.target.value)}
+                      onChange={(event) => setFormField("prayerMethod", event.target.value)}
                       className="mt-2 min-h-11 w-full rounded-[11px] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm"
                     >
                       <option value="20">Kemenag Indonesia</option>
@@ -5357,11 +5416,11 @@ function SettingsPage({
               icon={Siren}
               title="Peringatan darurat"
               enabled={emergencyEnabled}
-              onEnabledChange={setEmergencyEnabled}
+              onEnabledChange={(value) => setFormField("emergencyEnabled", value)}
             />
             <LocationInput
               value={emergencyLocation}
-              onChange={setEmergencyLocation}
+              onChange={(value) => setFormField("emergencyLocation", value)}
               placeholder="Lokasi pantauan darurat/gempa"
               onUseLocation={() => fillBrowserLocation("emergency")}
             />
@@ -5376,7 +5435,7 @@ function SettingsPage({
           <form onSubmit={saveSettings} className="mt-4 space-y-3">
             <label className="flex min-h-11 items-center justify-between rounded-2xl border border-[var(--line)] px-3 text-sm font-medium">
               Typo correction
-              <input type="checkbox" checked={typoEnabled} onChange={(event) => setTypoEnabled(event.target.checked)} className="h-5 w-5 accent-emerald-500" />
+              <input type="checkbox" checked={typoEnabled} onChange={(event) => setFormField("typoEnabled", event.target.checked)} className="h-5 w-5 accent-emerald-500" />
             </label>
             <Button className="w-full">Simpan Setting</Button>
           </form>

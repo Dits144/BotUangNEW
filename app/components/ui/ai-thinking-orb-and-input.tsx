@@ -58,7 +58,7 @@ export function AiThinkingOrbAndInput({
   const [typing, setTyping] = useState(false);
   const typingTimer = useRef<number | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const points = useMemo(createOrbPoints, []);
+  const points = useMemo(() => createOrbPoints(), []);
   const phase = loading ? "thinking" : answered ? "answered" : "idle";
   const label = loading ? "Thinking" : answered ? "Done" : "BotUang AI";
 

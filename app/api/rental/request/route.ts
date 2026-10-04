@@ -58,7 +58,7 @@ async function hasAccess({
 
 async function notifyOwner(payload: Record<string, unknown>) {
   const token = getServerBotToken();
-  if (!token) return { ok: false, message: "BOT_API_TOKEN belum diset." };
+  if (!token) return { ok: false, message: "Notifikasi bot belum dikonfigurasi." };
 
   for (const baseUrl of getServerBotApiUrls(BOT_API_URL)) {
     const root = baseUrl.replace(/\/$/, "");
@@ -97,7 +97,7 @@ export async function POST(request: Request) {
   const admin = createSupabaseAdminClient();
   if (!admin) {
     return Response.json(
-      { ok: false, message: "SUPABASE_SERVICE_ROLE_KEY belum diset di server." },
+      { ok: false, message: "Konfigurasi server belum siap. Hubungi owner BotUang." },
       { status: 200 },
     );
   }

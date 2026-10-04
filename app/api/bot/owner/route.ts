@@ -84,7 +84,7 @@ async function callOwnerApiData({
     return {
       ok: false,
       data: null,
-      message: "BOT_API_TOKEN belum diset di Vercel.",
+      message: "Koneksi Bot API belum dikonfigurasi.",
     };
   }
 
@@ -330,6 +330,8 @@ export async function POST(request: Request) {
   }
 
   const { path, method } = actionMap[action];
-  const { action: _action, id: _id, ...body } = payload;
+  const body = { ...payload };
+  delete body.action;
+  delete body.id;
   return callOwnerApi({ apiUrl, path, method, body });
 }

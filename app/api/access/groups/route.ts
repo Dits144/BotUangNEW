@@ -76,7 +76,7 @@ export async function GET(request: Request) {
   if (requestedGroupId) {
     if (!admin) {
       return Response.json(
-        { ok: false, message: "SUPABASE_SERVICE_ROLE_KEY belum diset di server." },
+        { ok: false, message: "Konfigurasi server belum siap. Hubungi owner BotUang." },
         { status: 200 },
       );
     }
@@ -226,7 +226,7 @@ export async function POST(request: Request) {
     return Response.json(
       {
         ok: false,
-        message: "SUPABASE_SERVICE_ROLE_KEY belum diset di server.",
+        message: "Konfigurasi server belum siap. Hubungi owner BotUang.",
       },
       { status: 200 },
     );

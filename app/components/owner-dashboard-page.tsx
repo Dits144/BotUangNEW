@@ -125,9 +125,22 @@ const featureGroups = [
   },
 ];
 
+function getStoredOwnerApiUrl() {
+  if (typeof window === "undefined") return "";
+  try {
+    const stored = window.localStorage.getItem(DASHBOARD_SESSION_KEY);
+    const session = stored
+      ? (JSON.parse(stored) as { apiUrl?: string })
+      : null;
+    return resolveTrustedBotApiUrl(session?.apiUrl);
+  } catch {
+    return "";
+  }
+}
+
 export function OwnerDashboardPage({ embedded = false }: { embedded?: boolean }) {
   const router = useRouter();
-  const [apiUrl, setApiUrl] = useState("");
+  const [apiUrl] = useState(getStoredOwnerApiUrl);
   const [accessToken, setAccessToken] = useState("");
   const [loading, setLoading] = useState(true);
   const [groups, setGroups] = useState<OwnerGroup[]>([]);
@@ -166,8 +179,7 @@ export function OwnerDashboardPage({ embedded = false }: { embedded?: boolean })
       return;
     }
 
-    const resolvedApiUrl = resolveTrustedBotApiUrl(session.apiUrl);
-    setApiUrl(resolvedApiUrl);
+    const resolvedApiUrl = apiUrl || resolveTrustedBotApiUrl(session.apiUrl);
 
     async function boot() {
       const auth = await supabase.auth.getSession();
@@ -183,7 +195,7 @@ export function OwnerDashboardPage({ embedded = false }: { embedded?: boolean })
     }
 
     boot();
-  }, []);
+  }, [apiUrl, router]);
 
   async function ownerFetch<T>(
     resource: string,
