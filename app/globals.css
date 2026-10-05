@@ -2,15 +2,15 @@
 
 :root,
 :root[data-theme="light"] {
-  --background: #f6f8fb;
-  --foreground: #111827;
-  --surface: #ffffff;
-  --sidebar: #ffffff;
-  --panel: rgba(15, 23, 42, 0.035);
-  --line: #e5e7eb;
-  --muted: #64748b;
-  --chart-grid: rgba(15, 23, 42, 0.08);
-  --soft-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --background: #e9ebe9;
+  --foreground: #131a15;
+  --surface: #f5f6f5;
+  --sidebar: #f5f6f5;
+  --panel: rgba(19, 26, 21, 0.045);
+  --line: rgba(19, 26, 21, 0.085);
+  --muted: #646d67;
+  --chart-grid: rgba(19, 26, 21, 0.08);
+  --soft-shadow: 0 1px 2px rgba(19, 26, 21, 0.04), 0 8px 24px -12px rgba(19, 26, 21, 0.1);
 }
 
 :root[data-theme="dark"] {

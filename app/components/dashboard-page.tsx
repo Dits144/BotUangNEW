@@ -280,15 +280,54 @@ type BotCommandPayload = {
 const DASHBOARD_SYNCED_SENDER_ID = "dashboard_synced";
 
 const navItems = [
-  { key: "overview", label: "Overview", href: "/dashboard", icon: Home },
-  { key: "transactions", label: "Transaksi", href: "/dashboard/transactions", icon: WalletCards },
-  { key: "participants", label: "Anggota", href: "/dashboard/participants", icon: Users },
-  { key: "todos", label: "Todo", href: "/dashboard/todos", icon: ListTodo },
-  { key: "reminders", label: "Reminder", href: "/dashboard/reminders", icon: Bell },
-  { key: "commands", label: "Command", href: "/dashboard/commands", icon: Bot },
-  { key: "settings", label: "Setting", href: "/dashboard/settings", icon: Settings },
-  { key: "owner", label: "Owner", href: "/dashboard/owner", icon: ShieldCheck },
+  { key: "overview", label: "Overview", href: "/dashboard/#overview", icon: Home },
+  { key: "transactions", label: "Transaksi", href: "/dashboard/#transactions", icon: WalletCards },
+  { key: "participants", label: "Anggota", href: "/dashboard/#participants", icon: Users },
+  { key: "todos", label: "Todo", href: "/dashboard/#todos", icon: ListTodo },
+  { key: "reminders", label: "Reminder", href: "/dashboard/#reminders", icon: Bell },
+  { key: "commands", label: "Command", href: "/dashboard/#commands", icon: Bot },
+  { key: "settings", label: "Setting", href: "/dashboard/#settings", icon: Settings },
+  { key: "owner", label: "Owner", href: "/dashboard/#owner", icon: ShieldCheck },
 ] as const;
+
+const dashboardSectionKeys: DashboardSection[] = [
+  "overview",
+  "transactions",
+  "participants",
+  "todos",
+  "reminders",
+  "commands",
+  "settings",
+  "calculator",
+  "owner",
+];
+const dashboardSectionSet = new Set<DashboardSection>(dashboardSectionKeys);
+
+function resolveSectionFromPath(pathname: string): DashboardSection {
+  if (pathname.endsWith("/transactions")) return "transactions";
+  if (pathname.endsWith("/participants")) return "participants";
+  if (pathname.endsWith("/todos")) return "todos";
+  if (pathname.endsWith("/reminders")) return "reminders";
+  if (pathname.endsWith("/commands")) return "commands";
+  if (pathname.endsWith("/settings")) return "settings";
+  if (pathname.endsWith("/calculator")) return "calculator";
+  if (pathname.endsWith("/owner")) return "owner";
+  return "overview";
+}
+
+function resolveSectionFromHash(): DashboardSection | null {
+  if (typeof window === "undefined") return null;
+  const value = window.location.hash.replace("#", "") as DashboardSection;
+  return dashboardSectionSet.has(value) ? value : null;
+}
+
+function resolveInitialSection(pathname: string): DashboardSection {
+  return resolveSectionFromHash() ?? resolveSectionFromPath(pathname);
+}
+
+function sectionHref(section: DashboardSection) {
+  return `/dashboard/#${section}`;
+}
 
 const navGroups = [
   {
@@ -525,17 +564,9 @@ async function fetchBotGroupData({
 export function DashboardPage() {
   const router = useRouter();
   const pathname = usePathname();
-  const activeSection = useMemo<DashboardSection>(() => {
-    if (pathname.endsWith("/transactions")) return "transactions";
-    if (pathname.endsWith("/participants")) return "participants";
-    if (pathname.endsWith("/todos")) return "todos";
-    if (pathname.endsWith("/reminders")) return "reminders";
-    if (pathname.endsWith("/commands")) return "commands";
-    if (pathname.endsWith("/settings")) return "settings";
-    if (pathname.endsWith("/calculator")) return "calculator";
-    if (pathname.endsWith("/owner")) return "owner";
-    return "overview";
-  }, [pathname]);
+  const [activeSection, setActiveSection] = useState<DashboardSection>(() =>
+    resolveInitialSection(pathname),
+  );
   const [groupId, setGroupId] = useState("");
   const [sessionToken, setSessionToken] = useState("");
   const [botApiUrl, setBotApiUrl] = useState("");
@@ -560,6 +591,34 @@ export function DashboardPage() {
   const [toDate, setToDate] = useState("");
   const [theme, setTheme] = useState<"dark" | "light">(getInitialDashboardTheme);
   const [menuOpen, setMenuOpen] = useState(false);
+
+  function navigateDashboardSection(section: DashboardSection) {
+    setActiveSection(section);
+    setMenuOpen(false);
+    if (typeof window !== "undefined") {
+      window.history.pushState(null, "", sectionHref(section));
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
+    }
+  }
+
+  useEffect(() => {
+    const updateFromLocation = () => {
+      setActiveSection(resolveInitialSection(window.location.pathname));
+    };
+
+    const sectionFromLegacyPath = resolveSectionFromPath(window.location.pathname);
+    if (window.location.pathname !== "/dashboard" && !window.location.hash) {
+      window.history.replaceState(null, "", sectionHref(sectionFromLegacyPath));
+    }
+
+    updateFromLocation();
+    window.addEventListener("hashchange", updateFromLocation);
+    window.addEventListener("popstate", updateFromLocation);
+    return () => {
+      window.removeEventListener("hashchange", updateFromLocation);
+      window.removeEventListener("popstate", updateFromLocation);
+    };
+  }, [pathname]);
 
   async function loadData(
     targetGroupId = groupId,
@@ -837,7 +896,7 @@ export function DashboardPage() {
 
       if (activeSection === "owner") {
         if (platformRole !== "owner") {
-          router.push("/dashboard");
+          navigateDashboardSection("overview");
           return;
         }
         setGroupName("Owner Control");
@@ -853,7 +912,7 @@ export function DashboardPage() {
 
       if (!activeGroup) {
         if (platformRole === "owner") {
-          router.push("/dashboard/owner");
+          navigateDashboardSection("owner");
           setGroupName("Owner Control");
           setBotStatus({ ok: false, message: "Pilih grup untuk status bot" });
           setLoading(false);
@@ -902,9 +961,12 @@ export function DashboardPage() {
 
   useEffect(() => {
     if (!loading && activeSection === "owner" && role !== "owner") {
-      router.push("/dashboard");
+      const frame = window.requestAnimationFrame(() => {
+        navigateDashboardSection("overview");
+      });
+      return () => window.cancelAnimationFrame(frame);
     }
-  }, [activeSection, loading, role, router]);
+  }, [activeSection, loading, role]);
 
   function toggleTheme() {
     const next = theme === "dark" ? "light" : "dark";
@@ -989,9 +1051,9 @@ export function DashboardPage() {
       : navItems.filter((item) => item.key !== "owner");
 
   return (
-    <main className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
-      <div className="flex min-h-screen">
-        <aside className="hidden w-[232px] shrink-0 border-r border-[var(--line)] bg-[var(--sidebar)] p-4 md:block">
+    <main className="min-h-screen bg-[var(--background)] p-2.5 text-[var(--foreground)] md:p-3">
+      <div className="flex min-h-[calc(100vh-20px)] gap-3 md:min-h-[calc(100vh-24px)]">
+        <aside className="hidden w-[252px] shrink-0 rounded-[26px] bg-[var(--sidebar)] p-4 shadow-[var(--soft-shadow)] md:block">
           <Brand
             groupId={groupId}
             groupName={groupName}
@@ -1028,7 +1090,7 @@ export function DashboardPage() {
         </aside>
 
         <div className="min-w-0 flex-1 pb-24 md:pb-0">
-          <header className="sticky top-0 z-30 border-b border-[var(--line)] bg-[var(--surface)]/92 px-4 py-3 shadow-[var(--soft-shadow)] backdrop-blur-xl md:px-6">
+          <header className="sticky top-2.5 z-30 rounded-[22px] bg-[var(--surface)]/94 px-4 py-3 shadow-[var(--soft-shadow)] backdrop-blur-xl md:top-3 md:rounded-[26px] md:px-5">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
@@ -1145,7 +1207,7 @@ export function DashboardPage() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.18 }}
-              className="w-full px-4 py-5 md:px-6 md:py-6"
+              className="mt-3 min-h-[calc(100vh-112px)] w-full rounded-[22px] bg-[var(--surface)] p-3 shadow-[var(--soft-shadow)] md:min-h-[calc(100vh-106px)] md:rounded-[26px] md:p-5"
             >
               {!loading && !groupId && activeSection !== "owner" ? (
                 <NoGroupsEmptyState />
@@ -1415,10 +1477,11 @@ function NavLink({
       prefetch
       onClick={onNavigate}
       className={cn(
-        "flex min-h-11 w-full items-center gap-3 rounded-[12px] border border-transparent px-3 text-left text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400",
+        "relative flex min-h-11 w-full items-center gap-3 rounded-[12px] px-3 text-left text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-500",
+        "before:absolute before:left-0 before:top-2 before:h-7 before:w-1 before:rounded-r-md before:bg-transparent before:transition",
         active
-          ? "border-emerald-400/20 bg-emerald-400/12 text-emerald-300"
-          : "text-[var(--muted)] hover:bg-white/[0.045] hover:text-[var(--foreground)]",
+          ? "bg-transparent text-[var(--foreground)] before:bg-emerald-600"
+          : "text-[var(--muted)] hover:bg-[var(--panel)] hover:text-[var(--foreground)]",
       )}
     >
       <Icon className="h-4 w-4" />
@@ -1450,17 +1513,17 @@ function MobileNav({
   onSaved: () => void;
   onNavigate?: () => void;
 }) {
-  const menuHref = role === "owner" ? "/dashboard/owner" : "/dashboard/settings";
+  const menuHref = role === "owner" ? sectionHref("owner") : sectionHref("settings");
   const items = [
-    { key: "overview" as const, label: "Home", href: "/dashboard", icon: Home },
-    { key: "transactions" as const, label: "Transaksi", href: "/dashboard/transactions", icon: WalletCards },
-    { key: "todos" as const, label: "Aktivitas", href: "/dashboard/todos", icon: ListTodo },
+    { key: "overview" as const, label: "Home", href: sectionHref("overview"), icon: Home },
+    { key: "transactions" as const, label: "Transaksi", href: sectionHref("transactions"), icon: WalletCards },
+    { key: "todos" as const, label: "Aktivitas", href: sectionHref("todos"), icon: ListTodo },
     { key: "menu" as const, label: "Menu", href: menuHref, icon: MoreHorizontal },
   ];
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--line)] bg-[var(--background)]/96 px-3 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl md:hidden">
-      <div className="grid grid-cols-5 items-end gap-1">
+    <nav className="fixed inset-x-3 bottom-3 z-40 rounded-[22px] border border-[var(--line)] bg-[var(--surface)]/96 px-2 pb-[calc(0.35rem+env(safe-area-inset-bottom))] pt-2 shadow-[0_18px_44px_-24px_rgba(19,26,21,0.38)] backdrop-blur-xl md:hidden">
+      <div className="grid grid-cols-5 items-end gap-0.5">
         {items.slice(0, 2).map((item) => {
           const Icon = item.icon;
           const active = section === item.key;
@@ -2731,7 +2794,11 @@ function AiSuccessCard({ intent }: { intent: BotAiIntent }) {
       </p>
       <p className="mt-1 text-sm text-[var(--muted)]">{formatAiDescription(intent)}</p>
       <Link
-        href={intent.action === "transaction" ? "/dashboard/transactions" : "/dashboard"}
+        href={
+          intent.action === "transaction"
+            ? sectionHref("transactions")
+            : sectionHref("overview")
+        }
         className="mt-4 inline-flex min-h-10 items-center justify-center rounded-[11px] border border-[var(--line)] px-3 text-sm font-semibold text-[var(--foreground)] transition hover:bg-[var(--panel)]"
       >
         {intent.action === "transaction" ? "Lihat Transaksi" : "Kembali ke Dashboard"}
