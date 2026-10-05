@@ -57,7 +57,6 @@ import {
 } from "recharts";
 import { toast } from "sonner";
 import { DASHBOARD_SESSION_KEY } from "@/app/lib/constants";
-import { resolveTrustedBotApiUrl } from "@/app/lib/bot-api";
 import { daysLeft, formatDate, formatRupiah } from "@/app/lib/format";
 import { resolveDashboardImage, uploadDashboardImage } from "@/app/lib/image-upload";
 import { supabase } from "@/app/lib/supabase";
@@ -498,7 +497,6 @@ async function fetchBotGroupData({
   resource,
   groupId,
   apiUrl,
-  token,
   method = "GET",
   id,
   body,
@@ -511,12 +509,18 @@ async function fetchBotGroupData({
   id?: string | number;
   body?: Record<string, unknown>;
 }): Promise<BotGroupDataResponse> {
+  const auth = await supabase.auth.getSession();
+  const accessToken = auth.data.session?.access_token ?? "";
+  if (!accessToken) {
+    return { ok: false, message: "Session dashboard tidak valid" };
+  }
+
   const idQuery = id ? `&id=${encodeURIComponent(String(id))}` : "";
   const query = `resource=${encodeURIComponent(resource)}&group_id=${encodeURIComponent(groupId)}&api_url=${encodeURIComponent(apiUrl)}${idQuery}`;
   const requestInit: RequestInit = {
     method,
     headers: {
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
     },
     body: body ? JSON.stringify(body) : undefined,
@@ -524,38 +528,7 @@ async function fetchBotGroupData({
 
   try {
     const response = await fetch(`/api/bot/group-data?${query}`, requestInit);
-    if (response.status !== 404) {
-      return (await response.json()) as BotGroupDataResponse;
-    }
-  } catch {
-    // Fall through to the direct Bot API request below.
-  }
-
-  const trustedApiUrl = resolveTrustedBotApiUrl(apiUrl);
-  if (!trustedApiUrl || !token) {
-    return { ok: false, message: "Bot API belum dikonfigurasi" };
-  }
-
-  try {
-    const endpoint = id
-      ? `${trustedApiUrl}/api/groups/${encodeURIComponent(groupId)}/${resource}/${encodeURIComponent(String(id))}`
-      : `${trustedApiUrl}/api/groups/${encodeURIComponent(groupId)}/${resource}`;
-    const response = await fetch(
-      endpoint,
-      {
-        ...requestInit,
-        headers: {
-          ...requestInit.headers,
-          "X-Group-Id": groupId,
-        },
-      },
-    );
-    const data = await response.json().catch(() => null);
-    return {
-      ok: response.ok,
-      data,
-      message: response.ok ? undefined : "Data bot tidak tersedia",
-    };
+    return (await response.json()) as BotGroupDataResponse;
   } catch {
     return { ok: false, message: "Data bot tidak tersedia" };
   }

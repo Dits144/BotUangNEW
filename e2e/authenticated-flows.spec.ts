@@ -41,7 +41,7 @@ test.describe("authenticated dashboard smoke", () => {
     test.skip(!groupId, "Set E2E_GROUP_ID to verify multi-group selection.");
     await login(page);
     await page.goto("/dashboard");
-    await expect(page.getByText(`ID: ${groupId!}`, { exact: true })).toBeVisible();
+    await expect(page.getByLabel("Pilih grup aktif").first()).toHaveValue(groupId!);
   });
 });
 

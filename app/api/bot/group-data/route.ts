@@ -1,5 +1,16 @@
 import { BOT_API_URL } from "@/app/lib/constants";
 import { getServerBotApiUrls, getServerBotToken } from "@/app/lib/bot-server-config";
+import {
+  createSupabaseAdminClient,
+  createSupabaseServerClient,
+} from "@/app/lib/supabase-server";
+
+const ownerEmails = new Set(
+  (process.env.OWNER_EMAILS ?? "dits144@gmail.com")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean),
+);
 
 const allowedResources = new Set([
   "transactions",
@@ -15,13 +26,42 @@ function getRequestContext(request: Request) {
   const groupId = url.searchParams.get("group_id") ?? "";
   const resource = url.searchParams.get("resource") ?? "";
   const id = url.searchParams.get("id") ?? "";
-  const headerToken =
-    request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
   const queryApiUrl = url.searchParams.get("api_url") ?? "";
   const apiUrls = getServerBotApiUrls(queryApiUrl || BOT_API_URL);
-  const token = getServerBotToken(headerToken);
+  const token = getServerBotToken();
 
   return { apiUrls, groupId, resource, id, token };
+}
+
+async function canAccessGroup(request: Request, groupId: string) {
+  const accessToken =
+    request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
+  if (!accessToken) return false;
+
+  const supabase = createSupabaseServerClient(accessToken);
+  const auth = await supabase.auth.getUser(accessToken);
+  const user = auth.data.user;
+  if (auth.error || !user) return false;
+
+  const admin = createSupabaseAdminClient();
+  if (!admin) return false;
+  if (ownerEmails.has((user.email ?? "").trim().toLowerCase())) return true;
+
+  const profile = await admin
+    .from("user_profiles")
+    .select("platform_role")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (profile.data?.platform_role === "owner") return true;
+
+  const access = await admin
+    .from("user_group_access")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("group_id", groupId)
+    .maybeSingle();
+
+  return Boolean(access.data);
 }
 
 function validateContext({
@@ -54,6 +94,13 @@ async function forwardGroupRequest(
 
   if (invalidMessage) {
     return Response.json({ ok: false, message: invalidMessage }, { status: 200 });
+  }
+
+  if (!(await canAccessGroup(request, context.groupId))) {
+    return Response.json(
+      { ok: false, message: "Akses grup tidak valid" },
+      { status: 403 },
+    );
   }
 
   const body = method === "GET" || method === "DELETE" ? undefined : await request.text();
