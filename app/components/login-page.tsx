@@ -2,6 +2,7 @@
 
 import type { FormEvent, InputHTMLAttributes, ReactNode } from "react";
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -12,7 +13,6 @@ import {
   KeyRound,
   Mail,
   User,
-  WalletCards,
 } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { toast } from "sonner";
@@ -194,11 +194,9 @@ export function LoginPage() {
     <main className="min-h-screen bg-[var(--background)] px-4 py-6 text-[var(--foreground)]">
       <section className="mx-auto grid min-h-[calc(100vh-3rem)] max-w-6xl overflow-hidden rounded-[18px] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--soft-shadow)] lg:grid-cols-[1fr_440px]">
         <aside className="relative hidden min-h-full overflow-hidden border-r border-[var(--line)] bg-[#07111d] p-8 text-white lg:flex lg:flex-col lg:justify-between">
-          <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-emerald-400/15 blur-3xl" />
-          <div className="absolute -bottom-28 left-12 h-72 w-72 rounded-full bg-cyan-400/10 blur-3xl" />
           <Link href="/" className="relative flex w-fit items-center gap-3">
             <span className="flex h-11 w-11 items-center justify-center rounded-[14px] border border-emerald-300/25 bg-emerald-300/10">
-              <img src="/botuang-mark.svg" alt="" className="h-8 w-8" />
+              <Image src="/botuang-mark.svg" alt="" width={32} height={32} className="h-8 w-8" />
             </span>
             <span className="text-base font-semibold">
               Bot<span className="text-emerald-300">Uang</span>
@@ -206,10 +204,10 @@ export function LoginPage() {
           </Link>
 
           <div className="relative max-w-xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-emerald-200/70">
+            <p className="text-xs font-semibold uppercase text-emerald-200/70">
               WhatsApp Finance Workspace
             </p>
-            <h1 className="mt-4 max-w-lg text-5xl font-semibold leading-tight tracking-[-0.04em]">
+            <h1 className="mt-4 max-w-lg text-4xl font-semibold leading-tight">
               Kelola kas grup tanpa dashboard yang berat.
             </h1>
             <div className="mt-7 grid gap-3 text-sm text-white/72">
@@ -234,7 +232,7 @@ export function LoginPage() {
         <div className="flex items-center justify-center p-5 sm:p-8">
           <div className="w-full max-w-sm">
             <Link href="/" className="mb-8 flex w-fit items-center gap-3 lg:hidden">
-              <img src="/botuang-mark.svg" alt="" className="h-10 w-10" />
+              <Image src="/botuang-mark.svg" alt="" width={40} height={40} className="h-10 w-10" />
               <span className="font-semibold">
                 Bot<span className="text-emerald-500">Uang</span>
               </span>

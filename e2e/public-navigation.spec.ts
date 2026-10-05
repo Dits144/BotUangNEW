@@ -12,8 +12,11 @@ test.describe("public navigation and responsive shell", () => {
   for (const viewport of [
     { width: 360, height: 800 },
     { width: 390, height: 844 },
+    { width: 430, height: 932 },
     { width: 768, height: 1024 },
+    { width: 1024, height: 768 },
     { width: 1366, height: 768 },
+    { width: 1440, height: 900 },
   ]) {
     test(`landing has no horizontal overflow at ${viewport.width}px`, async ({ page }) => {
       await page.setViewportSize(viewport);
@@ -37,8 +40,16 @@ test.describe("public navigation and responsive shell", () => {
   });
 
   test("login page has no mobile overflow", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/login");
-    await expectNoHorizontalOverflow(page);
+    for (const viewport of [
+      { width: 360, height: 800 },
+      { width: 390, height: 844 },
+      { width: 768, height: 1024 },
+      { width: 1366, height: 768 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto("/login");
+      await expect(page.getByRole("heading", { name: /Selamat datang kembali/i })).toBeVisible();
+      await expectNoHorizontalOverflow(page);
+    }
   });
 });

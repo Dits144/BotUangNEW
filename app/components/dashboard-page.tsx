@@ -43,7 +43,7 @@ import {
   Users,
   WalletCards,
 } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   Area,
   AreaChart,
@@ -562,6 +562,7 @@ async function fetchBotGroupData({
 }
 
 export function DashboardPage() {
+  const reduceMotion = useReducedMotion();
   const router = useRouter();
   const pathname = usePathname();
   const [activeSection, setActiveSection] = useState<DashboardSection>(() =>
@@ -1205,13 +1206,13 @@ export function DashboardPage() {
             </div>
           </header>
 
-          <AnimatePresence mode="wait">
+          <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={activeSection}
-              initial={{ opacity: 0, y: 8 }}
+              initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.18 }}
+              exit={reduceMotion ? { opacity: 1 } : { opacity: 0, y: -4 }}
+              transition={{ duration: reduceMotion ? 0 : 0.16, ease: "easeOut" }}
               className="mt-3 min-h-[calc(100vh-112px)] w-full rounded-[22px] bg-[var(--surface)] p-3 shadow-[var(--soft-shadow)] md:min-h-[calc(100vh-106px)] md:rounded-[26px] md:p-5"
             >
               {!loading && !groupId && activeSection !== "owner" ? (
@@ -1545,7 +1546,7 @@ function MobileNav({
               className={cn(
                 "flex min-h-14 min-w-16 flex-col items-center justify-center gap-1 rounded-[12px] text-[11px] font-semibold transition",
                 active
-                  ? "bg-emerald-400/12 text-emerald-300"
+                  ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
                   : "text-[var(--muted)] active:bg-[var(--panel)]",
               )}
               aria-label={item.label}
@@ -1597,7 +1598,7 @@ function MobileNav({
               className={cn(
                 "flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-[12px] text-[11px] font-semibold transition",
                 active
-                  ? "bg-emerald-400/12 text-emerald-300"
+                  ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
                   : "text-[var(--muted)] active:bg-[var(--panel)]",
               )}
               aria-label={item.label}
