@@ -3015,7 +3015,7 @@ function MoneyCalculator() {
         <Calculator className="h-5 w-5 text-emerald-500" />
         <h2 className="font-semibold">Kalkulator</h2>
       </div>
-      <div className="mt-3 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-3">
+      <div className="mt-3 rounded-[20px] border border-[var(--line)] bg-[var(--card)] p-3 shadow-[var(--soft-shadow)]">
         <Input
           className="font-mono text-right text-base"
           value={expression}
@@ -4902,17 +4902,31 @@ function SettingToggle({
   onEnabledChange: (enabled: boolean) => void;
 }) {
   return (
-    <label className="flex min-h-11 items-center justify-between gap-3 rounded-2xl border border-[var(--line)] px-3 text-sm font-medium">
+    <label className="flex min-h-12 items-center justify-between gap-3 rounded-[16px] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm font-medium">
       <span className="flex items-center gap-2">
         <Icon className="h-4 w-4 text-emerald-500" />
         {title}
       </span>
-      <input
-        type="checkbox"
-        checked={enabled}
-        onChange={(event) => onEnabledChange(event.target.checked)}
-        className="h-5 w-5 accent-emerald-500"
-      />
+      <span
+        className={cn(
+          "relative h-6 w-11 rounded-full border border-[var(--line)] transition",
+          enabled ? "bg-[#0D3A23]" : "bg-[var(--panel)]",
+        )}
+      >
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(event) => onEnabledChange(event.target.checked)}
+          className="peer sr-only"
+        />
+        <span
+          className={cn(
+            "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition",
+            enabled ? "left-5" : "left-0.5",
+          )}
+          aria-hidden="true"
+        />
+      </span>
     </label>
   );
 }
@@ -4942,6 +4956,11 @@ function LocationInput({
     </div>
   );
 }
+
+const settingsPanelClass =
+  "rounded-[20px] border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--soft-shadow)]";
+const settingsSubPanelClass =
+  "rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-3";
 
 type EnabledPrayers = {
   subuh: boolean;
@@ -5302,7 +5321,7 @@ function SettingsPage({
     <div className="space-y-4">
       <PageIntro title="Setting" description="Kelola sewa, layanan lokasi, bot, dan keamanan grup" />
       <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
-        <nav className="grid gap-1 self-start rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-2 lg:sticky lg:top-24">
+        <nav className="grid gap-1 self-start rounded-[20px] border border-[var(--line)] bg-[var(--card)] p-2 shadow-[var(--soft-shadow)] lg:sticky lg:top-24">
           {settingSections.map((section) => {
             const Icon = section.icon;
             return (
@@ -5312,7 +5331,7 @@ function SettingsPage({
                 className={cn(
                   "flex min-h-11 items-center gap-3 rounded-[12px] px-3 text-left text-sm font-semibold",
                   settingsSection === section.key
-                    ? "bg-emerald-500 text-slate-950"
+                    ? "bg-[#0D3A23] text-white"
                     : "text-[var(--muted)] hover:bg-[var(--panel)] hover:text-[var(--foreground)]",
                 )}
               >
@@ -5325,7 +5344,7 @@ function SettingsPage({
 
         <div className="space-y-4">
       {settingsSection === "rental" ? (
-      <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
+      <section className={settingsPanelClass}>
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="font-semibold">Rental Status</h2>
@@ -5335,18 +5354,18 @@ function SettingsPage({
             {rental?.is_active ? "Aktif" : "Tidak aktif"}
           </Badge>
         </div>
-        <div className="mt-5 rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4">
-          <p className="text-sm text-[var(--muted)]">Sisa masa aktif</p>
+        <div className="mt-5 rounded-[18px] border border-emerald-900/20 bg-[#0D3A23] p-4 text-white shadow-[0_18px_38px_-24px_rgba(13,58,35,0.8)]">
+          <p className="text-sm text-emerald-100/75">Sisa masa aktif</p>
           <p className="mt-2 text-3xl font-semibold">
             {days === null ? "-" : days > 0 ? `${days} hari` : "Kedaluwarsa"}
           </p>
-          <p className="mt-2 text-sm text-[var(--muted)]">Berakhir: {formatDate(rental?.expire_at)}</p>
+          <p className="mt-2 text-sm text-emerald-100/75">Berakhir: {formatDate(rental?.expire_at)}</p>
         </div>
 
         <form onSubmit={requestExtension} className="mt-5 space-y-3">
           <h3 className="font-semibold">Request Perpanjangan</h3>
           {qrisPreviewUrl ? (
-            <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-3">
+            <div className={settingsSubPanelClass}>
               <div className="mb-3 flex items-center gap-2">
                 <QrCode className="h-5 w-5 text-emerald-500" />
                 <p className="font-semibold">QRIS Owner</p>
@@ -5361,7 +5380,7 @@ function SettingsPage({
               />
             </div>
           ) : (
-            <div className="rounded-2xl border border-dashed border-[var(--line)] p-4 text-sm text-[var(--muted)]">
+            <div className="rounded-[16px] border border-dashed border-[var(--line)] bg-[var(--surface)] p-4 text-sm text-[var(--muted)]">
               QRIS owner belum dikonfigurasi.
             </div>
           )}
@@ -5378,7 +5397,7 @@ function SettingsPage({
       ) : null}
 
       {settingsSection === "group" ? (
-        <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
+        <section className={settingsPanelClass}>
           <h2 className="font-semibold">Group Settings</h2>
           <form onSubmit={saveSettings} className="mt-4 space-y-3">
             <Textarea value={header} onChange={(event) => setFormField("header", event.target.value)} placeholder="Header teks laporan grup" />
@@ -5393,10 +5412,10 @@ function SettingsPage({
       ) : null}
 
       {settingsSection === "location" ? (
-        <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
+        <section className={settingsPanelClass}>
           <h2 className="font-semibold">Location & Services</h2>
           <form onSubmit={saveSettings} className="mt-4 space-y-3">
-            <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-3">
+            <div className={settingsSubPanelClass}>
               <p className="text-sm font-semibold">Lokasi Grup</p>
               <p className="mt-1 text-xs text-[var(--muted)]">
                 Lokasi ini dipakai bersama untuk Weather, Azan, dan Peringatan Darurat.
@@ -5463,7 +5482,7 @@ function SettingsPage({
               onEnabledChange={(value) => setFormField("prayerEnabled", value)}
             />
             {prayerEnabled ? (
-              <div className="space-y-3 rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-3">
+              <div className={cn("space-y-3", settingsSubPanelClass)}>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                   {[
                     ["subuh", "Subuh"],
@@ -5582,20 +5601,22 @@ function SettingsPage({
       ) : null}
 
       {settingsSection === "bot" ? (
-        <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
+        <section className={settingsPanelClass}>
           <h2 className="font-semibold">Bot</h2>
           <form onSubmit={saveSettings} className="mt-4 space-y-3">
-            <label className="flex min-h-11 items-center justify-between rounded-2xl border border-[var(--line)] px-3 text-sm font-medium">
-              Typo correction
-              <input type="checkbox" checked={typoEnabled} onChange={(event) => setFormField("typoEnabled", event.target.checked)} className="h-5 w-5 accent-emerald-500" />
-            </label>
+            <SettingToggle
+              icon={Bot}
+              title="Typo correction"
+              enabled={typoEnabled}
+              onEnabledChange={(value) => setFormField("typoEnabled", value)}
+            />
             <Button className="w-full">Simpan Setting</Button>
           </form>
         </section>
       ) : null}
 
       {settingsSection === "security" ? (
-        <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
+        <section className={settingsPanelClass}>
           <h2 className="font-semibold">Change PIN</h2>
           <form onSubmit={changePin} className="mt-4 space-y-3">
             <Input value={newPin} onChange={(event) => setNewPin(event.target.value)} inputMode="numeric" type="password" placeholder="PIN baru" />
