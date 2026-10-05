@@ -3526,7 +3526,7 @@ function SummaryTile({
   tone?: "neutral" | "income" | "warning";
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-3">
+    <div className="rounded-[18px] border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--soft-shadow)]">
       <p className="text-xs text-[var(--muted)]">{label}</p>
       <p
         className={cn(
@@ -3957,7 +3957,7 @@ function ParticipantsPage({
         </select>
       </div>
 
-      <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
+      <div className="overflow-hidden rounded-[20px] border border-[var(--line)] bg-[var(--card)] shadow-[var(--soft-shadow)]">
         {loading ? (
           <div className="space-y-2 p-3">
             <Skeleton className="h-16" />
@@ -3975,7 +3975,7 @@ function ParticipantsPage({
                 .join("")
                 .toUpperCase();
               return (
-                <div key={participant.id} className="flex min-h-16 items-center gap-3 p-3">
+                <div key={participant.id} className="flex min-h-16 flex-wrap items-center gap-3 p-3">
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-[var(--panel)] text-sm font-semibold">
                     {initials || "A"}
                   </span>
@@ -3983,7 +3983,7 @@ function ParticipantsPage({
                     <p className="truncate font-semibold">{participant.name}</p>
                     <p className="font-mono text-xs text-[var(--muted)] tabular-nums">Iuran {formatRupiah(due)}</p>
                   </div>
-                  <div className="flex shrink-0 items-center gap-1.5">
+                  <div className="ml-auto flex w-full flex-wrap items-center gap-1.5 sm:w-auto sm:shrink-0 sm:justify-end">
                     <Badge tone={status === "paid" ? "income" : "warning"}>
                       {status === "paid" ? "Lunas" : "Belum bayar"}
                     </Badge>
@@ -4257,14 +4257,14 @@ function TodoSection({
         <h2 className="font-semibold">{title}</h2>
         <span className="text-sm text-[var(--muted)]">{todos.length}</span>
       </div>
-      <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
+      <div className="overflow-hidden rounded-[20px] border border-[var(--line)] bg-[var(--card)] shadow-[var(--soft-shadow)]">
         {todos.length ? (
           todos.map((todo) => {
             const parsed = parseTodo(todo.todo_text);
             return (
               <div
                 key={todo.id}
-                className="flex min-h-14 items-center gap-2 border-b border-[var(--line)] p-3 last:border-b-0"
+                className="flex min-h-14 items-center gap-2 border-b border-[var(--line)] p-3 transition hover:bg-[var(--surface)] last:border-b-0"
               >
                 <button
                   type="button"
@@ -4404,7 +4404,7 @@ function ReminderScheduleFields({
     <div className="space-y-3">
       <div>
         <p className="mb-2 text-sm font-medium">{label}</p>
-        <div className="grid grid-cols-3 rounded-[13px] border border-[var(--line)] bg-[var(--panel)] p-1">
+        <div className="grid grid-cols-3 rounded-[13px] border border-[var(--line)] bg-[var(--surface)] p-1">
           {[
             { value: "time", label: "Jam" },
             { value: "date", label: "Tanggal" },
@@ -4418,8 +4418,8 @@ function ReminderScheduleFields({
                 className={cn(
                   "min-h-10 rounded-[10px] px-2 text-xs font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 sm:text-sm",
                   active
-                    ? "bg-emerald-500 text-slate-950"
-                    : "text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--foreground)]",
+                    ? "bg-[#0D3A23] text-white"
+                    : "text-[var(--muted)] hover:bg-[var(--panel)] hover:text-[var(--foreground)]",
                 )}
                 onClick={() => update(item.value as ReminderScheduleType, dateValue, timeValue)}
               >
@@ -4621,13 +4621,13 @@ function RemindersPage({
           </Sheet>
         }
       />
-      <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-2">
+      <div className="overflow-hidden rounded-[20px] border border-[var(--line)] bg-[var(--card)] p-2 shadow-[var(--soft-shadow)]">
         {loading ? (
           <Skeleton className="h-32" />
         ) : reminders.length ? (
           <div className="divide-y divide-[var(--line)]">
             {reminders.map((reminder) => (
-              <div key={reminder.id} className="flex items-center gap-3 p-3">
+              <div key={reminder.id} className="flex items-center gap-3 rounded-[16px] p-3 transition hover:bg-[var(--surface)]">
                 <div className="flex flex-col items-center">
                   <span className="flex h-9 w-9 items-center justify-center rounded-[12px] bg-[var(--panel)] text-emerald-500">
                     <CalendarClock className="h-4 w-4" />
@@ -4636,7 +4636,7 @@ function RemindersPage({
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-3">
                     <p className="font-semibold">{reminder.remind_text}</p>
-                    <span className="rounded-full bg-[var(--panel)] px-2 py-1 text-xs text-[var(--muted)]">
+                    <span className="rounded-full bg-[var(--surface)] px-2 py-1 text-xs text-[var(--muted)]">
                       {formatReminderTypeLabel(reminder.remind_type)}
                     </span>
                   </div>
@@ -4849,10 +4849,10 @@ function CommandsPage({
         ) : visibleCommands.length ? (
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {visibleCommands.map((command) => (
-              <div key={command.id} className="flex flex-col justify-between rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
+              <div key={command.id} className="flex flex-col justify-between rounded-[20px] border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--soft-shadow)]">
                 <div>
                   <p className="font-mono text-sm font-semibold text-emerald-500">{command.keyword}</p>
-                  <div className="mt-3 rounded-[14px] border border-[var(--line)] bg-[var(--panel)] p-3">
+                  <div className="mt-3 rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-3">
                     <p className="line-clamp-4 text-sm">{command.response}</p>
                   </div>
                 </div>
