@@ -589,6 +589,9 @@ export function DashboardPage() {
   const [query, setQuery] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [transactionTypeFilter, setTransactionTypeFilter] = useState<
+    "all" | "income" | "expense"
+  >("all");
   const [theme, setTheme] = useState<"dark" | "light">(getInitialDashboardTheme);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -1005,9 +1008,11 @@ export function DashboardPage() {
       const before = toDate
         ? time <= new Date(`${toDate}T23:59:59`).getTime()
         : true;
-      return (noteMatch || senderMatch) && after && before;
+      const typeMatch =
+        transactionTypeFilter === "all" || item.type === transactionTypeFilter;
+      return (noteMatch || senderMatch) && after && before && typeMatch;
     });
-  }, [fromDate, query, toDate, transactions]);
+  }, [fromDate, query, toDate, transactionTypeFilter, transactions]);
 
   const monthlyChart = useMemo(
     () => buildCashflow(transactions, "month"),
@@ -1231,6 +1236,8 @@ export function DashboardPage() {
                   setFromDate={setFromDate}
                   toDate={toDate}
                   setToDate={setToDate}
+                  transactionTypeFilter={transactionTypeFilter}
+                  setTransactionTypeFilter={setTransactionTypeFilter}
                   onExport={exportTransactions}
                   onSaved={() => loadData()}
                 />
@@ -1248,6 +1255,8 @@ export function DashboardPage() {
                   setFromDate={setFromDate}
                   toDate={toDate}
                   setToDate={setToDate}
+                  transactionTypeFilter={transactionTypeFilter}
+                  setTransactionTypeFilter={setTransactionTypeFilter}
                   onExport={exportTransactions}
                   onSaved={() => loadData()}
                 />
@@ -1641,6 +1650,8 @@ function Overview({
   setFromDate,
   toDate,
   setToDate,
+  transactionTypeFilter,
+  setTransactionTypeFilter,
   onExport,
   onSaved,
 }: {
@@ -1661,6 +1672,8 @@ function Overview({
   setFromDate: (value: string) => void;
   toDate: string;
   setToDate: (value: string) => void;
+  transactionTypeFilter: "all" | "income" | "expense";
+  setTransactionTypeFilter: (value: "all" | "income" | "expense") => void;
   onExport: () => void;
   onSaved: () => void;
 }) {
@@ -1807,7 +1820,7 @@ function Overview({
               Export CSV
             </Button>
           </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-[1fr_160px_160px]">
+          <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_150px_150px]">
             <label className="relative">
               <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-[var(--muted)]" />
               <Input
@@ -1817,6 +1830,10 @@ function Overview({
                 placeholder="Cari catatan atau pengirim"
               />
             </label>
+            <TransactionTypeSegment
+              value={transactionTypeFilter}
+              onChange={setTransactionTypeFilter}
+            />
             <Input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} />
             <Input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} />
           </div>
@@ -1859,6 +1876,8 @@ function TransactionsPage({
   setFromDate,
   toDate,
   setToDate,
+  transactionTypeFilter,
+  setTransactionTypeFilter,
   onExport,
   onSaved,
 }: {
@@ -1873,6 +1892,8 @@ function TransactionsPage({
   setFromDate: (value: string) => void;
   toDate: string;
   setToDate: (value: string) => void;
+  transactionTypeFilter: "all" | "income" | "expense";
+  setTransactionTypeFilter: (value: "all" | "income" | "expense") => void;
   onExport: () => void;
   onSaved: () => void;
 }) {
@@ -1905,7 +1926,7 @@ function TransactionsPage({
       <section className="grid gap-3 md:grid-cols-3">
         <CompactMoneyStat label="Pemasukan filter" value={income} tone="income" loading={loading} />
         <CompactMoneyStat label="Pengeluaran filter" value={expense} tone="expense" loading={loading} />
-        <div className="rounded-[14px] border border-[var(--line)] bg-[var(--panel)] p-3">
+        <div className="rounded-[18px] border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--soft-shadow)]">
           <p className="text-xs font-medium text-[var(--muted)]">Saldo filter</p>
           {loading ? (
             <Skeleton className="mt-2 h-6 w-28" />
@@ -1930,7 +1951,7 @@ function TransactionsPage({
             Export CSV
           </Button>
         </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-[1fr_160px_160px]">
+        <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_150px_150px]">
           <label className="relative">
             <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-[var(--muted)]" />
             <Input
@@ -1940,6 +1961,10 @@ function TransactionsPage({
               placeholder="Cari catatan atau pengirim"
             />
           </label>
+          <TransactionTypeSegment
+            value={transactionTypeFilter}
+            onChange={setTransactionTypeFilter}
+          />
           <Input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} />
           <Input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} />
         </div>
@@ -1990,12 +2015,46 @@ function DashboardPanel({
   return (
     <section
       className={cn(
-        "rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--soft-shadow)]",
+        "rounded-[20px] border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--soft-shadow)]",
         className,
       )}
     >
       {children}
     </section>
+  );
+}
+
+function TransactionTypeSegment({
+  value,
+  onChange,
+}: {
+  value: "all" | "income" | "expense";
+  onChange: (value: "all" | "income" | "expense") => void;
+}) {
+  const options = [
+    { value: "all" as const, label: "Semua" },
+    { value: "income" as const, label: "Masuk" },
+    { value: "expense" as const, label: "Keluar" },
+  ];
+
+  return (
+    <div className="grid min-h-11 grid-cols-3 rounded-[12px] border border-[var(--line)] bg-[var(--surface)] p-1 text-xs font-semibold md:w-[214px]">
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          onClick={() => onChange(option.value)}
+          className={cn(
+            "rounded-[9px] px-2 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-500",
+            value === option.value
+              ? "bg-[#0D3A23] text-white"
+              : "text-[var(--muted)] hover:bg-[var(--panel)] hover:text-[var(--foreground)]",
+          )}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -2122,7 +2181,7 @@ function CompactMoneyStat({
   loading: boolean;
 }) {
   return (
-    <div className="rounded-[14px] border border-[var(--line)] bg-[var(--panel)] p-3">
+    <div className="rounded-[18px] border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--soft-shadow)]">
       <p className="text-xs font-medium text-[var(--muted)]">{label}</p>
       {loading ? (
         <Skeleton className="mt-2 h-6 w-28" />
@@ -2149,7 +2208,7 @@ function UpcomingPanel({
   reminders: Reminder[];
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
+    <div className="rounded-[20px] border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--soft-shadow)]">
       <h2 className="font-semibold">Agenda Terdekat</h2>
       <div className="mt-3 space-y-3">
         {reminders.map((reminder) => (
@@ -3102,7 +3161,7 @@ function FinanceCalculator() {
 
 function InfoPill({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-[var(--line)] px-3 py-2">
+    <div className="rounded-[14px] border border-[var(--line)] bg-[var(--surface)] px-3 py-2">
       <p className="text-xs text-[var(--muted)]">{label}</p>
       <p className="mt-1 font-semibold">{value}</p>
     </div>
@@ -3129,12 +3188,26 @@ function MetricCard({
       ? "text-emerald-500"
       : tone === "expense"
         ? "text-rose-500"
-        : "text-[var(--foreground)]";
+        : primary
+          ? "text-white"
+          : "text-[var(--foreground)]";
   return (
-    <Card className="p-4">
+    <Card
+      className={cn(
+        "min-h-[132px] p-4",
+        primary
+          ? "border-emerald-900/20 bg-[#0D3A23] text-white shadow-[0_18px_38px_-24px_rgba(13,58,35,0.8)]"
+          : "",
+      )}
+    >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+          <p
+            className={cn(
+              "text-xs font-semibold uppercase tracking-wide",
+              primary ? "text-emerald-100/75" : "text-[var(--muted)]",
+            )}
+          >
             {label}
           </p>
           {loading ? (
@@ -3143,15 +3216,27 @@ function MetricCard({
             <p
               className={cn(
                 "mt-2 font-mono font-semibold tabular-nums",
-                primary ? "text-2xl xl:text-3xl" : "text-2xl",
+                primary ? "text-3xl xl:text-4xl" : "text-2xl",
                 color,
               )}
             >
               {formatRupiah(value)}
             </p>
           )}
+          {primary ? (
+            <p className="mt-3 text-xs font-medium text-emerald-100/70">
+              Total kas dari transaksi grup aktif.
+            </p>
+          ) : null}
         </div>
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[var(--panel)] text-[var(--muted)]">
+        <span
+          className={cn(
+            "flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px]",
+            primary
+              ? "bg-white/10 text-emerald-100"
+              : "bg-[var(--panel)] text-[var(--muted)]",
+          )}
+        >
           <Icon className="h-4 w-4" />
         </span>
       </div>
@@ -3302,9 +3387,9 @@ function TransactionsView({
         </SheetContent>
       </Sheet>
 
-      <div className="mt-5 hidden overflow-hidden rounded-2xl border border-[var(--line)] md:block">
+      <div className="mt-5 hidden overflow-hidden rounded-[18px] border border-[var(--line)] bg-[var(--card)] md:block">
         <table className="w-full text-left text-sm">
-          <thead className="bg-[var(--panel)] text-xs uppercase text-[var(--muted)]">
+          <thead className="bg-[var(--surface)] text-xs uppercase text-[var(--muted)]">
             <tr>
               <th className="px-4 py-3">Tanggal</th>
               <th className="px-4 py-3">Catatan</th>
@@ -3316,7 +3401,7 @@ function TransactionsView({
           </thead>
           <tbody>
             {transactions.map((item) => (
-              <tr key={item.id} className="border-t border-[var(--line)]">
+              <tr key={item.id} className="border-t border-[var(--line)] transition hover:bg-[var(--surface)]">
                 <td className="px-4 py-3 text-[var(--muted)]">{formatDate(item.created_at)}</td>
                 <td className="px-4 py-3 font-medium">{item.note || "-"}</td>
                 <td className="px-4 py-3 text-[var(--muted)]">{item.sender_name || "-"}</td>
@@ -3346,12 +3431,12 @@ function TransactionsView({
 
       <div className="mt-5 grid gap-2 md:hidden">
         {transactions.map((item) => (
-          <div key={item.id} className="min-h-16 rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-3">
+          <div key={item.id} className="min-h-16 rounded-[18px] border border-[var(--line)] bg-[var(--card)] p-3 shadow-[var(--soft-shadow)]">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate font-semibold">{item.note || "Transaksi"}</p>
                 <p className="mt-1 truncate text-xs text-[var(--muted)]">
-                  {formatDate(item.created_at)} · {item.sender_name || "WhatsApp"}
+                  {formatDate(item.created_at)} - {item.sender_name || "WhatsApp"}
                 </p>
               </div>
               <p className={cn("shrink-0 font-mono text-sm font-semibold tabular-nums", item.type === "income" ? "text-emerald-500" : "text-rose-500")}>
@@ -3404,7 +3489,7 @@ function EmptyState({
   description: string;
 }) {
   return (
-    <div className="mt-5 rounded-2xl border border-dashed border-[var(--line)] bg-[var(--panel)] p-6 text-center">
+    <div className="mt-5 rounded-[18px] border border-dashed border-[var(--line)] bg-[var(--surface)] p-6 text-center">
       <p className="font-semibold">{title}</p>
       <p className="mx-auto mt-2 max-w-sm text-sm text-[var(--muted)]">{description}</p>
     </div>
