@@ -19,7 +19,7 @@ test.describe("authenticated dashboard smoke", () => {
   test("session restores and dashboard navigation is SPA-like", async ({ page }) => {
     await login(page);
     await page.goto("/dashboard");
-    await expect(page.getByText(/Overview|Status Bot|Your Groups/i).first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Overview", exact: true }).first()).toBeVisible();
 
     for (const path of [
       "/dashboard/transactions",
@@ -41,7 +41,7 @@ test.describe("authenticated dashboard smoke", () => {
     test.skip(!groupId, "Set E2E_GROUP_ID to verify multi-group selection.");
     await login(page);
     await page.goto("/dashboard");
-    await expect(page.getByText(groupId!)).toBeVisible();
+    await expect(page.getByText(`ID: ${groupId!}`, { exact: true })).toBeVisible();
   });
 });
 

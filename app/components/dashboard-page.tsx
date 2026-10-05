@@ -763,12 +763,11 @@ export function DashboardPage() {
     setCommands(
       resolveDataList(botCommands, (commandResult.data ?? []) as Command[]),
     );
-    setRental((rentalResult.data as Rental | null) ?? null);
+    const rentalData = (rentalResult.data as Rental | null) ?? null;
+    setRental(rentalData);
     setSettings((settingResult.data as GroupSettings | null) ?? null);
     setBotStatus(botResult as BotStatus);
-    setGroupName(
-      (rentalResult.data as Rental | null)?.group_name ?? "Grup WhatsApp",
-    );
+    if (rentalData?.group_name) setGroupName(rentalData.group_name);
     setLoading(false);
   }
 

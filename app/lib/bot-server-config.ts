@@ -1,4 +1,8 @@
-import { BOT_API_URL, TRUSTED_BOT_API_ORIGINS } from "./constants";
+import {
+  BOT_API_URL,
+  DEFAULT_BOT_API_URL,
+  TRUSTED_BOT_API_ORIGINS,
+} from "./constants";
 import { resolveTrustedBotApiUrl } from "./bot-api";
 
 export function getServerBotApiUrl(candidate?: string | null) {
@@ -10,6 +14,7 @@ export function getServerBotApiUrls(candidate?: string | null) {
     candidate,
     process.env.BOT_API_URL,
     BOT_API_URL,
+    DEFAULT_BOT_API_URL,
     "https://api.dashboardits.tech",
   ]
     .map((item) => getServerBotApiUrl(item))

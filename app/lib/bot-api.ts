@@ -1,7 +1,14 @@
-import { BOT_API_URL, TRUSTED_BOT_API_ORIGINS } from "./constants";
+import {
+  BOT_API_URL,
+  DEFAULT_BOT_API_URL,
+  TRUSTED_BOT_API_ORIGINS,
+} from "./constants";
 
 export function resolveTrustedBotApiUrl(candidate?: string | null) {
-  const fallback = BOT_API_URL.replace(/\/$/, "");
+  const configured = BOT_API_URL.replace(/\/$/, "");
+  const fallback = TRUSTED_BOT_API_ORIGINS.includes(configured)
+    ? configured
+    : DEFAULT_BOT_API_URL;
   if (!candidate) return fallback;
 
   try {
