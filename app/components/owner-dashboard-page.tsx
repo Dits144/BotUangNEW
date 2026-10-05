@@ -3,8 +3,10 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Activity,
+  CheckCircle2,
+  Clock3,
   Database,
+  ExternalLink,
   LogOut,
   Megaphone,
   Power,
@@ -13,6 +15,7 @@ import {
   Search,
   Server,
   ShieldCheck,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { DASHBOARD_SESSION_KEY } from "@/app/lib/constants";
@@ -82,48 +85,6 @@ type OwnerApiResponse<T> = {
   data?: T;
   message?: string;
 };
-
-const featureGroups = [
-  {
-    role: "User",
-    items: ["role", "pt", "trx", "calc", "wthr", "todo", "cmd"],
-  },
-  {
-    role: "Admin",
-    items: [
-      "dash",
-      "+ / - transaksi",
-      "trx detail",
-      "edittrx",
-      "deltrx",
-      "addpt/editpt/delpt",
-      "sethead",
-      "addcmd/editcmd/delcmd",
-      "typo",
-      "cekbot",
-      "pin/newpin",
-      "reset grup",
-    ],
-  },
-  {
-    role: "Reminder & To-do",
-    items: ["r jadwal@pesan", "rl", "delr", "todo+", "doto", "deltodo"],
-  },
-  {
-    role: "Owner",
-    items: [
-      "#info",
-      "#on",
-      "#off",
-      "#rent",
-      "#bc",
-      "#bcnomor",
-      "#server",
-      "#backup",
-      "#resettotal",
-    ],
-  },
-];
 
 function getStoredOwnerApiUrl() {
   if (typeof window === "undefined") return "";
@@ -379,11 +340,15 @@ export function OwnerDashboardPage({ embedded = false }: { embedded?: boolean })
 
   if (loading) {
     const loadingContent = (
-        <div className={embedded ? "space-y-4" : "mx-auto max-w-7xl space-y-4"}>
-          <Skeleton className="h-20" />
-          <Skeleton className="h-36" />
-          <Skeleton className="h-96" />
+      <div className={embedded ? "space-y-4" : "mx-auto max-w-7xl space-y-4"}>
+        <Skeleton className="h-24 rounded-[16px]" />
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <Skeleton key={index} className="h-28 rounded-[16px]" />
+          ))}
         </div>
+        <Skeleton className="h-96 rounded-[16px]" />
+      </div>
     );
 
     if (embedded) return loadingContent;
@@ -396,297 +361,319 @@ export function OwnerDashboardPage({ embedded = false }: { embedded?: boolean })
   }
 
   const content = (
-      <div className={embedded ? "space-y-5" : "mx-auto max-w-7xl px-4 py-5 md:px-8 md:py-8"}>
-        <header className="flex flex-col gap-4 border-b border-[var(--line)] pb-5 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-500">
-              Owner SaaS
-            </p>
-            <h1 className="mt-1 text-2xl font-semibold">BotUang Control Center</h1>
-            <p className="mt-1 text-sm text-[var(--muted)]">
-              Kelola sewa grup, request pembayaran, broadcast, dan kesehatan server bot.
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => loadOwnerData()} disabled={Boolean(busy)}>
-              <RefreshCw className="h-4 w-4" />
-              Refresh
-            </Button>
-            <Button variant="ghost" onClick={logout}>
-              <LogOut className="h-4 w-4" />
-              Logout
-            </Button>
-          </div>
-        </header>
+    <div className={embedded ? "space-y-4" : "mx-auto max-w-7xl px-4 py-5 md:px-8 md:py-8"}>
+      <header className="flex flex-col gap-4 border-b border-[var(--line)] pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase text-emerald-500">Owner</p>
+          <h1 className="mt-1 text-xl font-semibold sm:text-2xl">Pusat Operasional BotUang</h1>
+          <p className="mt-1 max-w-2xl text-sm text-[var(--muted)]">
+            Kelola sewa grup, pembayaran, broadcast, dan kondisi server bot.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:flex">
+          <Button variant="outline" onClick={() => loadOwnerData()} disabled={Boolean(busy)}>
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            Perbarui
+          </Button>
+          <Button variant="ghost" onClick={logout}>
+            <LogOut className="h-4 w-4" />
+            Keluar
+          </Button>
+        </div>
+      </header>
 
-        <section className="mt-5 grid gap-3 md:grid-cols-4">
-          <OwnerMetric label="Total Grup" value={String(groups.length)} icon={ShieldCheck} />
-          <OwnerMetric label="Sewa Aktif" value={String(activeGroups)} icon={Power} tone="income" />
-          <OwnerMetric label="Request Pending" value={String(pendingRequests)} icon={Activity} tone="warning" />
-          <OwnerMetric label="Status Bot" value={health?.status ?? "unknown"} icon={Server} />
-        </section>
+      <section aria-label="Ringkasan owner" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <OwnerMetric label="Total grup" value={String(groups.length)} icon={ShieldCheck} />
+        <OwnerMetric label="Sewa aktif" value={String(activeGroups)} icon={Power} tone="income" />
+        <OwnerMetric label="Menunggu" value={String(pendingRequests)} icon={Clock3} tone="warning" />
+        <OwnerMetric label="Status bot" value={formatHealthStatus(health?.status)} icon={Server} />
+      </section>
 
-        <section className="mt-5 grid gap-5 lg:grid-cols-[1fr_380px]">
-          <Card className="p-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <section className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.75fr)]">
+        <Card className="overflow-hidden rounded-[16px] shadow-none">
+          <div className="border-b border-[var(--line)] p-4 sm:p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <h2 className="font-semibold">Status Seluruh Sewa Grup</h2>
-                <p className="text-sm text-[var(--muted)]">Setara fitur owner `#rent` dan `#info`.</p>
+                <h2 className="font-semibold">Sewa Grup</h2>
+                <p className="mt-1 text-sm text-[var(--muted)]">
+                  Pilih grup untuk memperbarui sewa atau membuka dashboardnya.
+                </p>
               </div>
-              <label className="relative block md:w-72">
+              <label className="relative block sm:w-72">
+                <span className="sr-only">Cari nama atau ID grup</span>
                 <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-[var(--muted)]" />
                 <Input
                   className="pl-9"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Cari nama / ID grup"
+                  placeholder="Cari nama atau ID grup"
                 />
               </label>
             </div>
-            <div className="mt-4 grid gap-3">
-              {filteredGroups.length ? (
-                filteredGroups.map((group) => (
-                  <div
-                    key={group.group_id ?? group.id}
-                    className="rounded-2xl border border-[var(--line)] p-3 transition hover:bg-[var(--panel)]"
-                  >
+          </div>
+          <div className="divide-y divide-[var(--line)]">
+            {filteredGroups.length ? (
+              filteredGroups.map((group) => {
+                const groupId = group.group_id ?? group.id ?? "";
+                return (
+                  <article key={groupId} className="p-4 transition-colors hover:bg-[var(--panel)] sm:p-5">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="truncate font-semibold">
+                        <h3 className="truncate font-semibold">
                           {group.group_name ?? group.name ?? "Grup WhatsApp"}
-                        </p>
-                        <p className="mt-1 break-all text-xs text-[var(--muted)]">
-                          {group.group_id ?? group.id}
-                        </p>
-                        <p className="mt-2 text-sm text-[var(--muted)]">
-                          Berakhir: {formatDate(group.expire_at ?? group.expired_at)}
-                        </p>
+                        </h3>
+                        <p className="mt-1 break-all text-xs text-[var(--muted)]">{groupId}</p>
                       </div>
                       <Badge tone={isGroupActive(group) ? "income" : "warning"}>
                         {isGroupActive(group) ? "Aktif" : "Nonaktif"}
                       </Badge>
                     </div>
-                    <div className="mt-3 grid grid-cols-2 gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setTargetGroupId(group.group_id ?? group.id ?? "")}
-                      >
-                        Pilih
+                    <div className="mt-3 flex items-center gap-2 text-sm text-[var(--muted)]">
+                      <Clock3 className="h-4 w-4 shrink-0" />
+                      <span>Berakhir {formatDate(group.expire_at ?? group.expired_at)}</span>
+                    </div>
+                    <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:justify-end">
+                      <Button size="sm" variant="outline" onClick={() => setTargetGroupId(groupId)}>
+                        Pilih Grup
                       </Button>
                       <Button size="sm" onClick={() => openGroupDashboard(group)}>
-                        Buka Dashboard
+                        Buka
+                        <ExternalLink className="h-3.5 w-3.5" />
                       </Button>
                     </div>
-                  </div>
-                ))
-              ) : (
+                  </article>
+                );
+              })
+            ) : (
+              <div className="p-4 sm:p-5">
                 <EmptyOwnerState text="Tidak ada grup yang cocok dengan pencarian." />
-              )}
-            </div>
-          </Card>
-
-          <div className="space-y-5">
-            <Card className="p-4">
-              <div className="flex items-center gap-2">
-                <QrCode className="h-5 w-5 text-emerald-500" />
-                <h2 className="font-semibold">QRIS Perpanjangan</h2>
               </div>
-              <form className="mt-4 space-y-3" onSubmit={saveQris}>
-                <ImageDropzone
-                  label="Upload QRIS Owner"
-                  description="Drag and drop QRIS ke sini atau klik untuk memilih gambar."
-                  file={qrisFile}
-                  previewUrl={qrisPreviewUrl}
-                  disabled={busy === "qris"}
-                  onFileChange={setQrisFile}
-                  onClear={() => {
-                    setQrisUrl("");
-                    setQrisPreviewUrl("");
-                  }}
-                />
-                <Button className="w-full" disabled={busy === "qris"}>
-                  {busy === "qris" ? "Menyimpan..." : "Simpan QRIS"}
-                </Button>
-              </form>
-            </Card>
+            )}
+          </div>
+        </Card>
 
-            <Card className="p-4">
-              <h2 className="font-semibold">Aktifkan / Nonaktifkan Sewa</h2>
-              <form
-                className="mt-4 space-y-3"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  submitRental(true);
-                }}
-              >
+        <div className="space-y-4">
+          <Card className="rounded-[16px] p-4 shadow-none sm:p-5">
+            <SectionTitle
+              icon={Power}
+              title="Atur Masa Sewa"
+              description="Aktifkan atau nonaktifkan akses grup terpilih."
+            />
+            <form
+              className="mt-4 space-y-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                submitRental(true);
+              }}
+            >
+              <label className="block text-sm font-medium">
+                Group ID
                 <Input
+                  className="mt-2"
                   value={targetGroupId}
                   onChange={(event) => setTargetGroupId(event.target.value)}
                   placeholder="120363xxx@g.us"
                   required
                 />
-                <Input
-                  value={days}
-                  onChange={(event) => setDays(event.target.value)}
-                  type="number"
-                  min="1"
-                  placeholder="Jumlah hari"
-                />
-                <div className="grid grid-cols-2 gap-2">
-                  <Button disabled={busy === "activate"}>
-                    {busy === "activate" ? "Memproses..." : "Aktifkan"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={busy === "deactivate"}
-                    onClick={() => submitRental(false)}
-                  >
-                    Nonaktifkan
-                  </Button>
+              </label>
+              <label className="block text-sm font-medium">
+                Durasi sewa
+                <div className="relative mt-2">
+                  <Input
+                    className="pr-14"
+                    value={days}
+                    onChange={(event) => setDays(event.target.value)}
+                    type="number"
+                    inputMode="numeric"
+                    min="1"
+                    placeholder="30"
+                  />
+                  <span className="pointer-events-none absolute right-3 top-3 text-sm text-[var(--muted)]">hari</span>
                 </div>
-              </form>
-            </Card>
-
-            <Card className="p-4">
-              <h2 className="font-semibold">Broadcast Owner</h2>
-              <form className="mt-4 space-y-3" onSubmit={(event) => submitBroadcast(event, false)}>
-                <Textarea
-                  value={broadcast}
-                  onChange={(event) => setBroadcast(event.target.value)}
-                  placeholder="Pesan untuk semua grup aktif"
-                  required
-                />
-                <Button className="w-full" disabled={busy === "broadcast"}>
-                  <Megaphone className="h-4 w-4" />
-                  Broadcast Grup Aktif
+              </label>
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <Button disabled={busy === "activate"}>
+                  {busy === "activate" ? "Memproses..." : "Aktifkan"}
                 </Button>
-              </form>
-              <form className="mt-4 space-y-3" onSubmit={(event) => submitBroadcast(event, true)}>
-                <Input
-                  value={numbers}
-                  onChange={(event) => setNumbers(event.target.value)}
-                  placeholder="62812xxx,62813xxx"
-                />
-                <Button className="w-full" variant="outline" disabled={busy === "broadcast-numbers"}>
-                  Broadcast Nomor
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busy === "deactivate"}
+                  onClick={() => submitRental(false)}
+                >
+                  {busy === "deactivate" ? "Memproses..." : "Nonaktifkan"}
                 </Button>
-              </form>
-            </Card>
-          </div>
-        </section>
-
-        <section className="mt-5 grid gap-5 lg:grid-cols-[1fr_1fr]">
-          <Card className="p-4">
-            <h2 className="font-semibold">Rental Requests</h2>
-            <div className="mt-4 grid gap-3">
-              {requests.length ? (
-                requests.map((request) => (
-                  <div key={request.id} className="rounded-2xl border border-[var(--line)] p-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-semibold">{request.group_id}</p>
-                        <p className="mt-1 text-sm text-[var(--muted)]">
-                          {request.months} bulan - {formatDate(request.created_at)}
-                        </p>
-                      </div>
-                      <Badge tone={request.status === "pending" ? "warning" : "muted"}>
-                        {request.status}
-                      </Badge>
-                    </div>
-                    {request.status === "pending" ? (
-                      <div className="mt-3 grid grid-cols-2 gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="col-span-2"
-                          onClick={() => openProofImage(request.proof_image)}
-                        >
-                          Lihat Bukti
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() =>
-                            runOwnerAction("approve-rental", {
-                              action: "approve-rental",
-                              id: request.id,
-                            })
-                          }
-                        >
-                          Approve
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() =>
-                            runOwnerAction("reject-rental", {
-                              action: "reject-rental",
-                              id: request.id,
-                            })
-                          }
-                        >
-                          Reject
-                        </Button>
-                      </div>
-                    ) : null}
-                  </div>
-                ))
-              ) : (
-                <EmptyOwnerState text="Belum ada request perpanjangan." />
-              )}
-            </div>
+              </div>
+            </form>
           </Card>
 
-          <div className="space-y-5">
-            <Card className="p-4">
-              <h2 className="font-semibold">Server Health</h2>
-              <div className="mt-4 grid gap-3 text-sm">
-                <InfoRow label="Waktu server" value={health?.server_time ?? "-"} />
-                <InfoRow label="CPU" value={`${health?.cpu_percent ?? 0}%`} />
-                <InfoRow label="RAM" value={`${health?.ram_used_mb ?? 0} MB / ${health?.ram_total_gb ?? 0} GB`} />
-                <InfoRow label="Uptime" value={formatUptime(health?.uptime_seconds)} />
-                <InfoRow label="Database" value={health?.database_status ?? "-"} />
-              </div>
-            </Card>
-            <Card className="p-4">
-              <h2 className="font-semibold">Database Usage</h2>
-              <div className="mt-4 flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-[var(--panel)]">
-                  <Database className="h-5 w-5 text-emerald-500" />
-                </span>
-                <div>
-                  <p className="text-2xl font-semibold tabular-nums">
-                    {dbStats?.database_size_kb ?? 0} KB
-                  </p>
-                  <p className="text-sm text-[var(--muted)]">SQLite BotUang</p>
-                </div>
-              </div>
-            </Card>
-          </div>
-        </section>
+          <Card className="rounded-[16px] p-4 shadow-none sm:p-5">
+            <SectionTitle
+              icon={QrCode}
+              title="QRIS Perpanjangan"
+              description="Gambar ini ditampilkan kepada admin saat mengajukan perpanjangan."
+            />
+            <form className="mt-4 space-y-3" onSubmit={saveQris}>
+              <ImageDropzone
+                label="Upload QRIS Owner"
+                description="Tarik gambar ke sini atau pilih dari perangkat."
+                file={qrisFile}
+                previewUrl={qrisPreviewUrl}
+                disabled={busy === "qris"}
+                onFileChange={setQrisFile}
+                onClear={() => {
+                  setQrisUrl("");
+                  setQrisPreviewUrl("");
+                }}
+              />
+              <Button className="w-full" disabled={busy === "qris"}>
+                {busy === "qris" ? "Menyimpan..." : "Simpan QRIS"}
+              </Button>
+            </form>
+          </Card>
+        </div>
+      </section>
 
-        <Card className="mt-5 p-4">
-          <h2 className="font-semibold">Peta Fitur BotUang V2</h2>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            Fitur admin grup tersedia di dashboard grup. Fitur owner SaaS tersedia di halaman ini.
-            Aksi kritikal `#backup` dan `#resettotal` tetap dijalankan dari WhatsApp owner untuk keamanan.
-          </p>
-          <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-            {featureGroups.map((group) => (
-              <div key={group.role} className="rounded-2xl border border-[var(--line)] p-3">
-                <p className="font-semibold">{group.role}</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {group.items.map((item) => (
-                    <Badge key={item} tone="muted">
-                      {item}
-                    </Badge>
-                  ))}
-                </div>
+      <section className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.9fr)]">
+        <Card className="overflow-hidden rounded-[16px] shadow-none">
+          <div className="flex items-center justify-between gap-3 border-b border-[var(--line)] p-4 sm:p-5">
+            <div>
+              <h2 className="font-semibold">Permintaan Perpanjangan</h2>
+              <p className="mt-1 text-sm text-[var(--muted)]">Verifikasi bukti pembayaran sebelum menyetujui.</p>
+            </div>
+            {pendingRequests > 0 ? <Badge tone="warning">{pendingRequests} menunggu</Badge> : null}
+          </div>
+          <div className="divide-y divide-[var(--line)]">
+            {requests.length ? (
+              requests.map((request) => (
+                <article key={request.id} className="p-4 sm:p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="break-all font-semibold">{request.group_id}</h3>
+                      <p className="mt-1 text-sm text-[var(--muted)]">
+                        {request.months} bulan · {formatDate(request.created_at)}
+                      </p>
+                    </div>
+                    <RequestStatus status={request.status} />
+                  </div>
+                  {request.status === "pending" ? (
+                    <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-[1fr_auto_auto]">
+                      <Button
+                        variant="outline"
+                        className="col-span-2 sm:col-span-1"
+                        onClick={() => openProofImage(request.proof_image)}
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                        Lihat Bukti
+                      </Button>
+                      <Button
+                        disabled={busy === "approve-rental"}
+                        onClick={() =>
+                          runOwnerAction("approve-rental", {
+                            action: "approve-rental",
+                            id: request.id,
+                          })
+                        }
+                      >
+                        Setujui
+                      </Button>
+                      <Button
+                        variant="outline"
+                        disabled={busy === "reject-rental"}
+                        onClick={() =>
+                          runOwnerAction("reject-rental", {
+                            action: "reject-rental",
+                            id: request.id,
+                          })
+                        }
+                      >
+                        Tolak
+                      </Button>
+                    </div>
+                  ) : null}
+                </article>
+              ))
+            ) : (
+              <div className="p-4 sm:p-5">
+                <EmptyOwnerState text="Belum ada permintaan perpanjangan." />
               </div>
-            ))}
+            )}
           </div>
         </Card>
+
+        <div className="space-y-4">
+          <Card className="rounded-[16px] p-4 shadow-none sm:p-5">
+            <SectionTitle
+              icon={Megaphone}
+              title="Broadcast"
+              description="Kirim pengumuman ke grup aktif atau nomor tertentu."
+            />
+            <form className="mt-4 space-y-3" onSubmit={(event) => submitBroadcast(event, false)}>
+              <label className="block text-sm font-medium">
+                Pesan
+                <Textarea
+                  className="mt-2"
+                  value={broadcast}
+                  onChange={(event) => setBroadcast(event.target.value)}
+                  placeholder="Tulis pengumuman owner"
+                  required
+                />
+              </label>
+              <Button className="w-full" disabled={busy === "broadcast"}>
+                <Megaphone className="h-4 w-4" />
+                {busy === "broadcast" ? "Mengirim..." : "Kirim ke Grup Aktif"}
+              </Button>
+            </form>
+            <div className="my-4 border-t border-[var(--line)]" />
+            <form className="space-y-3" onSubmit={(event) => submitBroadcast(event, true)}>
+              <label className="block text-sm font-medium">
+                Nomor tujuan
+                <Input
+                  className="mt-2"
+                  value={numbers}
+                  onChange={(event) => setNumbers(event.target.value)}
+                  placeholder="62812xxx, 62813xxx"
+                />
+              </label>
+              <Button className="w-full" variant="outline" disabled={busy === "broadcast-numbers"}>
+                {busy === "broadcast-numbers" ? "Mengirim..." : "Kirim ke Nomor"}
+              </Button>
+            </form>
+          </Card>
+        </div>
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]">
+        <Card className="rounded-[16px] p-4 shadow-none sm:p-5">
+          <SectionTitle
+            icon={Server}
+            title="Kesehatan Server"
+            description="Kondisi layanan bot dan database saat data terakhir diperbarui."
+          />
+          <dl className="mt-4 grid gap-x-6 sm:grid-cols-2">
+            <InfoRow label="Waktu server" value={health?.server_time ?? "-"} />
+            <InfoRow label="CPU" value={`${health?.cpu_percent ?? 0}%`} />
+            <InfoRow label="RAM" value={`${health?.ram_used_mb ?? 0} MB / ${health?.ram_total_gb ?? 0} GB`} />
+            <InfoRow label="Uptime" value={formatUptime(health?.uptime_seconds)} />
+            <InfoRow label="Database" value={health?.database_status ?? "-"} />
+            <InfoRow label="Bot" value={formatHealthStatus(health?.status)} />
+          </dl>
+        </Card>
+        <Card className="rounded-[16px] bg-[#0D3A23] p-5 text-white shadow-none">
+          <div className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-white/10">
+            <Database className="h-5 w-5 text-emerald-300" />
+          </div>
+          <p className="mt-5 text-sm text-emerald-100/70">Penggunaan database</p>
+          <p className="mt-1 text-3xl font-semibold tabular-nums">
+            {dbStats?.database_size_kb ?? 0} KB
+          </p>
+          <p className="mt-2 text-sm text-emerald-100/70">SQLite BotUang</p>
+        </Card>
+      </section>
+
+      <p className="px-1 text-xs leading-5 text-[var(--muted)]">
+        Backup dan reset total tetap dijalankan melalui WhatsApp owner untuk menjaga konfirmasi aksi kritis.
+      </p>
       </div>
   );
 
@@ -711,13 +698,13 @@ function OwnerMetric({
   tone?: "neutral" | "income" | "warning";
 }) {
   return (
-    <Card className="p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-sm text-[var(--muted)]">{label}</p>
-          <p className="mt-2 text-2xl font-semibold tabular-nums">{value}</p>
+    <Card className="min-w-0 rounded-[16px] p-3.5 shadow-none sm:p-4">
+      <div className="flex items-start justify-between gap-2 sm:gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-xs text-[var(--muted)] sm:text-sm">{label}</p>
+          <p className="mt-2 truncate text-lg font-semibold tabular-nums sm:text-2xl">{value}</p>
         </div>
-        <span className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-[var(--panel)]">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[var(--panel)] sm:h-10 sm:w-10">
           <Icon
             className={
               tone === "income"
@@ -735,18 +722,65 @@ function OwnerMetric({
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-xl border border-[var(--line)] px-3 py-2">
-      <span className="text-[var(--muted)]">{label}</span>
-      <span className="text-right font-medium tabular-nums">{value}</span>
+    <div className="flex min-h-12 items-center justify-between gap-3 border-b border-[var(--line)] py-3 text-sm last:border-0">
+      <dt className="text-[var(--muted)]">{label}</dt>
+      <dd className="text-right font-medium tabular-nums">{value}</dd>
     </div>
   );
 }
 
 function EmptyOwnerState({ text }: { text: string }) {
   return (
-    <div className="rounded-2xl border border-dashed border-[var(--line)] p-5 text-center text-sm text-[var(--muted)]">
+    <div className="rounded-[14px] border border-dashed border-[var(--line)] p-5 text-center text-sm text-[var(--muted)]">
       {text}
     </div>
+  );
+}
+
+function SectionTitle({
+  icon: Icon,
+  title,
+  description,
+}: {
+  icon: typeof ShieldCheck;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="flex items-start gap-3">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px] bg-[var(--panel)] text-emerald-500">
+        <Icon className="h-5 w-5" />
+      </span>
+      <div>
+        <h2 className="font-semibold">{title}</h2>
+        <p className="mt-1 text-sm leading-5 text-[var(--muted)]">{description}</p>
+      </div>
+    </div>
+  );
+}
+
+function RequestStatus({ status }: { status: RentalRequest["status"] }) {
+  if (status === "approved") {
+    return (
+      <Badge tone="income">
+        <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
+        Disetujui
+      </Badge>
+    );
+  }
+  if (status === "rejected") {
+    return (
+      <Badge tone="expense">
+        <XCircle className="mr-1 h-3.5 w-3.5" />
+        Ditolak
+      </Badge>
+    );
+  }
+  return (
+    <Badge tone="warning">
+      <Clock3 className="mr-1 h-3.5 w-3.5" />
+      Menunggu
+    </Badge>
   );
 }
 
@@ -764,4 +798,11 @@ function formatUptime(seconds?: number) {
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   return `${hours}j ${minutes}m`;
+}
+
+function formatHealthStatus(status?: string) {
+  const normalized = status?.trim().toLowerCase();
+  if (!normalized || normalized === "unknown") return "Tidak tersedia";
+  if (["ok", "healthy", "online", "connected", "active"].includes(normalized)) return "Terhubung";
+  return status ?? "Tidak tersedia";
 }
