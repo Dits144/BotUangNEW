@@ -14,6 +14,8 @@ test("group bootstrap is dry-run by default and requires a server-only apply gat
   assert.match(bootstrap, /process\.env\.PHASE_J_ALLOW_APPLY\s*!==\s*"true"/);
   assert.doesNotMatch(bootstrap, /password\s*:/i);
   assert.doesNotMatch(bootstrap, /delete\s*\(/i);
+  assert.match(bootstrap, /searchParams\.get\("group_id"\)/);
+  assert.match(bootstrap, /item\.group_id === requestedGroupId/);
 });
 
 test("sync health returns aggregate diagnostics without protected fields", () => {

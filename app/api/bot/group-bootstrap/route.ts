@@ -43,9 +43,11 @@ async function buildPlan(request: Request) {
     });
   }
 
+  const requestedGroupId = new URL(request.url).searchParams.get("group_id")?.trim();
   const botRentals = unwrapBotArray(botGroups.data)
     .map(normalizeBotRental)
-    .filter((item): item is RentalSnapshot => Boolean(item));
+    .filter((item): item is RentalSnapshot => Boolean(item))
+    .filter((item) => !requestedGroupId || item.group_id === requestedGroupId);
   const plan = botRentals.map((rental) =>
     buildBootstrapDecision(rental, current.get(rental.group_id) ?? null),
   );

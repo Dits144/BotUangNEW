@@ -144,11 +144,15 @@ async function fetchMergedGroups(sock) {
     const r = rentalMap.get(jid);
     
     let is_active = false;
+    let start_at = null;
     let expire_at = null;
+    let updated_at = null;
     let remaining_days = 0;
     
     if (r) {
+      start_at = r.start_at;
       expire_at = r.expire_at;
+      updated_at = r.updated_at;
       if (r.is_active === 1 && expire_at) {
         const exp = DateTime.fromISO(expire_at).setZone(TIMEZONE);
         const now = DateTime.now().setZone(TIMEZONE);
@@ -168,8 +172,11 @@ async function fetchMergedGroups(sock) {
     merged.push({
       group_id: jid,
       group_name: meta.subject || (r && r.group_name) || jid,
+      is_active,
       rental_status: is_active ? 'active' : 'inactive',
+      start_at,
       expire_at: expire_at,
+      updated_at,
       remaining_days: remaining_days,
       member_count: meta.participants ? meta.participants.length : 0
     });
@@ -196,8 +203,11 @@ async function fetchMergedGroups(sock) {
     merged.push({
       group_id: jid,
       group_name: r.group_name || jid,
+      is_active,
       rental_status: is_active ? 'active' : 'inactive',
+      start_at: r.start_at,
       expire_at: expire_at,
+      updated_at: r.updated_at,
       remaining_days: remaining_days,
       member_count: 0
     });
