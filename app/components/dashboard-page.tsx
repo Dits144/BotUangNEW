@@ -6,6 +6,7 @@ import {
   useEffect,
   useMemo,
   useReducer,
+  useRef,
   useState,
 } from "react";
 import Link from "next/link";
@@ -560,6 +561,7 @@ export function DashboardPage() {
   >("all");
   const [theme, setTheme] = useState<"dark" | "light">("light");
   const [menuOpen, setMenuOpen] = useState(false);
+  const loggingOutRef = useRef(false);
 
   function navigateDashboardSection(section: DashboardSection) {
     setActiveSection(section);
@@ -909,6 +911,8 @@ export function DashboardPage() {
         userEmail: authUserEmail,
       };
 
+      if (loggingOutRef.current) return;
+
       window.localStorage.setItem(
         DASHBOARD_SESSION_KEY,
         JSON.stringify(nextSession),
@@ -952,10 +956,12 @@ export function DashboardPage() {
   }
 
   async function logout() {
+    loggingOutRef.current = true;
     window.localStorage.removeItem(DASHBOARD_SESSION_KEY);
     await supabase.auth.signOut().catch(() => undefined);
+    window.localStorage.removeItem(DASHBOARD_SESSION_KEY);
     toast.success("Logout berhasil.");
-    router.push("/login");
+    router.replace("/login");
   }
 
   const summary = useMemo(() => {

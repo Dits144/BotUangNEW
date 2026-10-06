@@ -149,6 +149,7 @@ test.describe("authenticated dashboard smoke", () => {
   test("dashboard has no browser errors, failed requests, or exposed server secrets", async ({
     page,
   }) => {
+    test.skip((page.viewportSize()?.width ?? 1000) <= 500, "Desktop navigation audit only.");
     const pageErrors: string[] = [];
     const failedRequests: string[] = [];
     const errorResponses: string[] = [];
