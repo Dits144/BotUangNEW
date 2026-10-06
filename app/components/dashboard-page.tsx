@@ -1057,7 +1057,7 @@ export function DashboardPage() {
                         key={item.key}
                         item={item}
                         active={activeSection === item.key}
-                        onNavigate={() => setMenuOpen(false)}
+                        onNavigate={() => navigateDashboardSection(item.key)}
                       />
                     ))}
                   </div>
@@ -1317,7 +1317,7 @@ export function DashboardPage() {
         sessionToken={sessionToken}
         botApiUrl={botApiUrl}
         onSaved={() => loadData()}
-        onNavigate={() => setMenuOpen(false)}
+        onNavigate={navigateDashboardSection}
       />
       <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
         <SheetContent>
@@ -1346,7 +1346,7 @@ export function DashboardPage() {
                 key={item.key}
                 item={item}
                 active={activeSection === item.key}
-                onNavigate={() => setMenuOpen(false)}
+                onNavigate={() => navigateDashboardSection(item.key)}
               />
             ))}
           </div>
@@ -1493,7 +1493,7 @@ function MobileNav({
   sessionToken?: string;
   botApiUrl?: string;
   onSaved: () => void;
-  onNavigate?: () => void;
+  onNavigate?: (section: DashboardSection) => void;
 }) {
   const menuHref = role === "owner" ? sectionHref("owner") : sectionHref("settings");
   const items = [
@@ -1514,7 +1514,7 @@ function MobileNav({
               key={item.key}
               href={item.href}
               prefetch
-              onClick={onNavigate}
+              onClick={() => onNavigate?.(item.key as DashboardSection)}
               className={cn(
                 "flex min-h-14 min-w-16 flex-col items-center justify-center gap-1 rounded-[12px] text-[11px] font-semibold transition",
                 active
@@ -1557,6 +1557,9 @@ function MobileNav({
         </div>
         {items.slice(2).map((item) => {
           const Icon = item.icon;
+          const targetSection = item.key === "menu"
+            ? role === "owner" ? "owner" : "settings"
+            : item.key;
           const active =
             item.key === "todos"
               ? section === "todos" || section === "reminders" || section === "commands"
@@ -1566,7 +1569,7 @@ function MobileNav({
               key={item.key}
               href={item.href}
               prefetch
-              onClick={onNavigate}
+              onClick={() => onNavigate?.(targetSection)}
               className={cn(
                 "flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-[12px] text-[11px] font-semibold transition",
                 active

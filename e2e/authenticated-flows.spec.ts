@@ -188,6 +188,36 @@ test.describe("authenticated dashboard smoke", () => {
     expect(errorResponses).toEqual([]);
     expect(exposedSecrets).toEqual([]);
   });
+
+  test("mobile shell keeps the center AI action usable without horizontal overflow", async ({
+    page,
+  }) => {
+    test.skip((page.viewportSize()?.width ?? 1000) > 500, "Mobile viewport only.");
+    await login(page);
+    await page.goto("/dashboard");
+    await expect(page.getByRole("heading", { name: "Overview", exact: true }).first()).toBeVisible();
+
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(1);
+
+    const aiButton = page.getByRole("button", { name: "Buka BotUang AI" });
+    await expect(aiButton).toBeVisible();
+    const box = await aiButton.boundingBox();
+    expect(box).not.toBeNull();
+    const viewport = page.viewportSize();
+    expect(Math.abs((box!.x + box!.width / 2) - (viewport!.width / 2))).toBeLessThan(32);
+
+    await page.getByRole("link", { name: "Aktivitas", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Todo", exact: true }).first()).toBeVisible();
+    await page.getByRole("link", { name: "Home", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Overview", exact: true }).first()).toBeVisible();
+
+    const initialTheme = await page.locator("html").getAttribute("data-theme");
+    await page.getByRole("button", { name: "Ganti tema" }).click();
+    await expect(page.locator("html")).not.toHaveAttribute("data-theme", initialTheme ?? "light");
+  });
 });
 
 test.describe("safe mutation flows", () => {
