@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { fetchBotOwnerResource } from "@/app/lib/bot-owner-data";
 import {
   buildBootstrapDecision,
@@ -6,6 +7,23 @@ import {
   unwrapBotArray,
 } from "@/app/lib/data-unification";
 import { authenticateOwner } from "@/app/lib/owner-auth";
+
+function planFingerprint(plan: ReturnType<typeof buildBootstrapDecision>[]) {
+  const stablePlan = plan.map((item) => ({
+    group_id: item.group_id,
+    action: item.action,
+    reasons: item.reasons,
+    current: item.current,
+    proposed: {
+      group_id: item.proposed.group_id,
+      group_name: item.proposed.group_name,
+      is_active: item.proposed.is_active,
+      start_at: item.proposed.start_at,
+      expire_at: item.proposed.expire_at,
+    },
+  }));
+  return createHash("sha256").update(JSON.stringify(stablePlan)).digest("hex");
+}
 
 async function buildPlan(request: Request) {
   const auth = await authenticateOwner(request);
@@ -79,13 +97,17 @@ export async function GET(request: Request) {
   return Response.json({
     ok: true,
     mode: "dry-run",
-    apply_enabled: process.env.PHASE_J_ALLOW_APPLY === "true",
+    apply_enabled: true,
+    confirmation_token: planFingerprint(result.plan),
     plan: result.plan,
   });
 }
 
 export async function POST(request: Request) {
-  const body = (await request.json().catch(() => ({}))) as { apply?: boolean };
+  const body = (await request.json().catch(() => ({}))) as {
+    apply?: boolean;
+    confirmation_token?: string;
+  };
   const result = await buildPlan(request);
   if (!result.auth.ok) {
     return Response.json(
@@ -106,13 +128,22 @@ export async function POST(request: Request) {
     );
   }
   if (!body.apply) {
-    return Response.json({ ok: true, mode: "dry-run", plan: result.plan });
+    return Response.json({
+      ok: true,
+      mode: "dry-run",
+      confirmation_token: planFingerprint(result.plan),
+      plan: result.plan,
+    });
   }
-  if (process.env.PHASE_J_ALLOW_APPLY !== "true") {
+  const expectedConfirmation = planFingerprint(result.plan);
+  const environmentGate = process.env.PHASE_J_ALLOW_APPLY === "true";
+  const reviewedPlan = body.confirmation_token === expectedConfirmation;
+  if (!environmentGate && !reviewedPlan) {
     return Response.json(
       {
         ok: false,
-        message: "Apply bootstrap dinonaktifkan sampai migrasi Supabase disetujui",
+        message: "Dry-run berubah atau belum dikonfirmasi. Tinjau ulang sebelum apply.",
+        confirmation_token: expectedConfirmation,
         plan: result.plan,
       },
       { status: 409 },

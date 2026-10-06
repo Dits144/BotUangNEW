@@ -9,9 +9,11 @@ const bootstrap = fs.readFileSync(
 const health = fs.readFileSync("app/api/bot/sync-health/route.ts", "utf8");
 const dashboard = fs.readFileSync("app/components/dashboard-page.tsx", "utf8");
 
-test("group bootstrap is dry-run by default and requires a server-only apply gate", () => {
+test("group bootstrap is dry-run by default and requires reviewed state", () => {
   assert.match(bootstrap, /mode:\s*"dry-run"/);
-  assert.match(bootstrap, /process\.env\.PHASE_J_ALLOW_APPLY\s*!==\s*"true"/);
+  assert.match(bootstrap, /process\.env\.PHASE_J_ALLOW_APPLY\s*===\s*"true"/);
+  assert.match(bootstrap, /createHash\("sha256"\)/);
+  assert.match(bootstrap, /body\.confirmation_token === expectedConfirmation/);
   assert.doesNotMatch(bootstrap, /password\s*:/i);
   assert.doesNotMatch(bootstrap, /delete\s*\(/i);
   assert.match(bootstrap, /searchParams\.get\("group_id"\)/);
