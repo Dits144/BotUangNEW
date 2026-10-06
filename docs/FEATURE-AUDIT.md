@@ -17,6 +17,7 @@ Scope: deployed Next.js dashboard, Supabase project `xauwlfhlrtwblstgptyk`, VPS 
 
 - Public responsive Playwright suite: 18/18 passed at 360, 390, 430, 768, 1024, 1366, and 1440 px.
 - Final non-mutating run before the logout race fix: 25 passed, 2 intentionally skipped, 1 failed. The failed logout race was fixed in commit `6f2e6f5` and has a targeted regression test.
+- Final targeted post-deploy regressions: 4/4 passed for logout/login restoration and unauthenticated Bot action rejection on desktop and mobile.
 - Authenticated mobile 390 px test after navigation fix: passed, including no horizontal overflow, centered AI action, bottom navigation, and theme switch.
 - Browser network/security audit: passed with no page errors, failed requests, HTTP 4xx/5xx, or server-secret patterns in browser requests.
 - Production build: passed. Lint: 0 errors and 6 existing warnings.
@@ -36,7 +37,7 @@ Scope: deployed Next.js dashboard, Supabase project `xauwlfhlrtwblstgptyk`, VPS 
 | Register | UI/code inspection | Form exists under `/login` | Supabase Auth path exists | N/A | ⚠️ PARTIAL | There is no separate `/register` route. A new production account was not created. |
 | Email confirmation | None | Not executed | Provider-dependent | N/A | ❓ NOT VERIFIED | Requires a disposable email and production SMTP verification. |
 | Session refresh | Playwright reload test | Passed | Supabase session remains valid | N/A | ✅ VERIFIED | Dashboard remains accessible after refresh. |
-| Logout and login again | Regression test added | Race discovered and fixed | Local dashboard session removed twice around Supabase sign-out | N/A | ⚠️ PARTIAL | Fix `6f2e6f5` requires final post-deploy targeted confirmation. |
+| Logout and login again | Playwright regression | Passed on desktop and mobile | Local session removed; group access restored after login | N/A | ✅ VERIFIED | Post-deploy regression passed after fix `6f2e6f5`. |
 | Group access restoration | Authenticated Playwright | Group ID restored after login | `user_group_access` persists | N/A | ✅ VERIFIED | Access survives logout/login independently of the local dashboard session. |
 | Connect by Group ID/PIN | API/code inspection | Existing group lookup returned not found | `group_rentals` row is missing | Bot token path exists | ❌ BROKEN | The account has `user_group_access`, but production `group_rentals` cannot find this group. Wrong/correct PIN cannot complete. |
 | Dashboard token and expiry | Code inspection | No fresh safe token available | Validation and expiry code exist | Token generation not exercised | ❓ NOT VERIFIED | Requires a newly generated `dash` link from WhatsApp. |
@@ -73,7 +74,7 @@ Scope: deployed Next.js dashboard, Supabase project `xauwlfhlrtwblstgptyk`, VPS 
 | Browser runtime/network | Playwright instrumentation | Passed | N/A | Relevant proxy calls passed | ✅ VERIFIED | No hydration errors, failed requests, or HTTP 4xx/5xx in audited flow. |
 | Browser secret exposure | Request URL/header/body inspection | No match | N/A | Server tokens remain server-side | ✅ VERIFIED | Checked Bot token, Supabase secret-key, and AI-key patterns. |
 | Group-data authorization | HTTP negative test | Unauthenticated request returns 403 | N/A | Protected proxy | ✅ VERIFIED | Data leak found earlier was fixed in `8596623`. |
-| Generic bot action authorization | Code fix and build | Owner-only protection added | N/A | Server token no longer accepted from request body | ⚠️ PARTIAL | Requires final post-deploy 403/owner regression check. |
+| Generic bot action authorization | Playwright negative test | Anonymous request returns HTTP 403 | N/A | Server token no longer accepted from request body | ✅ VERIFIED | Post-deploy regression passed on desktop and mobile projects. |
 
 ## Production Blockers
 
