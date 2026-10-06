@@ -402,6 +402,28 @@ router.get('/owner/groups', async (req, res) => {
   }
 });
 
+router.get('/owner/reconciliation', (req, res) => {
+  const groupId = String(req.query.group_id || '').trim();
+  if (!groupId) return res.status(400).json({ error: 'group_id is required' });
+
+  const reminders = db.prepare(`
+    SELECT id, group_id, remind_type, remind_value, remind_text,
+           created_by, created_at, deleted_at
+    FROM reminders
+    WHERE group_id = ? AND deleted_at IS NULL
+    ORDER BY id
+  `).all(groupId);
+  const commands = db.prepare(`
+    SELECT id, group_id, keyword, response, media_path, media_url,
+           media_type, caption_text, created_at, updated_at, deleted_at
+    FROM custom_commands
+    WHERE group_id = ? AND deleted_at IS NULL
+    ORDER BY id
+  `).all(groupId);
+
+  res.json({ group_id: groupId, reminders, commands });
+});
+
 router.get('/owner/db-stats', (req, res) => {
   const fs = require('fs');
   const path = require('path');

@@ -8,6 +8,7 @@ const bootstrap = fs.readFileSync(
 );
 const health = fs.readFileSync("app/api/bot/sync-health/route.ts", "utf8");
 const dashboard = fs.readFileSync("app/components/dashboard-page.tsx", "utf8");
+const reconciliation = fs.readFileSync("app/api/bot/reconcile/route.ts", "utf8");
 
 test("group bootstrap is dry-run by default and requires reviewed state", () => {
   assert.match(bootstrap, /mode:\s*"dry-run"/);
@@ -39,4 +40,14 @@ test("canonical dashboard mode suppresses legacy Bot writes", () => {
   );
   assert.match(dashboard, /if \(USE_CANONICAL_SUPABASE_DATA\) return supabaseItems/);
   assert.doesNotMatch(dashboard, /if \(botApiUrl(?:\s|\)|&&)/);
+});
+
+test("reconciliation is owner-only, fingerprinted, and provenance-backed", () => {
+  assert.match(reconciliation, /authenticateOwner\(request\)/);
+  assert.match(reconciliation, /deterministicUuid/);
+  assert.match(reconciliation, /source_hash/);
+  assert.match(reconciliation, /body\.confirmation_token !== expected/);
+  assert.match(reconciliation, /from\("bot_data_mappings"\)/);
+  assert.doesNotMatch(reconciliation, /\b(password|dashboard_tokens)\b/i);
+  assert.doesNotMatch(reconciliation, /\.delete\(/i);
 });
