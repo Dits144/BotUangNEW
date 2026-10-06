@@ -106,7 +106,12 @@ function parseLocalIntent(text: string, today: string) {
 
   if (/^r\s+/i.test(text) || /\b(reminder|ingatkan|jadwal|rapat)\b/.test(lower)) {
     const time = lower.match(/(\d{1,2}[:.]\d{2})/)?.[1]?.replace(".", ":");
-    const date = lower.match(/(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)/)?.[1];
+    const explicitDate = lower.match(/(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)/)?.[1];
+    const tomorrow = new Date(`${today}T00:00:00.000Z`);
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+    const date = /\bbesok\b/.test(lower)
+      ? tomorrow.toISOString().slice(0, 10)
+      : explicitDate;
     const textAfterAt = text.includes("@") ? text.split("@").slice(1).join("@") : "";
     const remindText = (textAfterAt || text)
       .replace(/^r\s+/i, "")
@@ -117,7 +122,7 @@ function parseLocalIntent(text: string, today: string) {
       .trim();
     return validateIntent({
       action: "reminder",
-      remind_type: date ? "date" : "time",
+      remind_type: date && time ? "datetime" : date ? "date" : "time",
       remind_value: [date, time].filter(Boolean).join(" ") || time || date || "",
       remind_text: remindText || text,
       note: remindText || text,
@@ -295,13 +300,16 @@ export async function POST(request: Request) {
   }
 
   const today = new Date().toISOString().slice(0, 10);
+  const localIntent = parseLocalIntent(text, today);
+
+  if (localIntent) {
+    return Response.json(
+      { ok: true, intent: localIntent, source: "local" },
+      { status: 200 },
+    );
+  }
 
   if (!apiKey) {
-    const fallback = getFallbackResponse({ text, today });
-    if (fallback) {
-      return Response.json(fallback, { status: 200 });
-    }
-
     return Response.json(
       {
         ok: false,

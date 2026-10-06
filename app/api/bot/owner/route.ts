@@ -3,7 +3,11 @@ import {
   SUPABASE_ANON_KEY,
   SUPABASE_URL,
 } from "@/app/lib/constants";
-import { getServerBotApiUrl, getServerBotToken } from "@/app/lib/bot-server-config";
+import {
+  getServerBotApiUrl,
+  getServerBotApiUrls,
+  getServerBotToken,
+} from "@/app/lib/bot-server-config";
 import { createSupabaseAdminClient } from "@/app/lib/supabase-server";
 
 type OwnerAction =
@@ -88,31 +92,37 @@ async function callOwnerApiData({
     };
   }
 
-  try {
-    const response = await fetch(`${apiUrl}/api${path}`, {
-      method,
-      headers: {
-        Authorization: `Bearer ${botToken}`,
-        "Content-Type": "application/json",
-      },
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    const data = await response.json().catch(() => null);
+  for (const candidateUrl of getServerBotApiUrls(apiUrl)) {
+    try {
+      const response = await fetch(`${candidateUrl}/api${path}`, {
+        method,
+        headers: {
+          Authorization: `Bearer ${botToken}`,
+          "Content-Type": "application/json",
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const data = await response.json().catch(() => null);
 
-    return {
-      ok: response.ok,
-      data,
-      message:
-        (data as { message?: string; error?: string } | null)?.message ??
-        (data as { error?: string } | null)?.error,
-    };
-  } catch {
-    return {
-      ok: false,
-      data: null,
-      message: "Owner Bot API tidak tersedia",
-    };
+      if (response.ok) {
+        return {
+          ok: true,
+          data,
+          message:
+            (data as { message?: string; error?: string } | null)?.message ??
+            (data as { error?: string } | null)?.error,
+        };
+      }
+    } catch {
+      continue;
+    }
   }
+
+  return {
+    ok: false,
+    data: null,
+    message: "Owner Bot API tidak tersedia",
+  };
 }
 
 async function callOwnerApi(args: Parameters<typeof callOwnerApiData>[0]) {
@@ -164,25 +174,15 @@ export async function GET(request: Request) {
     const botToken = getBotToken();
 
     if (botToken) {
-      try {
-        const response = await fetch(`${apiUrl}/api${path}`, {
-          headers: {
-            Authorization: `Bearer ${botToken}`,
-            "Content-Type": "application/json",
-          },
-        });
-        const data = await response.json().catch(() => null);
-        if (response.ok && Array.isArray(data)) botData = data;
-        else if (response.ok && Array.isArray((data as { data?: unknown[] } | null)?.data)) {
-          botData = (data as { data: unknown[] }).data;
-        } else {
-          botMessage =
-            (data as { message?: string; error?: string } | null)?.message ??
-            (data as { error?: string } | null)?.error ??
-            "";
-        }
-      } catch {
-        botMessage = "Owner Bot API tidak tersedia";
+      const botResult = await callOwnerApiData({ apiUrl, path });
+      if (botResult.ok && Array.isArray(botResult.data)) botData = botResult.data;
+      else if (
+        botResult.ok &&
+        Array.isArray((botResult.data as { data?: unknown[] } | null)?.data)
+      ) {
+        botData = (botResult.data as { data: unknown[] }).data;
+      } else {
+        botMessage = botResult.message ?? "";
       }
     }
 

@@ -89,14 +89,6 @@ type DashboardSection =
   | "calculator"
   | "owner";
 
-function getInitialDashboardTheme() {
-  if (typeof window === "undefined") return "dark";
-  return (
-    (window.localStorage.getItem("botuang.theme") as "dark" | "light" | null) ??
-    "light"
-  );
-}
-
 type Transaction = {
   id: string;
   group_id: string;
@@ -566,7 +558,7 @@ export function DashboardPage() {
   const [transactionTypeFilter, setTransactionTypeFilter] = useState<
     "all" | "income" | "expense"
   >("all");
-  const [theme, setTheme] = useState<"dark" | "light">(getInitialDashboardTheme);
+  const [theme, setTheme] = useState<"dark" | "light">("light");
   const [menuOpen, setMenuOpen] = useState(false);
 
   function navigateDashboardSection(section: DashboardSection) {
@@ -929,6 +921,14 @@ export function DashboardPage() {
     }
 
     bootDashboard();
+  }, []);
+
+  useEffect(() => {
+    const storedTheme = window.localStorage.getItem("botuang.theme");
+    if (storedTheme === "dark" || storedTheme === "light") {
+      const frame = window.requestAnimationFrame(() => setTheme(storedTheme));
+      return () => window.cancelAnimationFrame(frame);
+    }
   }, []);
 
   useEffect(() => {
