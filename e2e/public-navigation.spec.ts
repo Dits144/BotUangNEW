@@ -60,4 +60,12 @@ test.describe("public navigation and responsive shell", () => {
     expect(response.status()).toBe(403);
     await expect(response.json()).resolves.toMatchObject({ ok: false });
   });
+
+  test("data unification diagnostics reject unauthenticated requests", async ({ request }) => {
+    for (const endpoint of ["/api/bot/sync-health", "/api/bot/group-bootstrap"]) {
+      const response = await request.get(endpoint);
+      expect(response.status()).toBe(401);
+      await expect(response.json()).resolves.toMatchObject({ ok: false });
+    }
+  });
 });
