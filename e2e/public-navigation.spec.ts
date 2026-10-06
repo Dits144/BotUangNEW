@@ -52,4 +52,12 @@ test.describe("public navigation and responsive shell", () => {
       await expectNoHorizontalOverflow(page);
     }
   });
+
+  test("generic bot action rejects unauthenticated requests", async ({ request }) => {
+    const response = await request.post("/api/bot/action", {
+      data: { action: "api/status" },
+    });
+    expect(response.status()).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ ok: false });
+  });
 });

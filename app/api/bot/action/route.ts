@@ -1,7 +1,46 @@
 import { BOT_API_URL } from "@/app/lib/constants";
 import { getServerBotApiUrl, getServerBotToken } from "@/app/lib/bot-server-config";
+import {
+  createSupabaseAdminClient,
+  createSupabaseServerClient,
+} from "@/app/lib/supabase-server";
+
+const ownerEmails = new Set(
+  (process.env.OWNER_EMAILS ?? "dits144@gmail.com")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean),
+);
+
+async function isOwner(request: Request) {
+  const accessToken =
+    request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
+  if (!accessToken) return false;
+
+  const supabase = createSupabaseServerClient(accessToken);
+  const auth = await supabase.auth.getUser(accessToken);
+  const user = auth.data.user;
+  if (auth.error || !user) return false;
+  if (ownerEmails.has((user.email ?? "").trim().toLowerCase())) return true;
+
+  const admin = createSupabaseAdminClient();
+  if (!admin) return false;
+  const profile = await admin
+    .from("user_profiles")
+    .select("platform_role")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  return profile.data?.platform_role === "owner";
+}
 
 export async function POST(request: Request) {
+  if (!(await isOwner(request))) {
+    return Response.json(
+      { ok: false, message: "Akses owner ditolak" },
+      { status: 403 },
+    );
+  }
+
   const body = await request.json().catch(() => ({}));
   const action = typeof body.action === "string" ? body.action : "sync";
   const apiUrl = getServerBotApiUrl(
@@ -9,7 +48,7 @@ export async function POST(request: Request) {
       ? String(body.api_url ?? body.apiUrl)
       : BOT_API_URL,
   );
-  const token = getServerBotToken(typeof body.token === "string" ? body.token : "");
+  const token = getServerBotToken();
 
   if (!apiUrl || !token) {
     return Response.json(

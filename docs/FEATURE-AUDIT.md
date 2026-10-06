@@ -1,142 +1,124 @@
-# BotUang Feature Audit
+# BotUang Final Production Feature Audit
 
-Audit date: 2026-10-05  
-Scope: Next.js dashboard, Supabase integration, Bot API proxy routes, and the local `BotUang/` bot API files present in this workspace.
+Audit date: 2026-10-06
 
-## Verification Legend
+Production: `https://www.dashboardits.tech`
 
-- ✅ WORKING: verified by code path and/or a successful command/test.
-- ⚠️ PARTIAL: some layers exist, but the end-to-end flow has gaps.
-- ❌ BROKEN: known failure in the current implementation.
-- 🚧 UI ONLY: visible in UI but no complete backend/service path.
-- ❓ UNVERIFIED: requires production credentials, WhatsApp bot state, safe test group, or third-party service response.
+Scope: deployed Next.js dashboard, Supabase project `xauwlfhlrtwblstgptyk`, VPS Bot API, and WhatsApp-facing integration paths.
 
-## Evidence Collected
+## Status Legend
 
-- `npm run build`: ✅ passed after latest changes.
-- `node --check BotUang/api-routes.js`: ✅ passed before VPS deploy.
-- `node --check BotUang/commands/help.js`: ✅ passed before VPS deploy.
-- VPS bot endpoint test: ✅ `/api/prayer/test` returned `{"ok":true,"success":true,...}` after deploying bot route.
-- `npm run lint`: ✅ exits successfully after classifying `BotUang/` as bot runtime and ignoring it from root dashboard lint. Current dashboard lint still reports 9 warnings and 0 errors.
-- Browser E2E: Playwright added. Public navigation/responsive smoke test passed: 12/12. Authenticated/mutation tests require safe test env variables and were not run against production data.
-- Codebase map: ✅ `docs/CODEBASE-MAP.md` classifies active dashboard code, bot runtime code, shared docs/tests, generated output, and legacy/unknown candidates.
+- ✅ VERIFIED: exercised successfully in production with evidence at the relevant layer.
+- ⚠️ PARTIAL: some layers work, but the complete user outcome was not verified.
+- ❌ BROKEN: a production test failed or required data is inconsistent/missing.
+- ❓ NOT VERIFIED: intentionally not executed because it requires external confirmation, new credentials, or a dangerous production action.
 
-## Feature Matrix
+## Production Evidence
 
-| Feature | UI | Database | API | Functional | Mobile | Status | Problem / Evidence |
-|---|---:|---:|---:|---:|---:|---|---|
-| Authentication | Yes | Supabase Auth | Supabase client | Yes | Likely | ⚠️ PARTIAL | Login/register implemented, but email verification behavior is provider-config dependent and not E2E verified. |
-| Register | Yes | Supabase Auth + metadata | Supabase client | Partial | Likely | ⚠️ PARTIAL | `full_name` metadata is stored; no complete email confirmation test. |
-| Email verification | Minimal | Supabase Auth | Supabase hosted email | Unknown | N/A | ❓ UNVERIFIED | Requires Supabase SMTP/Auth settings and real email test. |
-| Login | Yes | Supabase Auth | Supabase client | Yes | Likely | ⚠️ PARTIAL | Code path exists; needs E2E with safe credentials. |
-| Logout | Yes | Supabase session | Supabase client | Yes | Likely | ✅ WORKING | Removes local dashboard session and signs out. |
-| Session persistence | Yes | LocalStorage + Supabase session | `/api/access/groups` | Partial | N/A | ⚠️ PARTIAL | Restore logic exists. Needs E2E across refresh and expired Supabase token. |
-| Group Connect token | Yes | `dashboard_tokens`, `user_group_access` | `/api/access/groups` + Bot API validate | Partial | Likely | ⚠️ PARTIAL | Supports token/PIN. Depends on service role and Bot API availability. |
-| PIN verification | Yes | `group_rentals.password` | `/api/access/groups` | Partial | Likely | ⚠️ PARTIAL | Works by code path; not tested with a safe non-production group. |
-| Multi-group | Yes | `user_group_access`, `group_rentals` | `/api/access/groups` | Partial | Likely | ⚠️ PARTIAL | Owner fallback lists rentals. Needs E2E group switching with multiple safe groups. |
-| Group switcher real name | Yes | `group_rentals.group_name` | `/api/access/groups` | Yes | Likely | ✅ WORKING | API now overlays `group_rentals.group_name`; UI shows name + group id. |
-| Overview balance/income/expense | Yes | `transactions` | Supabase + Bot data fetch | Partial | Likely | ⚠️ PARTIAL | Correctly filters dashboard-generated unsynced AI records, but needs safe data verification. |
-| Overview charts | Yes | `transactions` | client aggregation | Partial | Likely | ⚠️ PARTIAL | Uses real transaction array; chart empty states need visual verification. |
-| Recent transactions | Yes | `transactions` | Supabase | Partial | Likely | ⚠️ PARTIAL | Real table/list exists; needs E2E filter/search/export. |
-| Transaction create | Yes | `transactions` | Supabase + Bot API fallback | Partial | Likely | ⚠️ PARTIAL | Inserts to Supabase and tries Bot API. Risk: dual-write divergence if one succeeds and one fails. |
-| Transaction edit | Yes | `transactions` | Supabase + Bot API | Partial | Likely | ⚠️ PARTIAL | Same dual-write divergence risk; no transaction/job queue. |
-| Transaction delete | Yes | `deleted_at` soft delete | Supabase + Bot API | Partial | Likely | ⚠️ PARTIAL | Same dual-write risk. |
-| Transaction search/filter/export | Yes | client-side | N/A | Partial | Likely | ⚠️ PARTIAL | Implemented client-side; export not E2E verified. |
-| Participants CRUD | Yes | `participants` | Supabase + Bot API | Partial | Likely | ⚠️ PARTIAL | UI maps dues/status into JSON `data`; Bot API note field may not round-trip status cleanly. |
-| Todo CRUD | Yes | `todos` | Supabase + Bot API | Partial | Likely | ⚠️ PARTIAL | CRUD exists. Previous user reported stale todo; needs E2E persistence test. |
-| Reminder CRUD | Yes | `reminders` | Supabase + Bot API | Partial | Likely | ⚠️ PARTIAL | UI supports date/time. Bot scheduler handles WA reminders; dashboard delete soft-deletes Supabase and Bot API if available. |
-| Command CRUD | Yes | `custom_commands` | Supabase + Bot API | Partial | Likely | ⚠️ PARTIAL | Text commands work; media command handling from dashboard remains limited. |
-| AI parsing | Yes | none | `/api/ai/transaction-parser` | Partial | N/A | ⚠️ PARTIAL | Gemini often denied; local parser fallback exists but not full natural-language coverage. |
-| AI confirmation | Yes | client state | N/A | Partial | Likely | ⚠️ PARTIAL | Confirmation UI exists. Needs E2E for transaction/todo/reminder/command save. |
-| AI transaction saving | Yes | `transactions` | Supabase + Bot API | Partial | Likely | ⚠️ PARTIAL | Saves after confirmation; same dual-write risk and Gemini fallback limitations. |
-| Spreadsheet integration | Yes | `group_settings.spreadsheet_url` | none | No | N/A | 🚧 UI ONLY | URL can be stored, but no Google Sheets sync/import/export implementation. |
-| Weather | Yes | `group_settings.weather_location` | Bot command/API | Partial | Likely | ⚠️ PARTIAL | WA command exists; dashboard only stores location and toggle. No dashboard weather preview/status. |
-| Location services | Yes | `group_settings` location fields | Browser geolocation | Partial | Likely | ⚠️ PARTIAL | Coordinates stored; reverse geocoding/location naming is manual. |
-| Prayer/Azan settings | Yes | `group_settings` prayer fields | `/api/prayer/status` | Partial | Likely | ⚠️ PARTIAL | Schedule resolves via AlAdhan. Requires migration and valid coordinates. |
-| Prayer scheduler | No direct UI | `prayer_reminder_logs` | `/api/prayer/run` | Partial | N/A | ⚠️ PARTIAL | Endpoint exists, but persistent cron/bot scheduler must call it every minute. |
-| Test Azan | Yes | none | Dashboard server -> Bot API | Verified once | N/A | ✅ WORKING | VPS local test to `/api/prayer/test` returned ok and sent message. Dashboard button still needs browser E2E. |
-| Emergency alerts | Toggle only | `emergency_*` fields | none | No | N/A | 🚧 UI ONLY | No BMKG/alert provider or scheduler. |
-| Calculator | Yes | none | none | Yes | Likely | ⚠️ PARTIAL | Local calculator exists; no E2E coverage yet. |
-| Rental status | Yes | `group_rentals` | Supabase | Partial | Likely | ⚠️ PARTIAL | Status display works from Supabase data; not E2E verified. |
-| Extension request | Yes | `rental_requests`, storage | `/api/rental/request` + Bot notify | Partial | Likely | ⚠️ PARTIAL | Request saves and notification attempts. Approval path has ID/source mismatch risk. |
-| QRIS owner | Yes | `owner_settings`, storage | image upload API | Partial | Likely | ⚠️ PARTIAL | Upload/display exists. Needs storage bucket/RLS verification in production. |
-| Owner approval | Yes | Supabase rental_requests + Bot activation | `/api/bot/owner` | Fixed by code, live approval unverified | Likely | ⚠️ PARTIAL | Supabase UUID requests are now resolved to `group_id`/`months`, then Bot API activates rental and Supabase status is updated. Needs safe live test. |
-| Owner groups/rentals | Yes | Bot API + Supabase fallback | `/api/bot/owner` | Partial | Likely | ⚠️ PARTIAL | Lists Bot API groups and fallback requests; consistency across SQLite/Supabase is not guaranteed. |
-| Owner payments | Yes | `rental_requests` | Bot API owner routes | Partial | Likely | ⚠️ PARTIAL | Payment proof view added; approval/rejection source-of-truth is split. |
-| Owner notifications | Minimal | none | Bot API notify endpoints | Partial | N/A | ⚠️ PARTIAL | Rental notification endpoint added to bot. No durable notification log/read state. |
-| Owner broadcast | Yes | none | Bot API owner broadcast | Unverified | N/A | ❓ UNVERIFIED | Requires real Bot API + safe broadcast target. |
-| Owner server status | Yes | none | Bot API `/owner/health` | Unverified | N/A | ❓ UNVERIFIED | Depends on VPS bot endpoint. |
-| Owner backup | Help lists command | bot script exists | WhatsApp owner command | Unverified | N/A | ❓ UNVERIFIED | Web owner backup action is not implemented. |
-| Bot status | Yes | none | `/api/bot/status` | Partial | N/A | ⚠️ PARTIAL | Handles unreachable/config states. Needs dashboard E2E against deployed VPS. |
+- Public responsive Playwright suite: 18/18 passed at 360, 390, 430, 768, 1024, 1366, and 1440 px.
+- Final non-mutating run before the logout race fix: 25 passed, 2 intentionally skipped, 1 failed. The failed logout race was fixed in commit `6f2e6f5` and has a targeted regression test.
+- Authenticated mobile 390 px test after navigation fix: passed, including no horizontal overflow, centered AI action, bottom navigation, and theme switch.
+- Browser network/security audit: passed with no page errors, failed requests, HTTP 4xx/5xx, or server-secret patterns in browser requests.
+- Production build: passed. Lint: 0 errors and 6 existing warnings.
+- Bot status: connected through `/api/status` on the active VPS tunnel.
+- Direct Bot API reads: owner health, five groups, DB statistics, reminders, commands, and rental endpoints returned HTTP 200.
+- Owner proxy after fallback fix: groups, health, DB stats, and rental requests returned `ok: true`.
+- AI parser: five supported intents returned in 0.3-0.6 seconds from the local parser.
+- Safe Bot API CRUD isolation: temporary Todo, Reminder, and Command records could be created/read/deleted through the authorized group proxy.
+- All `PRODUCTION-SMOKE-*` records were removed from Supabase and the VPS Bot database after testing.
 
-## Suspicious / Fake / Hardcoded Implementations
+## Final Product Matrix
 
-- `app/components/landing-page.tsx` shows sample finance numbers and transaction names. This is acceptable only as marketing preview, not product data.
-- `BotUang/api-routes.js` still contains fallback labels such as `Grup Keuangan`.
-- `BotUang/api-routes.js` uses fallback rental notification group `120363427301916965@g.us`; should be env-only.
-- `app/api/ai/transaction-parser/route.ts` uses local parser fallback when Gemini fails. This is intentional but should be visible as degraded AI mode.
-- `Spreadsheet integration` currently stores a URL only.
-- `Emergency alerts` currently stores fields only.
-- `BotUang/` contains legacy TypeScript stock-store code unrelated to BotUang finance dashboard; it pollutes lint/search output.
+| Feature | Automated Test | Production Test | Persistence | WhatsApp Integration | Status | Notes |
+|---|---|---|---|---|---|---|
+| Landing and public navigation | Playwright responsive suite | Passed on production | N/A | N/A | ✅ VERIFIED | No horizontal overflow at required widths. |
+| Login | Authenticated Playwright | Owner login succeeds | Supabase session verified | N/A | ✅ VERIFIED | Invalid/expired session routing exists; invalid credentials were not brute-force tested. |
+| Register | UI/code inspection | Form exists under `/login` | Supabase Auth path exists | N/A | ⚠️ PARTIAL | There is no separate `/register` route. A new production account was not created. |
+| Email confirmation | None | Not executed | Provider-dependent | N/A | ❓ NOT VERIFIED | Requires a disposable email and production SMTP verification. |
+| Session refresh | Playwright reload test | Passed | Supabase session remains valid | N/A | ✅ VERIFIED | Dashboard remains accessible after refresh. |
+| Logout and login again | Regression test added | Race discovered and fixed | Local dashboard session removed twice around Supabase sign-out | N/A | ⚠️ PARTIAL | Fix `6f2e6f5` requires final post-deploy targeted confirmation. |
+| Group access restoration | Authenticated Playwright | Group ID restored after login | `user_group_access` persists | N/A | ✅ VERIFIED | Access survives logout/login independently of the local dashboard session. |
+| Connect by Group ID/PIN | API/code inspection | Existing group lookup returned not found | `group_rentals` row is missing | Bot token path exists | ❌ BROKEN | The account has `user_group_access`, but production `group_rentals` cannot find this group. Wrong/correct PIN cannot complete. |
+| Dashboard token and expiry | Code inspection | No fresh safe token available | Validation and expiry code exist | Token generation not exercised | ❓ NOT VERIFIED | Requires a newly generated `dash` link from WhatsApp. |
+| Multi-group access | Group API and owner API reads | Owner sees one linked Supabase group and five VPS groups | Two sources disagree | VPS group list verified | ⚠️ PARTIAL | Supabase access list is not synchronized with the VPS owner group list. |
+| Real group name | UI/API comparison | Sidebar shows `Grup Keuangan`; VPS shows `Manage Keuangan Radit` | Supabase access name is stale | VPS name verified | ❌ BROKEN | Real name is available from Bot API but not synchronized into dashboard group access. |
+| Bot status | Browser and endpoint checks | `Bot Terhubung` | N/A | VPS `/api/status` connected | ✅ VERIFIED | No longer stuck in the checking state. |
+| Overview empty state | Browser inspection after cleanup | Balance/income/expense/transactions return to zero | Supabase smoke rows cleaned | Bot transactions count is zero | ✅ VERIFIED | No fake records were inserted for presentation. |
+| Transaction create | Playwright mutation | Appeared initially and later persisted | Supabase insert works | VPS transaction table remained empty | ⚠️ PARTIAL | Dashboard writes Supabase while WhatsApp bot uses a separate SQLite source. |
+| Transaction edit/delete | Playwright mutation | Failed after refresh/cleanup path | Production RLS lacks UPDATE policy | Not reached | ❌ BROKEN | Migration `202610060001_fix_finance_crud_update_policies.sql` is committed but not applied to production. |
+| Transaction totals/chart | Browser inspection | Uses real active Supabase transactions | Derived client-side | No canonical Bot sync | ⚠️ PARTIAL | Correct for the selected dashboard source, but sources can diverge. |
+| Transaction search/filter/export | Code and UI smoke | Controls render; no destructive action | Client-side only | N/A | ⚠️ PARTIAL | Full CSV content comparison was not performed. |
+| Participants CRUD | Existing automated coverage only | Not mutated in production | Supabase/Bot dual path | Not tested from WhatsApp | ❓ NOT VERIFIED | Avoided adding a fake production member. |
+| Todo CRUD | Full Playwright mutation | Create, refresh, complete, edit, delete passed | Persistence verified | Bot proxy CRUD separately verified | ✅ VERIFIED | Temporary Todo data was cleaned. |
+| Reminder web CRUD | Playwright mutation | New item never appeared; no edit UI | Supabase/Bot source conflict | Existing VPS reminder is readable | ❌ BROKEN | Read prefers non-empty Bot list while fresh login writes to Supabase; local migration also lacked reminder UPDATE. |
+| Reminder scheduler | Code/API inspection | Existing reminder visible | VPS contains one reminder | Actual scheduled delivery not observed | ❓ NOT VERIFIED | Web CRUD success must not be treated as scheduler success. |
+| Custom Command web CRUD | Playwright mutation | New command never appeared | Supabase/Bot source conflict | VPS contains three commands | ❌ BROKEN | Fresh login writes Supabase while display prefers Bot commands. |
+| Custom Command Bot API | Authorized API isolation | Create/read/delete succeeded | VPS persistence verified | Actual WhatsApp keyword response not sent | ⚠️ PARTIAL | Dashboard path remains broken even though Bot API CRUD works. |
+| AI transaction parsing | Direct production API tests | Income Rp1,000,000 and expense Rp5,000 parsed correctly | No write during parse | N/A | ✅ VERIFIED | Parser is now local-first for supported explicit commands. |
+| AI Todo/Reminder/Command parsing | Direct production API tests | All three intents parsed correctly | No write during parse | N/A | ✅ VERIFIED | `besok 08:00` resolves to a `datetime` on the following date. |
+| AI confirmation and save | UI/code inspection | Parse verified; save not executed after finance blocker | Depends on broken/split CRUD paths | Not verified | ⚠️ PARTIAL | AI does not auto-save, but canonical persistence is not trustworthy yet. |
+| Calculator | Mobile/browser UI inspection | Bubble is present | N/A | N/A | ⚠️ PARTIAL | Arithmetic cases were not exhaustively tested in production. |
+| Weather | Settings/code inspection | No real dashboard weather response tested | Location/toggle fields only | WhatsApp weather command not exercised | ❌ BROKEN | Current dashboard is configuration-only; no verified live weather provider result. |
+| Prayer settings/status | Authenticated API check | Status is `disabled` | Settings endpoint responds | Scheduler not observed | ⚠️ PARTIAL | No schedule, coordinates, next prayer, or offset can be verified while disabled. |
+| Test Azan | Authenticated endpoint | API returned “sent to WhatsApp” | N/A | Receipt not independently observed | ⚠️ PARTIAL | Requires a person in the target WhatsApp group to confirm receipt. |
+| Emergency alert | Code inspection | Toggle/configuration only | Settings fields exist | No alert provider/scheduler | ❌ BROKEN | No verified BMKG or equivalent delivery path. |
+| Rental status | Owner Bot API read | VPS says active until 2029-06-18 | Supabase `group_rentals` row missing | VPS state verified | ❌ BROKEN | Dashboard and bot do not share the same rental source of truth. |
+| Extension request/proof | Owner request API read | Two pending Supabase requests exist | Supabase persistence verified | Owner notification not observed | ⚠️ PARTIAL | New upload was not created; existing proof delivery and notification were not re-tested. |
+| Owner groups | API and UI wiring | Five VPS groups returned | VPS data verified | Bot API verified | ✅ VERIFIED | Fallback fix handles stale Vercel `BOT_API_URL`. |
+| Owner server health/DB stats | Direct and proxied API tests | Both return `ok: true` | Read-only | VPS verified | ✅ VERIFIED | No destructive owner action was used. |
+| Owner approve/reject | Authorization/code inspection | Not executed | Request mapping exists | Activation/rejection side effects unverified | ❓ NOT VERIFIED | Deliberately skipped to avoid changing real rentals. |
+| Owner broadcast/reset/backup | Authorization/code inspection | Not executed | N/A | Not executed | ❓ NOT VERIFIED | Destructive or wide-impact actions were intentionally skipped. |
+| Mobile shell | Authenticated Playwright at 390 px | Passed | N/A | N/A | ✅ VERIFIED | Bottom navigation, centered AI, theme toggle, and no overflow verified. |
+| SPA/hash navigation | Playwright regression | Mobile bug found and fixed | N/A | N/A | ✅ VERIFIED | Links now update dashboard section state without document reload. |
+| Browser runtime/network | Playwright instrumentation | Passed | N/A | Relevant proxy calls passed | ✅ VERIFIED | No hydration errors, failed requests, or HTTP 4xx/5xx in audited flow. |
+| Browser secret exposure | Request URL/header/body inspection | No match | N/A | Server tokens remain server-side | ✅ VERIFIED | Checked Bot token, Supabase secret-key, and AI-key patterns. |
+| Group-data authorization | HTTP negative test | Unauthenticated request returns 403 | N/A | Protected proxy | ✅ VERIFIED | Data leak found earlier was fixed in `8596623`. |
+| Generic bot action authorization | Code fix and build | Owner-only protection added | N/A | Server token no longer accepted from request body | ⚠️ PARTIAL | Requires final post-deploy 403/owner regression check. |
 
-## Navigation Audit
+## Production Blockers
 
-- Fixed: `app/components/landing-page.tsx` internal `<a href>` links were changed to `next/link`.
-- Remaining acceptable browser APIs:
-  - `window.location.search` and `window.location.pathname` in connect/login redirect handling.
-  - `window.open` for proof image external signed URL.
-- Dashboard nav uses `Link` and App Router route pages return `null` under persistent layout, so sidebar/header remain mounted.
+1. **Finance update/delete RLS is not deployed.** Apply `supabase/migrations/202610060001_fix_finance_crud_update_policies.sql` to project `xauwlfhlrtwblstgptyk`, then rerun transaction and reminder CRUD.
+2. **Supabase and VPS Bot SQLite are competing sources of truth.** A fresh login has no `apiUrl`; Reminder and Command mutations go to Supabase while reads prefer non-empty Bot API arrays.
+3. **Rental/group metadata is missing or stale in Supabase.** `user_group_access` says `Grup Keuangan`, `group_rentals` lookup fails, while VPS reports `Manage Keuangan Radit` active through 2029-06-18.
+4. **Reminder and Command dashboard CRUD cannot be trusted.** Both failed production create/display tests even though direct Bot API CRUD works.
 
-## Responsive / Visual Audit
+## Major Bugs
 
-Verified by code inspection:
-- Desktop transaction table switches to mobile list.
-- Main dashboard has mobile bottom navigation and desktop sidebar.
-- Forms use sheets, generally mobile-friendly.
+- Transaction edit/delete and cleanup are blocked by the production RLS policy.
+- Reminder and Command writes can disappear from the UI because the write source and read source differ.
+- Group connection by PIN cannot complete for the linked production group because its rental row is absent from Supabase.
+- Weather and emergency features are configuration surfaces, not verified live services.
 
-Not fully verified:
-- Screenshots at 360/390/430/768/1024/1366/1440 were not completed yet. Playwright public responsive tests cover 360, 390, 768, 1366 for landing/login and passed locally.
-- Owner Dashboard and Settings Location section need manual/mobile screenshot review.
+## Minor Bugs Fixed During Phase I
 
-## Error / Empty State Audit
+- Owner API now retries trusted Bot API fallbacks instead of failing on the stale Vercel host.
+- Dashboard theme hydration mismatch was removed.
+- Supported AI commands use the local parser before a denied/slow Gemini request.
+- Mobile/desktop hash navigation now updates section state immediately.
+- Logout no longer allows an in-flight dashboard boot to restore the removed local session.
+- Generic Bot action proxy now requires an authenticated owner and ignores request-supplied Bot tokens.
 
-Good:
-- Most data lists have loading skeletons and empty states.
-- Bot status has user-facing states.
+## External Verification Required
 
-Needs work:
-- Fixed: server configuration errors no longer expose raw env names such as `SUPABASE_SERVICE_ROLE_KEY`, `BOT_API_TOKEN`, or Gemini API key names in user-facing API responses.
-- AI degraded mode can still surface provider-specific messages.
-- Owner/Bot API fallback merge can show success-like UI while approval action fails later.
+- Registration email delivery and confirmation.
+- Correct PIN and fresh WhatsApp dashboard-token flows.
+- Actual receipt of the Azan test message in the WhatsApp group.
+- Actual scheduled reminder delivery.
+- Actual Custom Command response inside WhatsApp.
+- Rental proof notification, approval, and rejection side effects.
+- Dangerous owner operations such as broadcast, deactivate, reset, and restore.
 
-## Automated Tests Added
+## Cleanup
 
-- `playwright.config.ts`
-- `e2e/public-navigation.spec.ts`
-- `e2e/authenticated-flows.spec.ts`
+- Supabase: all active rows matching `PRODUCTION-SMOKE-TEST-*`, `PRODUCTION-SMOKE-TODO-*`, `PRODUCTION-SMOKE-REMINDER-*`, and `PRODUCTION-SMOKE-CMD-*` were checked and soft-deleted where present.
+- VPS Bot database: zero `PRODUCTION-SMOKE` markers remain in transactions, todos, reminders, or commands.
+- Current target group Bot counts after cleanup: 0 transactions, 0 todos, 1 existing reminder, and 3 existing commands.
 
-Safe defaults:
-- Public navigation/responsive smoke tests can run without credentials.
-- Authenticated tests skip unless `E2E_EMAIL` and `E2E_PASSWORD` are set.
-- Mutation tests skip unless `E2E_RUN_MUTATION=true` is explicitly set with a safe test database/group.
+## Recommended Next Approval
 
-Required safe test env:
+Approve a focused source-of-truth stabilization phase before adding features:
 
-```text
-E2E_BASE_URL=http://127.0.0.1:3000
-E2E_EMAIL=admin-test@example.com
-E2E_PASSWORD=...
-E2E_GROUP_ID=120xxx@g.us
-E2E_RUN_MUTATION=true
-```
-
-## Current Tooling Status
-
-- Build: ✅ passes.
-- Lint: ✅ exits successfully.
-  - `BotUang/` is ignored by root dashboard lint because it is classified as bot runtime CommonJS code.
-  - Remaining active dashboard lint status: 9 warnings, 0 errors.
-  - Active setState-in-effect errors were fixed in connect/dashboard/settings/owner/AI orb code paths.
-- E2E package: ✅ `@playwright/test` installed.
-- Playwright browser binaries: ✅ Chromium installed.
-- Public Playwright smoke test: ✅ `npx playwright test e2e/public-navigation.spec.ts` passed 12/12.
+1. Apply the committed RLS migration.
+2. Choose one canonical write/read service for Transactions, Reminder, Todo, Command, and Participants.
+3. Backfill `group_rentals` and synchronize real group names from the VPS.
+4. Rerun only the failed CRUD, PIN, rental, and WhatsApp delivery tests.
