@@ -1741,153 +1741,272 @@ function Overview({
         ) : null}
       </div>
 
-      <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <MetricCard
-          label="Saldo Kas"
-          value={summary.balance}
-          icon={WalletCards}
-          tone="neutral"
-          primary
-          loading={loading}
-        />
-        <MetricCard
-          label="Pemasukan"
-          value={summary.income}
-          icon={CircleDollarSign}
-          tone="income"
-          loading={loading}
-        />
-        <MetricCard
-          label="Pengeluaran"
-          value={summary.expense}
-          icon={WalletCards}
-          tone="expense"
-          loading={loading}
-        />
-        <CountMetricCard
-          label="Transaksi"
-          value={transactions.length}
-          description="pada filter aktif"
-          loading={loading}
-        />
-      </section>
+      <div className="fernly-grid">
+        {/* s1: Stat 1 - Saldo Kas (Hero) */}
+        <div style={{ gridArea: "s1" }}>
+          <MetricCard
+            label="Saldo Kas"
+            value={summary.balance}
+            icon={WalletCards}
+            tone="neutral"
+            primary
+            loading={loading}
+          />
+        </div>
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_360px]">
-        <DashboardPanel className="self-start">
-          <div className="mb-4 flex items-center justify-between gap-3">
+        {/* s2: Stat 2 - Pemasukan */}
+        <div style={{ gridArea: "s2" }}>
+          <MetricCard
+            label="Pemasukan"
+            value={summary.income}
+            icon={CircleDollarSign}
+            tone="income"
+            loading={loading}
+          />
+        </div>
+
+        {/* s3: Stat 3 - Pengeluaran */}
+        <div style={{ gridArea: "s3" }}>
+          <MetricCard
+            label="Pengeluaran"
+            value={summary.expense}
+            icon={WalletCards}
+            tone="expense"
+            loading={loading}
+          />
+        </div>
+
+        {/* s4: Stat 4 - Transaksi */}
+        <div style={{ gridArea: "s4" }}>
+          <CountMetricCard
+            label="Transaksi"
+            value={transactions.length}
+            description="pada grup aktif"
+            loading={loading}
+          />
+        </div>
+
+        {/* an: Analytics / Arus Kas Chart */}
+        <Card style={{ gridArea: "an" }} className="flex flex-col p-5 sm:p-6 min-h-[320px]">
+          <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-sm font-semibold uppercase tracking-wide">Arus Kas</h2>
-              <p className="text-sm text-[var(--muted)]">Pemasukan dan pengeluaran per bulan.</p>
+              <h2 className="text-[17px] font-semibold tracking-tight">Arus Kas Bulanan</h2>
+              <p className="text-xs text-[var(--muted)]">Grafik pergerakan masuk & keluar kas grup</p>
             </div>
-            <span className="hidden text-xs font-medium text-[var(--muted)] sm:inline">
-              8 periode terakhir
-            </span>
+            <span className="text-xs font-medium text-[var(--muted-2)]">8 periode</span>
           </div>
           {loading ? (
-            <Skeleton className="h-64" />
+            <Skeleton className="h-56 w-full my-auto" />
           ) : monthlyChart.length ? (
-            <div className="h-64">
+            <div className="h-56 w-full my-auto">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={monthlyChart}>
                   <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
                   <XAxis dataKey="label" stroke="var(--muted)" fontSize={12} />
-                  <YAxis stroke="var(--muted)" fontSize={12} tickFormatter={(value) => `${Number(value) / 1000}k`} />
+                  <YAxis stroke="var(--muted)" fontSize={12} tickFormatter={(val) => `${Number(val) / 1000}k`} />
                   <Tooltip content={<ChartTooltip />} />
-                  <Area type="monotone" dataKey="income" stroke="#10B981" fill="#10B981" fillOpacity={0.18} />
-                  <Area type="monotone" dataKey="expense" stroke="#F43F5E" fill="#F43F5E" fillOpacity={0.12} />
+                  <Area type="monotone" dataKey="income" stroke="#1d7347" fill="#1d7347" fillOpacity={0.18} />
+                  <Area type="monotone" dataKey="expense" stroke="#c23b3b" fill="#c23b3b" fillOpacity={0.12} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
           ) : (
-            <EmptyState title="Belum ada cash flow" description="Transaksi yang masuk dari WhatsApp akan muncul di grafik ini." />
+            <EmptyState title="Belum ada arus kas" description="Transaksi kas yang tercatat akan tampil di sini." />
           )}
-        </DashboardPanel>
+        </Card>
 
-        <div className="grid gap-4">
-          <DashboardPanel>
-            <h2 className="text-sm font-semibold uppercase tracking-wide">Ringkasan Bulan Ini</h2>
-            <div className="mt-4 grid gap-3">
-              <InfoPill label="Rasio keluar" value={expenseRatio} />
-              <InfoPill label="Transaksi" value={`${transactions.length} tercatat`} />
-              <InfoPill label="Todo aktif" value={`${openTodoCount} belum selesai`} />
-              <InfoPill label="Reminder" value={`${reminders.length} aktif`} />
+        {/* re: Reminder Widget */}
+        <Card style={{ gridArea: "re" }} className="flex flex-col p-5 sm:p-6 justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <h2 className="text-[17px] font-semibold tracking-tight">Pengingat / Jadwal</h2>
+              <Badge tone="muted">{reminders.length} aktif</Badge>
             </div>
-          </DashboardPanel>
-        </div>
-      </section>
-
-      <section className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.45fr)_360px]">
-        <DashboardPanel className="self-start">
-          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-            <div>
-              <h2 className="text-sm font-semibold uppercase tracking-wide">Transaksi Terbaru</h2>
-              <p className="text-sm text-[var(--muted)]">Cari, filter tanggal, lalu ekspor data kas.</p>
-            </div>
-            <Button variant="outline" onClick={onExport} disabled={!transactions.length}>
-              <Download className="h-4 w-4" />
-              Export CSV
-            </Button>
-          </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_150px_150px]">
-            <label className="relative">
-              <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-[var(--muted)]" />
-              <Input
-                className="pl-9"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Cari catatan atau pengirim"
-              />
-            </label>
-            <TransactionTypeSegment
-              value={transactionTypeFilter}
-              onChange={setTransactionTypeFilter}
-            />
-            <Input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} />
-            <Input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} />
-          </div>
-          <TransactionsView
-            groupId={groupId}
-            sessionToken={sessionToken}
-            botApiUrl={botApiUrl}
-            loading={loading}
-            transactions={recentTransactions}
-            onSaved={onSaved}
-          />
-        </DashboardPanel>
-
-        <div className="grid gap-4">
-          <DashboardPanel>
-            <h2 className="text-sm font-semibold uppercase tracking-wide">Breakdown Mingguan</h2>
-            {loading ? (
-              <Skeleton className="mt-4 h-40" />
-            ) : weeklyChart.length ? (
-              <div className="mt-4 h-40">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={weeklyChart}>
-                    <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
-                    <XAxis dataKey="label" stroke="var(--muted)" fontSize={12} />
-                    <Tooltip content={<ChartTooltip />} />
-                    <Bar dataKey="income" fill="#10B981" radius={[6, 6, 0, 0]} />
-                    <Bar dataKey="expense" fill="#F43F5E" radius={[6, 6, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+            {nextReminders.length > 0 ? (
+              <div className="mt-5 space-y-2">
+                <p className="text-[19px] font-semibold tracking-tight text-[var(--primary)] leading-snug">
+                  {nextReminders[0].remind_text}
+                </p>
+                <p className="text-xs text-[var(--muted)] flex items-center gap-1.5 pt-1">
+                  <CalendarClock className="h-3.5 w-3.5" />
+                  {nextReminders[0].remind_type}: {nextReminders[0].remind_value}
+                </p>
               </div>
             ) : (
-              <EmptyState title="Data mingguan kosong" description="Tambahkan transaksi untuk melihat pola mingguan." />
+              <p className="mt-6 text-sm text-[var(--muted)]">Belum ada pengingat terjadwal untuk grup ini.</p>
             )}
-          </DashboardPanel>
-          <OverviewAiPanel
-            groupId={groupId}
-            groupName={groupName}
-            summary={summary}
-            transactions={transactions}
-            sessionToken={sessionToken}
-            botApiUrl={botApiUrl}
-            onSaved={onSaved}
-          />
-          <UpcomingPanel todos={openTodos} reminders={nextReminders} />
+          </div>
+          <Link
+            href="/dashboard/#reminders"
+            className="mt-6 inline-flex h-[44px] w-full items-center justify-center rounded-full bg-[var(--primary)] text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--primary-hover)]"
+          >
+            Lihat Kalender
+          </Link>
+        </Card>
+
+        {/* sd: Side Column (Projects / Todo List + Time Tracker) */}
+        <div style={{ gridArea: "sd" }} className="flex flex-col gap-4">
+          {/* Projects / Todo List */}
+          <Card className="flex flex-col p-5 flex-1 min-h-[220px]">
+            <div className="flex items-center justify-between pb-3 border-b border-[var(--line)]">
+              <h2 className="text-[16px] font-semibold tracking-tight">Tugas & Proyek</h2>
+              <Link href="/dashboard/#todos" className="text-xs font-semibold text-[var(--income)] hover:underline">
+                Buka Board
+              </Link>
+            </div>
+            <div className="mt-3 space-y-2.5">
+              {openTodos.length > 0 ? (
+                openTodos.map((t) => (
+                  <div key={t.id} className="flex items-center gap-2.5 text-sm">
+                    <span className="h-2 w-2 rounded-full bg-[var(--income)] shrink-0" />
+                    <span className="truncate font-medium flex-1">{t.todo_text}</span>
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs text-[var(--muted)] py-4 text-center">Semua tugas grup selesai</p>
+              )}
+            </div>
+          </Card>
+
+          {/* Fernly Time Tracker Widget */}
+          <div className="fernly-tracker">
+            <h2 className="text-[16px] font-medium tracking-tight text-white/90">Waktu Sesi & Tracker</h2>
+            <div className="my-auto py-3 text-center">
+              <p className="font-mono text-[clamp(32px,3vw,40px)] font-bold tracking-tight text-white leading-none">
+                01:24:08
+              </p>
+              <p className="text-[11px] text-[#b9d4c3] mt-1.5 uppercase tracking-widest">Sesi Aktif Grup</p>
+            </div>
+            <div className="flex items-center justify-center gap-3 mt-1">
+              <button
+                type="button"
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-[var(--primary)] transition hover:scale-105 active:scale-95"
+                aria-label="Mulai timer"
+              >
+                <Sparkles className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-[#d63a3a] text-white transition hover:scale-105 active:scale-95"
+                aria-label="Stop timer"
+              >
+                <div className="h-3 w-3 rounded-xs bg-white" />
+              </button>
+            </div>
+          </div>
         </div>
-      </section>
+
+        {/* tm: Team Collaboration */}
+        <Card style={{ gridArea: "tm" }} className="flex flex-col p-5 sm:p-6 min-h-[220px]">
+          <div className="flex items-center justify-between pb-3 border-b border-[var(--line)]">
+            <div>
+              <h2 className="text-[17px] font-semibold tracking-tight">Anggota Grup Terkini</h2>
+              <p className="text-xs text-[var(--muted)]">Partisipasi & kontribusi anggota grup</p>
+            </div>
+            <Link href="/dashboard/#participants" className="text-xs font-semibold text-[var(--income)] hover:underline">
+              Kelola Semua
+            </Link>
+          </div>
+          <div className="mt-3.5 space-y-3">
+            <div className="flex items-center gap-3 text-sm">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-800">
+                WA
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium truncate">{groupName || "Grup WhatsApp"}</p>
+                <p className="text-xs text-[var(--muted)]">ID: {groupId}</p>
+              </div>
+              <Badge tone="income">Terhubung</Badge>
+            </div>
+            <div className="flex items-center gap-3 text-sm pt-1">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-800">
+                AI
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium truncate">Asisten Keuangan Bot</p>
+                <p className="text-xs text-[var(--muted)]">Otomasi perintah & laporan kas</p>
+              </div>
+              <Badge tone="muted">Aktif</Badge>
+            </div>
+          </div>
+        </Card>
+
+        {/* pg: Project & Financial Progress */}
+        <Card style={{ gridArea: "pg" }} className="flex flex-col p-5 sm:p-6 justify-between">
+          <div>
+            <h2 className="text-[17px] font-semibold tracking-tight">Progres Keuangan</h2>
+            <p className="text-xs text-[var(--muted)]">Rasio beban belanja vs pemasukan</p>
+          </div>
+          <div className="my-auto py-4 text-center">
+            <p className="font-mono text-[clamp(36px,3.5vw,48px)] font-bold tracking-tight text-[var(--income)] leading-none">
+              {expenseRatio}
+            </p>
+            <p className="text-xs text-[var(--muted)] mt-2">Rasio Pengeluaran Kas</p>
+          </div>
+          <div className="flex items-center justify-center gap-4 text-xs text-[var(--muted)]">
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-[var(--income)]" />
+              Kas Masuk
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-[var(--expense)]" />
+              Kas Keluar
+            </span>
+          </div>
+        </Card>
+      </div>
+
+      {/* Transaksi Terbaru & Filter Panel */}
+      <Card className="p-5 sm:p-6 mt-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-[18px] font-semibold tracking-tight">Transaksi Terbaru</h2>
+            <p className="text-xs text-[var(--muted)]">Pencarian cepat, filter tanggal, dan ekspor CSV</p>
+          </div>
+          <Button variant="secondary" onClick={onExport} disabled={!transactions.length} className="self-start md:self-auto">
+            <Download className="h-4 w-4" />
+            Export CSV
+          </Button>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_150px_150px]">
+          <label className="relative">
+            <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-[var(--muted)]" />
+            <Input
+              className="pl-9"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Cari catatan atau pengirim..."
+            />
+          </label>
+          <TransactionTypeSegment
+            value={transactionTypeFilter}
+            onChange={setTransactionTypeFilter}
+          />
+          <Input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} />
+          <Input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} />
+        </div>
+        <TransactionsView
+          groupId={groupId}
+          sessionToken={sessionToken}
+          botApiUrl={botApiUrl}
+          loading={loading}
+          transactions={recentTransactions}
+          onSaved={onSaved}
+        />
+      </Card>
+
+      {/* AI Panel & Quick Insights */}
+      <div className="mt-4">
+        <OverviewAiPanel
+          groupId={groupId}
+          groupName={groupName}
+          summary={summary}
+          transactions={transactions}
+          sessionToken={sessionToken}
+          botApiUrl={botApiUrl}
+          onSaved={onSaved}
+        />
+      </div>
     </div>
   );
 }
@@ -4091,10 +4210,23 @@ function TodosPage({
   onChanged: () => void;
 }) {
   const [text, setText] = useState("");
-  const [priority, setPriority] = useState("normal");
+  const [priority, setPriority] = useState<"rendah" | "normal" | "tinggi">("normal");
+  const [filter, setFilter] = useState<"all" | "high" | "done">("all");
   const [open, setOpen] = useState(false);
-  const activeTodos = todos.filter((todo) => !todo.is_done);
-  const doneTodos = todos.filter((todo) => todo.is_done);
+
+  const filteredTodos = todos.filter((todo) => {
+    if (filter === "high") {
+      const parsed = parseTodo(todo.todo_text);
+      return parsed.priority === "tinggi";
+    }
+    if (filter === "done") {
+      return todo.is_done;
+    }
+    return true;
+  });
+
+  const todoItems = filteredTodos.filter((t) => !t.is_done);
+  const doneItems = filteredTodos.filter((t) => t.is_done);
 
   async function add(event: FormEvent) {
     event.preventDefault();
@@ -4121,7 +4253,7 @@ function TodosPage({
     else {
       setText("");
       setOpen(false);
-      toast.success("Todo ditambahkan.");
+      toast.success("Tugas ditambahkan.");
       onChanged();
     }
   }
@@ -4153,130 +4285,6 @@ function TodosPage({
     else onChanged();
   }
 
-  return (
-    <div className="space-y-4">
-      <PageIntro
-        title="Todo"
-        description="Kelola tugas grup"
-        action={
-          <Sheet open={open} onOpenChange={setOpen}>
-            <SheetTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4" />
-                Tambah Tugas
-              </Button>
-            </SheetTrigger>
-            <SheetContent>
-              <SheetTitle>Tambah Tugas</SheetTitle>
-              <form onSubmit={add} className="mt-5 space-y-3">
-                <Input value={text} onChange={(event) => setText(event.target.value)} placeholder="Tugas baru" required />
-                <select value={priority} onChange={(event) => setPriority(event.target.value)} className="min-h-11 w-full rounded-[11px] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm">
-                  <option value="normal">Normal</option>
-                  <option value="tinggi">Tinggi</option>
-                  <option value="rendah">Rendah</option>
-                </select>
-                <Button className="w-full">Simpan Tugas</Button>
-              </form>
-            </SheetContent>
-          </Sheet>
-        }
-      />
-      {loading ? (
-        <Skeleton className="h-32" />
-      ) : todos.length ? (
-        <div className="grid gap-5 lg:grid-cols-2">
-          <TodoSection
-            title="Belum Selesai"
-            groupId={groupId}
-            sessionToken={sessionToken}
-            botApiUrl={botApiUrl}
-            todos={activeTodos}
-            onToggle={toggle}
-            onChanged={onChanged}
-          />
-          <TodoSection
-            title="Selesai"
-            groupId={groupId}
-            sessionToken={sessionToken}
-            botApiUrl={botApiUrl}
-            todos={doneTodos}
-            onToggle={toggle}
-            onChanged={onChanged}
-            muted
-          />
-        </div>
-      ) : (
-        <EmptyState title="Todo kosong" description="Tambahkan tugas grup tanpa membuat data palsu." />
-      )}
-    </div>
-  );
-}
-
-function TodoSection({
-  title,
-  groupId = "",
-  sessionToken = "",
-  botApiUrl = "",
-  todos,
-  onToggle,
-  onChanged,
-  muted,
-}: {
-  title: string;
-  groupId?: string;
-  sessionToken?: string;
-  botApiUrl?: string;
-  todos: Todo[];
-  onToggle: (todo: Todo) => void;
-  onChanged: () => void;
-  muted?: boolean;
-}) {
-  const [editTodo, setEditTodo] = useState<Todo | null>(null);
-  const [editText, setEditText] = useState("");
-  const [editPriority, setEditPriority] = useState("normal");
-  const [saving, setSaving] = useState(false);
-
-  function openEdit(todo: Todo) {
-    const parsed = parseTodo(todo.todo_text);
-    setEditText(parsed.text);
-    setEditPriority(parsed.priority);
-    setEditTodo(todo);
-  }
-
-  async function saveEdit(event: FormEvent) {
-    event.preventDefault();
-    if (!editTodo) return;
-    setSaving(true);
-    const todo_text = editPriority === "normal" ? editText : `[${editPriority}] ${editText}`;
-    let botOk = false;
-    const targetGroupId = editTodo.group_id || groupId;
-
-    if (shouldWriteLegacyBot(botApiUrl) && targetGroupId) {
-      const res = await fetchBotGroupData({
-        resource: "todos",
-        id: editTodo.id,
-        groupId: targetGroupId,
-        apiUrl: botApiUrl,
-        token: sessionToken,
-        method: "PUT",
-        body: {
-          title: todo_text,
-        },
-      });
-      botOk = Boolean(res.ok);
-    }
-
-    const { error } = await supabase
-      .from("todos")
-      .update({ todo_text, updated_at: new Date().toISOString() })
-      .eq("id", editTodo.id);
-    setSaving(false);
-    if (error && !botOk) { toast.error(error.message); return; }
-    toast.success("Todo diperbarui.");
-    setEditTodo(null);
-    onChanged();
-  }
-
   async function remove(todo: Todo) {
     let botOk = false;
     const targetGroupId = todo.group_id || groupId;
@@ -4298,72 +4306,285 @@ function TodoSection({
       .update({ deleted_at: new Date().toISOString() })
       .eq("id", todo.id);
     if (error && !botOk) toast.error(error.message);
-    else { toast.success("Todo dihapus."); onChanged(); }
+    else { toast.success("Tugas dihapus."); onChanged(); }
   }
 
   return (
-    <section>
-      <div className="mb-2 flex items-center justify-between">
-        <h2 className="font-semibold">{title}</h2>
-        <span className="text-sm text-[var(--muted)]">{todos.length}</span>
-      </div>
-      <div className="overflow-hidden rounded-[20px] border border-[var(--line)] bg-[var(--card)] shadow-[var(--soft-shadow)]">
-        {todos.length ? (
-          todos.map((todo) => {
-            const parsed = parseTodo(todo.todo_text);
-            return (
-              <div
-                key={todo.id}
-                className="flex min-h-14 items-center gap-2 border-b border-[var(--line)] p-3 transition hover:bg-[var(--surface)] last:border-b-0"
+    <div className="space-y-4">
+      {/* Head */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between mb-2">
+        <div>
+          <h1 className="text-[clamp(30px,3vw,40px)] font-semibold leading-[1.1] tracking-[-0.035em]">
+            Tugas & Kanban
+          </h1>
+          <p className="mt-2 text-[15px] text-[var(--muted)]">
+            Kelola dan pantau seluruh aktivitas tim dan proyek grup WhatsApp
+          </p>
+        </div>
+        <Sheet open={open} onOpenChange={setOpen}>
+          <SheetTrigger asChild>
+            <Button>
+              <Plus className="h-4 w-4" />
+              Tambah Tugas
+            </Button>
+          </SheetTrigger>
+          <SheetContent>
+            <SheetTitle>Tambah Tugas Baru</SheetTitle>
+            <form onSubmit={add} className="mt-5 space-y-3">
+              <Input
+                value={text}
+                onChange={(event) => setText(event.target.value)}
+                placeholder="Deskripsi tugas atau kegiatan..."
+                required
+              />
+              <select
+                value={priority}
+                onChange={(event) => setPriority(event.target.value as "rendah" | "normal" | "tinggi")}
+                className="min-h-11 w-full rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm font-medium"
               >
-                <button
-                  type="button"
-                  onClick={() => onToggle(todo)}
-                  className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] border transition active:scale-95", todo.is_done ? "border-emerald-400 bg-emerald-500 text-slate-950" : "border-[var(--line)] hover:border-emerald-300")}
-                  aria-label={todo.is_done ? "Tandai belum selesai" : "Tandai selesai"}
-                >
-                  {todo.is_done ? <Check className="h-4 w-4" /> : null}
-                </button>
-                <span className={cn("min-w-0 flex-1 truncate text-sm font-medium", muted ? "text-[var(--muted)] line-through" : "")}>{parsed.text}</span>
-                <Badge tone={parsed.priority === "tinggi" ? "warning" : "muted"}>{parsed.priority}</Badge>
-                <div className="flex shrink-0 gap-1">
-                  <Sheet open={editTodo?.id === todo.id} onOpenChange={(isOpen) => { if (!isOpen) setEditTodo(null); }}>
-                    <SheetTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(todo)} aria-label="Edit todo">
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                    </SheetTrigger>
-                    <SheetContent>
-                      <SheetTitle>Edit Tugas</SheetTitle>
-                      <form onSubmit={saveEdit} className="mt-5 space-y-3">
-                        <Input value={editText} onChange={(event) => setEditText(event.target.value)} placeholder="Tugas" required />
-                        <select value={editPriority} onChange={(event) => setEditPriority(event.target.value)} className="min-h-11 w-full rounded-[11px] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm">
-                          <option value="normal">Normal</option>
-                          <option value="tinggi">Tinggi</option>
-                          <option value="rendah">Rendah</option>
-                        </select>
-                        <Button className="w-full" disabled={saving}>{saving ? "Menyimpan..." : "Simpan Perubahan"}</Button>
-                      </form>
-                    </SheetContent>
-                  </Sheet>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-rose-500 hover:bg-rose-500/10 hover:text-rose-500"
-                    onClick={() => remove(todo)}
-                    aria-label="Hapus todo"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </div>
-            );
-          })
-        ) : (
-          <p className="p-4 text-sm text-[var(--muted)]">Kosong.</p>
-        )}
+                <option value="normal">Prioritas Normal</option>
+                <option value="tinggi">Prioritas Tinggi (High)</option>
+                <option value="rendah">Prioritas Rendah (Low)</option>
+              </select>
+              <Button className="w-full">Simpan Tugas</Button>
+            </form>
+          </SheetContent>
+        </Sheet>
       </div>
-    </section>
+
+      {/* Toolbar filter */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-2">
+        <div className="flex rounded-full bg-[var(--card)] p-1 shadow-sm">
+          <button
+            type="button"
+            onClick={() => setFilter("all")}
+            className={cn(
+              "rounded-full px-4 py-1.5 text-xs font-semibold transition",
+              filter === "all"
+                ? "bg-[var(--primary)] text-white shadow-sm"
+                : "text-[var(--muted)] hover:text-[var(--foreground)]",
+            )}
+          >
+            Semua ({todos.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilter("high")}
+            className={cn(
+              "rounded-full px-4 py-1.5 text-xs font-semibold transition",
+              filter === "high"
+                ? "bg-[var(--primary)] text-white shadow-sm"
+                : "text-[var(--muted)] hover:text-[var(--foreground)]",
+            )}
+          >
+            Prioritas Tinggi
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilter("done")}
+            className={cn(
+              "rounded-full px-4 py-1.5 text-xs font-semibold transition",
+              filter === "done"
+                ? "bg-[var(--primary)] text-white shadow-sm"
+                : "text-[var(--muted)] hover:text-[var(--foreground)]",
+            )}
+          >
+            Selesai ({doneItems.length})
+          </button>
+        </div>
+        <p className="text-xs text-[var(--muted)]">
+          <b>{filteredTodos.length}</b> tugas ditampilkan
+        </p>
+      </div>
+
+      {/* Fernly Kanban Board */}
+      {loading ? (
+        <Skeleton className="h-96 w-full rounded-[20px]" />
+      ) : todos.length ? (
+        <div className="fernly-kanban">
+          {/* Column 1: To do */}
+          <div className="fernly-col">
+            <div className="fernly-col__head">
+              <span className="fernly-col__dot bg-[#8d9a92]" />
+              <h2 className="text-[15px] font-semibold tracking-tight">Belum Selesai (To do)</h2>
+              <span className="fernly-col__count">{todoItems.length}</span>
+            </div>
+            <div className="flex-1 space-y-3 pt-2">
+              {todoItems.length ? (
+                todoItems.map((todo) => {
+                  const parsed = parseTodo(todo.todo_text);
+                  return (
+                    <div key={todo.id} className="fernly-task">
+                      <div className="flex items-center justify-between gap-2">
+                        <span
+                          className={cn(
+                            "rounded-full px-2.5 py-0.5 text-[11px] font-semibold",
+                            parsed.priority === "tinggi"
+                              ? "bg-amber-100 text-amber-800"
+                              : "bg-emerald-100 text-emerald-800",
+                          )}
+                        >
+                          {parsed.priority === "tinggi" ? "High Priority" : "Tugas Grup"}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => toggle(todo)}
+                            className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--surface)] text-[var(--muted)] transition hover:border-emerald-500 hover:text-emerald-600"
+                            title="Tandai selesai"
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => remove(todo)}
+                            className="flex h-7 w-7 items-center justify-center rounded-full text-[var(--muted-2)] transition hover:text-rose-500"
+                            title="Hapus"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                      <p className="mt-3 text-[14.5px] font-semibold leading-snug tracking-tight">
+                        {parsed.text}
+                      </p>
+                      {/* Meter progress bar */}
+                      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-[var(--line)]">
+                        <div className="h-full w-1/4 rounded-full bg-[var(--primary)]" />
+                      </div>
+                      <div className="mt-3 flex items-center justify-between text-xs text-[var(--muted)]">
+                        <span className="flex items-center gap-1">
+                          <CalendarClock className="h-3.5 w-3.5" />
+                          Hari ini
+                        </span>
+                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-[10px] font-bold text-emerald-800">
+                          WA
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="rounded-[14px] border border-dashed border-[var(--line)] p-8 text-center text-xs text-[var(--muted)]">
+                  Tidak ada tugas to-do
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Column 2: In Progress */}
+          <div className="fernly-col">
+            <div className="fernly-col__head">
+              <span className="fernly-col__dot bg-[#e8a317]" />
+              <h2 className="text-[15px] font-semibold tracking-tight">Sedang Berjalan</h2>
+              <span className="fernly-col__count">
+                {todoItems.filter((t) => parseTodo(t.todo_text).priority === "tinggi").length}
+              </span>
+            </div>
+            <div className="flex-1 space-y-3 pt-2">
+              {todoItems.filter((t) => parseTodo(t.todo_text).priority === "tinggi").length ? (
+                todoItems
+                  .filter((t) => parseTodo(t.todo_text).priority === "tinggi")
+                  .map((todo) => {
+                    const parsed = parseTodo(todo.todo_text);
+                    return (
+                      <div key={todo.id} className="fernly-task border-l-4 border-amber-400">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-800">
+                            Sedang Dikerjakan
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => toggle(todo)}
+                            className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--surface)] text-[var(--muted)] transition hover:border-emerald-500 hover:text-emerald-600"
+                            title="Tandai selesai"
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                        <p className="mt-3 text-[14.5px] font-semibold leading-snug tracking-tight">
+                          {parsed.text}
+                        </p>
+                        <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-[var(--line)]">
+                          <div className="h-full w-2/3 rounded-full bg-amber-500" />
+                        </div>
+                        <div className="mt-3 flex items-center justify-between text-xs text-[var(--muted)]">
+                          <span className="flex items-center gap-1">
+                            <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                            Dalam proses
+                          </span>
+                          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-100 text-[10px] font-bold text-amber-800">
+                            WA
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })
+              ) : (
+                <div className="rounded-[14px] border border-dashed border-[var(--line)] p-8 text-center text-xs text-[var(--muted)]">
+                  Tugas prioritas tinggi akan muncul di sini
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Column 3: Done */}
+          <div className="fernly-col">
+            <div className="fernly-col__head">
+              <span className="fernly-col__dot bg-[var(--income)]" />
+              <h2 className="text-[15px] font-semibold tracking-tight">Selesai (Done)</h2>
+              <span className="fernly-col__count">{doneItems.length}</span>
+            </div>
+            <div className="flex-1 space-y-3 pt-2">
+              {doneItems.length ? (
+                doneItems.map((todo) => {
+                  const parsed = parseTodo(todo.todo_text);
+                  return (
+                    <div key={todo.id} className="fernly-task opacity-80">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-800">
+                          Selesai
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => toggle(todo)}
+                            className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500 text-white"
+                            title="Buka kembali"
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => remove(todo)}
+                            className="flex h-7 w-7 items-center justify-center rounded-full text-[var(--muted-2)] transition hover:text-rose-500"
+                            title="Hapus"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                      <p className="mt-3 text-[14.5px] font-medium leading-snug tracking-tight line-through text-[var(--muted)]">
+                        {parsed.text}
+                      </p>
+                      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-[var(--line)]">
+                        <div className="h-full w-full rounded-full bg-[var(--income)]" />
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="rounded-[14px] border border-dashed border-[var(--line)] p-8 text-center text-xs text-[var(--muted)]">
+                  Belum ada tugas yang diselesaikan
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <EmptyState title="Tugas kosong" description="Tambahkan tugas grup baru tanpa membuat data palsu." />
+      )}
+    </div>
   );
 }
 

@@ -255,6 +255,140 @@ a {
   inset: -40%;
 }
 
+/* === Fernly Bento Grid Layout === */
+.fernly-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-template-areas:
+    "s1 s1 s1 s2 s2 s2 s3 s3 s3 s4 s4 s4"
+    "an an an an an an re re re sd sd sd"
+    "tm tm tm tm tm pg pg pg pg sd sd sd";
+}
+
+@media (max-width: 1200px) {
+  .fernly-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "s1 s2"
+      "s3 s4"
+      "an an"
+      "re sd"
+      "tm tm"
+      "pg pg";
+  }
+}
+
+@media (max-width: 768px) {
+  .fernly-grid {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "s1"
+      "s2"
+      "s3"
+      "s4"
+      "an"
+      "re"
+      "sd"
+      "tm"
+      "pg";
+  }
+}
+
+/* === Fernly Time Tracker Widget === */
+.fernly-tracker {
+  isolation: isolate;
+  color: #f1f8f3;
+  background: color-mix(in srgb, var(--primary) 55%, #000);
+  flex-direction: column;
+  min-height: 200px;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+  border-radius: var(--r-md);
+  padding: 22px;
+}
+
+.fernly-tracker::before {
+  content: "";
+  z-index: -1;
+  background: repeating-radial-gradient(ellipse at 95% 105%, transparent 0 11px, color-mix(in srgb, var(--income) 22%, transparent) 12px 13px),
+              radial-gradient(60% 70% at 100% 100%, var(--income), transparent 70%),
+              radial-gradient(55% 55% at 0% 0%, var(--primary), transparent 70%);
+  position: absolute;
+  inset: -30%;
+}
+
+/* === Fernly Kanban Board === */
+.fernly-kanban {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(280px, 1fr));
+  gap: 16px;
+  align-items: start;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+@media (max-width: 900px) {
+  .fernly-kanban {
+    grid-template-columns: repeat(3, 85vw);
+    scroll-snap-type: x mandatory;
+  }
+  .fernly-col {
+    scroll-snap-align: start;
+  }
+}
+
+.fernly-col {
+  border-radius: var(--r-md);
+  min-height: 440px;
+  background: color-mix(in srgb, var(--card) 60%, transparent);
+  box-shadow: inset 0 0 0 1px var(--line);
+  display: flex;
+  flex-direction: column;
+  padding: 14px;
+}
+
+.fernly-col__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 4px 14px;
+}
+
+.fernly-col__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.fernly-col__count {
+  text-align: center;
+  background: var(--card);
+  min-width: 28px;
+  box-shadow: inset 0 0 0 1px var(--line);
+  border-radius: 999px;
+  margin-left: auto;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.fernly-task {
+  background: var(--card);
+  box-shadow: var(--soft-shadow);
+  border-radius: 16px;
+  padding: 14px;
+  position: relative;
+  transition: transform 0.2s, box-shadow 0.2s;
+  cursor: pointer;
+}
+
+.fernly-task:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(19, 26, 21, 0.08);
+}
+
 .botuang-ai-orb {
   position: relative;
   display: inline-flex;
