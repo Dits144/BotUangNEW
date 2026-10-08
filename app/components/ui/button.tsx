@@ -3,16 +3,16 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/app/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-[11px] px-4 py-2 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98]",
+  "inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-[12px] px-4 py-2 text-sm font-semibold transition-[background,color,border-color,transform,box-shadow] duration-200 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98]",
   {
     variants: {
       variant: {
         default:
-          "bg-[#0D3A23] text-white hover:bg-[#155A37] shadow-sm shadow-emerald-950/15 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400",
+          "bg-[var(--primary)] text-white shadow-[var(--primary-shadow)] hover:bg-[var(--primary-hover)]",
         secondary:
-          "border border-[var(--line)] bg-[var(--panel)] text-[var(--foreground)] hover:bg-emerald-500/10",
+          "border border-[var(--line)] bg-[var(--panel)] text-[var(--foreground)] hover:border-[var(--muted-2)] hover:bg-[var(--primary-soft)]",
         outline:
-          "border border-[var(--line)] bg-transparent text-[var(--foreground)] hover:bg-[var(--panel)]",
+          "border border-[var(--line)] bg-[var(--card)] text-[var(--foreground)] hover:border-[var(--muted-2)] hover:bg-[var(--panel)]",
         ghost:
           "bg-transparent text-[var(--muted)] hover:bg-[var(--panel)] hover:text-[var(--foreground)]",
         danger:

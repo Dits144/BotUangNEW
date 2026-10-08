@@ -8,7 +8,7 @@ export const Input = React.forwardRef<
   <input
     ref={ref}
     className={cn(
-      "min-h-11 w-full rounded-[11px] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm text-[var(--foreground)] shadow-sm transition placeholder:text-[var(--muted)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:cursor-not-allowed disabled:opacity-50",
+      "min-h-11 w-full rounded-[12px] border border-[var(--line)] bg-[var(--card)] px-3 text-sm text-[var(--foreground)] transition-[border-color,box-shadow,background] duration-200 placeholder:text-[var(--muted)] focus-visible:border-[var(--income)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] disabled:cursor-not-allowed disabled:bg-[var(--panel)] disabled:opacity-50",
       className,
     )}
     {...props}
@@ -23,7 +23,7 @@ export const Textarea = React.forwardRef<
   <textarea
     ref={ref}
     className={cn(
-      "min-h-24 w-full rounded-[11px] border border-[var(--line)] bg-[var(--surface)] px-3 py-3 text-sm text-[var(--foreground)] shadow-sm transition placeholder:text-[var(--muted)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:cursor-not-allowed disabled:opacity-50",
+      "min-h-24 w-full resize-y rounded-[12px] border border-[var(--line)] bg-[var(--card)] px-3 py-3 text-sm text-[var(--foreground)] transition-[border-color,box-shadow,background] duration-200 placeholder:text-[var(--muted)] focus-visible:border-[var(--income)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] disabled:cursor-not-allowed disabled:bg-[var(--panel)] disabled:opacity-50",
       className,
     )}
     {...props}

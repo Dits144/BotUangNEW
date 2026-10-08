@@ -23,6 +23,7 @@ import { resolveTrustedBotApiUrl } from "@/app/lib/bot-api";
 import { formatDate } from "@/app/lib/format";
 import { resolveDashboardImage, uploadDashboardImage } from "@/app/lib/image-upload";
 import { supabase } from "@/app/lib/supabase";
+import { cn } from "@/app/lib/utils";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
@@ -99,7 +100,13 @@ function getStoredOwnerApiUrl() {
   }
 }
 
-export function OwnerDashboardPage({ embedded = false }: { embedded?: boolean }) {
+export function OwnerDashboardPage({
+  embedded = false,
+  preview = false,
+}: {
+  embedded?: boolean;
+  preview?: boolean;
+}) {
   const router = useRouter();
   const [apiUrl] = useState(getStoredOwnerApiUrl);
   const [accessToken, setAccessToken] = useState("");
@@ -131,6 +138,10 @@ export function OwnerDashboardPage({ embedded = false }: { embedded?: boolean })
   const pendingRequests = requests.filter((item) => item.status === "pending").length;
 
   useEffect(() => {
+    if (preview) {
+      setLoading(false);
+      return;
+    }
     const stored = window.localStorage.getItem(DASHBOARD_SESSION_KEY);
     const session = stored
       ? (JSON.parse(stored) as { role?: string; apiUrl?: string })
@@ -156,7 +167,7 @@ export function OwnerDashboardPage({ embedded = false }: { embedded?: boolean })
     }
 
     boot();
-  }, [apiUrl, router]);
+  }, [apiUrl, preview, router]);
 
   async function ownerFetch<T>(
     resource: string,
@@ -362,10 +373,10 @@ export function OwnerDashboardPage({ embedded = false }: { embedded?: boolean })
 
   const content = (
     <div className={embedded ? "space-y-4" : "mx-auto max-w-7xl px-4 py-5 md:px-8 md:py-8"}>
-      <header className="flex flex-col gap-4 border-b border-[var(--line)] pb-5 sm:flex-row sm:items-end sm:justify-between">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase text-emerald-500">Owner</p>
-          <h1 className="mt-1 text-xl font-semibold sm:text-2xl">Pusat Operasional BotUang</h1>
+          <h1 className="mt-1 text-[28px] font-semibold leading-tight md:text-[34px]">Pusat Operasional</h1>
           <p className="mt-1 max-w-2xl text-sm text-[var(--muted)]">
             Kelola sewa grup, pembayaran, broadcast, dan kondisi server bot.
           </p>
@@ -375,22 +386,24 @@ export function OwnerDashboardPage({ embedded = false }: { embedded?: boolean })
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Perbarui
           </Button>
-          <Button variant="ghost" onClick={logout}>
-            <LogOut className="h-4 w-4" />
-            Keluar
-          </Button>
+          {!embedded ? (
+            <Button variant="ghost" onClick={logout}>
+              <LogOut className="h-4 w-4" />
+              Keluar
+            </Button>
+          ) : null}
         </div>
       </header>
 
       <section aria-label="Ringkasan owner" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <OwnerMetric label="Total grup" value={String(groups.length)} icon={ShieldCheck} />
+        <OwnerMetric label="Total grup" value={String(groups.length)} icon={ShieldCheck} primary />
         <OwnerMetric label="Sewa aktif" value={String(activeGroups)} icon={Power} tone="income" />
         <OwnerMetric label="Menunggu" value={String(pendingRequests)} icon={Clock3} tone="warning" />
         <OwnerMetric label="Status bot" value={formatHealthStatus(health?.status)} icon={Server} />
       </section>
 
       <section className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.75fr)]">
-        <Card className="overflow-hidden rounded-[16px] shadow-none">
+        <Card className="overflow-hidden rounded-[18px]">
           <div className="border-b border-[var(--line)] p-4 sm:p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
@@ -453,7 +466,7 @@ export function OwnerDashboardPage({ embedded = false }: { embedded?: boolean })
         </Card>
 
         <div className="space-y-4">
-          <Card className="rounded-[16px] p-4 shadow-none sm:p-5">
+          <Card className="rounded-[18px] p-4 sm:p-5">
             <SectionTitle
               icon={Power}
               title="Atur Masa Sewa"
@@ -507,7 +520,7 @@ export function OwnerDashboardPage({ embedded = false }: { embedded?: boolean })
             </form>
           </Card>
 
-          <Card className="rounded-[16px] p-4 shadow-none sm:p-5">
+          <Card className="rounded-[18px] p-4 sm:p-5">
             <SectionTitle
               icon={QrCode}
               title="QRIS Perpanjangan"
@@ -535,7 +548,7 @@ export function OwnerDashboardPage({ embedded = false }: { embedded?: boolean })
       </section>
 
       <section className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.9fr)]">
-        <Card className="overflow-hidden rounded-[16px] shadow-none">
+        <Card className="overflow-hidden rounded-[18px]">
           <div className="flex items-center justify-between gap-3 border-b border-[var(--line)] p-4 sm:p-5">
             <div>
               <h2 className="font-semibold">Permintaan Perpanjangan</h2>
@@ -602,7 +615,7 @@ export function OwnerDashboardPage({ embedded = false }: { embedded?: boolean })
         </Card>
 
         <div className="space-y-4">
-          <Card className="rounded-[16px] p-4 shadow-none sm:p-5">
+          <Card className="rounded-[18px] p-4 sm:p-5">
             <SectionTitle
               icon={Megaphone}
               title="Broadcast"
@@ -644,7 +657,7 @@ export function OwnerDashboardPage({ embedded = false }: { embedded?: boolean })
       </section>
 
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]">
-        <Card className="rounded-[16px] p-4 shadow-none sm:p-5">
+        <Card className="rounded-[18px] p-4 sm:p-5">
           <SectionTitle
             icon={Server}
             title="Kesehatan Server"
@@ -659,7 +672,7 @@ export function OwnerDashboardPage({ embedded = false }: { embedded?: boolean })
             <InfoRow label="Bot" value={formatHealthStatus(health?.status)} />
           </dl>
         </Card>
-        <Card className="rounded-[16px] bg-[#0D3A23] p-5 text-white shadow-none">
+        <Card className="rounded-[18px] border-transparent bg-[var(--primary)] p-5 text-white shadow-[var(--primary-shadow)]">
           <div className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-white/10">
             <Database className="h-5 w-5 text-emerald-300" />
           </div>
@@ -691,23 +704,32 @@ function OwnerMetric({
   value,
   icon: Icon,
   tone = "neutral",
+  primary = false,
 }: {
   label: string;
   value: string;
   icon: typeof ShieldCheck;
   tone?: "neutral" | "income" | "warning";
+  primary?: boolean;
 }) {
   return (
-    <Card className="min-w-0 rounded-[16px] p-3.5 shadow-none sm:p-4">
+    <Card
+      className={cn(
+        "min-w-0 rounded-[18px] p-3.5 sm:p-4",
+        primary ? "border-transparent bg-[var(--primary)] text-white shadow-[var(--primary-shadow)]" : "",
+      )}
+    >
       <div className="flex items-start justify-between gap-2 sm:gap-3">
         <div className="min-w-0">
-          <p className="truncate text-xs text-[var(--muted)] sm:text-sm">{label}</p>
+          <p className={cn("truncate text-xs sm:text-sm", primary ? "text-emerald-100/75" : "text-[var(--muted)]")}>{label}</p>
           <p className="mt-2 truncate text-lg font-semibold tabular-nums sm:text-2xl">{value}</p>
         </div>
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[var(--panel)] sm:h-10 sm:w-10">
+        <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] sm:h-10 sm:w-10", primary ? "bg-white/10" : "bg-[var(--panel)]")}>
           <Icon
             className={
-              tone === "income"
+              primary
+                ? "h-5 w-5 text-emerald-100"
+                : tone === "income"
                 ? "h-5 w-5 text-emerald-500"
                 : tone === "warning"
                   ? "h-5 w-5 text-amber-400"

@@ -14,11 +14,11 @@ export function Badge({
     neutral:
       "border-[var(--line)] bg-[var(--panel)] text-[var(--foreground)]",
     income:
-      "border-emerald-400/25 bg-emerald-500/10 text-emerald-500",
+      "border-[color-mix(in_srgb,var(--income)_24%,transparent)] bg-[var(--primary-soft)] text-[var(--income)]",
     expense:
-      "border-rose-400/25 bg-rose-500/10 text-rose-500",
+      "border-rose-400/20 bg-rose-500/10 text-[var(--expense)]",
     warning:
-      "border-amber-400/30 bg-amber-500/10 text-amber-500",
+      "border-amber-400/25 bg-amber-500/10 text-[var(--warning)]",
     muted:
       "border-[var(--line)] bg-transparent text-[var(--muted)]",
   };

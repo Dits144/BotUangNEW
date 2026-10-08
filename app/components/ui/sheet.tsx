@@ -14,10 +14,10 @@ export function SheetContent({
 }: DialogPrimitive.DialogContentProps) {
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm" />
+      <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-[#131a15]/45 backdrop-blur-[2px] data-[state=closed]:opacity-0 data-[state=open]:opacity-100" />
       <DialogPrimitive.Content
         className={cn(
-          "fixed inset-x-0 bottom-0 z-50 max-h-[92vh] overflow-y-auto rounded-t-[22px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-xl focus:outline-none md:inset-y-4 md:left-auto md:right-4 md:w-[420px] md:rounded-2xl",
+          "fixed inset-x-0 bottom-0 z-50 max-h-[92vh] overflow-y-auto rounded-t-[24px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_24px_60px_-20px_rgba(19,26,21,0.35)] focus:outline-none md:inset-y-3 md:left-auto md:right-3 md:w-[420px] md:rounded-[22px] data-[state=closed]:translate-y-4 data-[state=closed]:opacity-0 data-[state=open]:translate-y-0 data-[state=open]:opacity-100 data-[state=closed]:duration-200 data-[state=open]:duration-300",
           className,
         )}
       >

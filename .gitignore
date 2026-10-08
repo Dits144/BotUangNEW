@@ -45,3 +45,5 @@ next-env.d.ts
 /work/
 .dev-server*
 BotUang/
+db/
+dashboard_fernly/

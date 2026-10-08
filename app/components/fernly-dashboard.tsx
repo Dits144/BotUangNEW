@@ -1046,9 +1046,9 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
       : navItems.filter((item) => item.key !== "owner");
 
   return (
-    <main className="min-h-screen bg-[var(--background)] p-2 text-[var(--foreground)] sm:p-2.5 lg:p-3">
-      <div className="flex min-h-[calc(100vh-20px)] gap-3 md:min-h-[calc(100vh-24px)]">
-        <aside className="sticky top-3 hidden h-[calc(100vh-24px)] w-[252px] shrink-0 overflow-y-auto rounded-[22px] border border-[var(--line)] bg-[var(--sidebar)] p-4 shadow-[var(--soft-shadow)] xl:block">
+    <main className="min-h-screen bg-[var(--background)] p-2.5 text-[var(--foreground)] lg:p-3">
+      <div className="flex min-h-[calc(100vh-20px)] gap-3 lg:min-h-[calc(100vh-24px)]">
+        <aside className="sticky top-3 hidden h-[calc(100vh-24px)] w-[252px] shrink-0 overflow-y-auto rounded-[26px] bg-[var(--sidebar)] px-4 py-5 xl:block">
           <Brand
             groupId={groupId}
             groupName={groupName}
@@ -1086,9 +1086,18 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
         </aside>
 
         <div className="min-w-0 flex-1 pb-24 xl:pb-0">
-          <header className="sticky top-2 z-30 rounded-[18px] border border-[var(--line)] bg-[var(--surface)]/94 px-3 py-2.5 shadow-[var(--soft-shadow)] backdrop-blur-xl sm:px-4 md:top-3 md:px-5">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
+          <header className="sticky top-2 z-30 flex min-h-[68px] items-center rounded-[22px] bg-[var(--surface)]/96 px-3 backdrop-blur-xl md:top-3 md:min-h-[70px] md:rounded-[26px] md:px-4">
+            <div className="flex w-full items-center justify-between gap-2.5 md:gap-3">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="shrink-0 xl:hidden"
+                onClick={() => setMenuOpen(true)}
+                aria-label="Buka menu"
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
+              <div className="min-w-0 flex-1 xl:hidden">
                 <div className="flex items-center gap-2">
                   <span
                     className={cn(
@@ -1104,7 +1113,7 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
                     {displayGroupName(groupName, groupId)}
                   </p>
                 </div>
-                <p className="truncate text-lg font-semibold">
+                <p className="truncate text-base font-semibold sm:text-lg">
                   {visibleNavItems.find((item) => item.key === activeSection)?.label}
                 </p>
                 {activeSection !== "owner" && groups.length > 1 ? (
@@ -1127,7 +1136,7 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
                   </select>
                 ) : null}
               </div>
-              <div className="hidden min-w-[280px] max-w-lg flex-1 items-center rounded-[12px] border border-[var(--line)] bg-[var(--background)] px-3 lg:flex">
+              <div className="hidden min-w-[280px] max-w-[390px] flex-1 items-center rounded-[14px] border border-[var(--line)] bg-[var(--card)] px-3 shadow-[var(--soft-shadow)] xl:flex">
                 <Search className="h-4 w-4 text-[var(--muted)]" />
                 <input
                   value={query}
@@ -1136,21 +1145,25 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
                   className="h-10 min-w-0 flex-1 bg-transparent px-2 text-sm outline-none placeholder:text-[var(--muted)]"
                   aria-label="Cari data dashboard"
                 />
+                <kbd className="rounded-[7px] border border-[var(--line)] bg-[var(--surface)] px-2 py-1 text-[10px] font-semibold text-[var(--muted)]">
+                  Ctrl K
+                </kbd>
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="ml-auto flex shrink-0 items-center gap-1.5">
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="icon"
                   aria-label="Notifikasi"
-                  className="hidden xl:inline-flex"
+                  className="hidden rounded-full md:inline-flex"
                 >
                   <Bell className="h-5 w-5" />
                 </Button>
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="icon"
                   onClick={toggleTheme}
                   aria-label="Ganti tema"
+                  className="rounded-full"
                 >
                   {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                 </Button>
@@ -1162,11 +1175,11 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
                     onSaved={() => loadData()}
                   />
                 ) : null}
-                <div className="hidden min-h-11 items-center gap-3 rounded-[12px] border border-[var(--line)] bg-[var(--background)] px-2.5 pr-3 xl:flex">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-emerald-500 text-xs font-bold text-white">
+                <div className="flex min-h-11 items-center gap-3 rounded-[14px] bg-[var(--card)] p-1.5 shadow-[var(--soft-shadow)] xl:pr-3">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f5c5ac] text-xs font-bold text-[#4d3124]">
                     {getUserInitials(currentUser)}
                   </span>
-                  <div className="min-w-0">
+                  <div className="hidden min-w-0 xl:block">
                     <p className="max-w-32 truncate text-sm font-semibold leading-tight">
                       {currentUser.name || "User BotUang"}
                     </p>
@@ -1178,19 +1191,11 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
                 <Button
                   variant="ghost"
                   size="icon"
+                  className="hidden xl:inline-flex"
                   onClick={logout}
                   aria-label={`Logout ${currentUser.name || currentUser.email || "user"}`}
                 >
                   <LogOut className="h-5 w-5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="xl:hidden"
-                  onClick={() => setMenuOpen(true)}
-                  aria-label="Buka menu"
-                >
-                  <Menu className="h-5 w-5" />
                 </Button>
               </div>
             </div>
@@ -1203,7 +1208,7 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
               animate={{ opacity: 1, y: 0 }}
               exit={reduceMotion ? { opacity: 1 } : { opacity: 0, y: -4 }}
               transition={{ duration: reduceMotion ? 0 : 0.16, ease: "easeOut" }}
-              className="mt-3 min-h-[calc(100vh-108px)] w-full rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-3 shadow-[var(--soft-shadow)] md:min-h-[calc(100vh-98px)] md:p-5"
+              className="mt-3 min-h-[calc(100vh-108px)] w-full rounded-[22px] bg-[var(--surface)] p-3 md:min-h-[calc(100vh-98px)] md:rounded-[26px] md:p-5"
             >
               {!loading && !groupId && !["owner", "help"].includes(activeSection) ? (
                 <NoGroupsEmptyState />
@@ -1315,7 +1320,7 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
               ) : null}
               {groupId && activeSection === "calculator" ? <CalculatorPage /> : null}
               {activeSection === "help" ? <HelpPage role={role} /> : null}
-              {activeSection === "owner" ? <OwnerDashboardPage embedded /> : null}
+              {activeSection === "owner" ? <OwnerDashboardPage embedded preview={preview} /> : null}
             </motion.div>
           </AnimatePresence>
           {groupId && activeSection !== "owner" ? (
@@ -1402,12 +1407,12 @@ function Brand({
   return (
     <div>
       <div className="flex items-center gap-3">
-        <span className="flex h-11 w-11 items-center justify-center rounded-[14px] border border-emerald-400/25 bg-emerald-400/10">
+        <span className="flex h-11 w-11 items-center justify-center rounded-[14px] border border-[var(--line)] bg-[var(--card)] shadow-[var(--soft-shadow)]">
           <Image src="/botuang-mark.svg" alt="" width={32} height={32} className="h-8 w-8" />
         </span>
         <div className="min-w-0">
           <p className="font-semibold leading-tight">
-            Bot<span className="text-emerald-400">Uang</span>
+            Bot<span className="text-[var(--income)]">Uang</span>
           </p>
           <p className="truncate text-sm text-[var(--muted)]">
             {displayGroupName(groupName, groupId)}
@@ -1425,14 +1430,14 @@ function Brand({
               );
               if (selected) onSelectGroup(selected);
             }}
-            className="mt-2 min-h-11 w-full rounded-[11px] border border-[var(--line)] bg-[var(--background)] px-3 text-sm font-medium text-[var(--foreground)]"
+            className="mt-2 min-h-11 w-full rounded-[12px] border border-[var(--line)] bg-[var(--card)] px-3 text-sm font-medium text-[var(--foreground)] outline-none focus-visible:shadow-[var(--focus-ring)]"
             disabled={!groups.length}
             aria-label="Pilih grup aktif"
           >
             {groups.length ? (
               groups.map((group) => (
                 <option key={group.group_id} value={group.group_id}>
-                  {group.group_name ?? "Grup WhatsApp"} - {group.group_id}
+                  {group.group_name ?? "Grup WhatsApp"}
                 </option>
               ))
             ) : (
@@ -1447,12 +1452,12 @@ function Brand({
         </label>
         <Link
           href="/connect"
-          className="mt-2 block text-sm font-semibold text-emerald-400 hover:text-emerald-300"
+          className="mt-2 block text-sm font-semibold text-[var(--income)] hover:text-[var(--primary-hover)]"
         >
           + Hubungkan grup
         </Link>
       </div>
-      <div className="mt-5 rounded-[14px] border border-[var(--line)] bg-[var(--panel)] p-3">
+      <div className="mt-5 rounded-[16px] bg-[var(--card)] p-3 shadow-[var(--soft-shadow)]">
         <p className="text-xs text-[var(--muted)]">Status Bot</p>
         <p className="mt-1 flex items-center gap-2 text-sm font-semibold">
           <span
@@ -1494,11 +1499,11 @@ function NavLink({
         onNavigate();
       }}
       className={cn(
-        "relative flex min-h-11 w-full items-center gap-3 rounded-[12px] px-3 text-left text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-500",
-        "before:absolute before:left-0 before:top-2 before:h-7 before:w-1 before:rounded-r-md before:bg-transparent before:transition",
+        "relative flex min-h-11 w-full items-center gap-3 rounded-[10px] px-3 text-left text-sm transition-colors duration-200 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]",
+        "before:absolute before:-left-4 before:top-2 before:h-7 before:w-1 before:rounded-r-md before:bg-transparent before:transition-colors",
         active
-          ? "bg-[var(--card)] text-[var(--foreground)] shadow-[var(--soft-shadow)] before:bg-emerald-600"
-          : "text-[var(--muted)] hover:bg-[var(--panel)] hover:text-[var(--foreground)]",
+          ? "font-semibold text-[var(--foreground)] before:bg-[var(--income)]"
+          : "font-medium text-[var(--muted)] hover:bg-[var(--panel)] hover:text-[var(--foreground)]",
       )}
     >
       <Icon className="h-4 w-4" />
@@ -1539,7 +1544,7 @@ function MobileNav({
   ];
 
   return (
-    <nav className="fixed inset-x-3 bottom-3 z-40 rounded-[22px] border border-[var(--line)] bg-[var(--surface)]/96 px-2 pb-[calc(0.35rem+env(safe-area-inset-bottom))] pt-2 shadow-[0_18px_44px_-24px_rgba(19,26,21,0.38)] backdrop-blur-xl xl:hidden">
+    <nav className="fixed inset-x-2.5 bottom-2.5 z-40 rounded-[22px] border border-[var(--line)] bg-[var(--surface)]/96 px-2 pb-[calc(0.35rem+env(safe-area-inset-bottom))] pt-2 shadow-[0_18px_44px_-24px_rgba(19,26,21,0.38)] backdrop-blur-xl xl:hidden">
       <div className="grid grid-cols-5 items-end gap-0.5">
         {items.slice(0, 2).map((item) => {
           const Icon = item.icon;
@@ -1556,7 +1561,7 @@ function MobileNav({
               className={cn(
                 "flex min-h-14 min-w-16 flex-col items-center justify-center gap-1 rounded-[12px] text-[11px] font-semibold transition",
                 active
-                  ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                  ? "bg-[var(--primary-soft)] text-[var(--income)]"
                   : "text-[var(--muted)] active:bg-[var(--panel)]",
               )}
               aria-label={item.label}
@@ -1579,7 +1584,7 @@ function MobileNav({
               trigger={
                 <button
                   type="button"
-                  className="flex h-[58px] w-[58px] -translate-y-2 flex-col items-center justify-center gap-0.5 rounded-[18px] bg-emerald-500 text-slate-950 shadow-[0_12px_30px_rgba(16,185,129,0.28)] transition active:scale-95"
+                  className="flex h-[58px] w-[58px] -translate-y-2 flex-col items-center justify-center gap-0.5 rounded-[18px] bg-[var(--primary)] text-white shadow-[var(--primary-shadow)] transition active:scale-95"
                   aria-label="Buka BotUang AI"
                 >
                   <Sparkles className="h-5 w-5" />
@@ -1614,7 +1619,7 @@ function MobileNav({
               className={cn(
                 "flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-[12px] text-[11px] font-semibold transition",
                 active
-                  ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                  ? "bg-[var(--primary-soft)] text-[var(--income)]"
                   : "text-[var(--muted)] active:bg-[var(--panel)]",
               )}
               aria-label={item.label}
@@ -1704,9 +1709,9 @@ function Overview({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-normal">Ringkasan</h1>
+          <h1 className="text-[28px] font-semibold leading-tight tracking-normal md:text-[34px]">Ringkasan</h1>
           <p className="mt-1 text-sm text-[var(--muted)]">
             Ringkasan keuangan {displayGroupName(groupName, groupId)}
           </p>
@@ -1721,7 +1726,7 @@ function Overview({
         ) : null}
       </div>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <MetricCard
           label="Saldo Kas"
           value={summary.balance}
@@ -1914,14 +1919,10 @@ function TransactionsPage({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-normal">Transaksi</h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            Kelola kas masuk dan keluar yang tersimpan untuk grup aktif.
-          </p>
-        </div>
-        {groupId ? (
+      <PageIntro
+        title="Transaksi"
+        description="Kelola kas masuk dan keluar yang tersimpan untuk grup aktif"
+        action={groupId ? (
           <TransactionSheet
             groupId={groupId}
             sessionToken={sessionToken}
@@ -1929,7 +1930,7 @@ function TransactionsPage({
             onSaved={onSaved}
           />
         ) : null}
-      </div>
+      />
 
       <section className="grid gap-3 md:grid-cols-3">
         <CompactMoneyStat label="Pemasukan filter" value={income} tone="income" loading={loading} />
@@ -2094,24 +2095,23 @@ function ReportsPage({
 
 function CalculatorPage() {
   return (
-    <div className="mx-auto grid max-w-5xl gap-4 lg:grid-cols-[minmax(0,420px)_1fr]">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-normal">Kalkulator</h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">
-          Hitung nominal kas cepat dengan dukungan k, rb, dan jt.
-        </p>
+    <div className="space-y-4">
+      <PageIntro title="Kalkulator" description="Hitung nominal kas cepat dengan dukungan k, rb, dan jt" />
+      <div className="mx-auto grid max-w-5xl gap-4 lg:grid-cols-[minmax(0,420px)_1fr]">
+        <div>
         <div className="mt-4">
           <FinanceCalculator />
         </div>
-      </div>
-      <DashboardPanel className="self-start">
-        <h2 className="text-sm font-semibold uppercase tracking-wide">Contoh cepat</h2>
-        <div className="mt-3 grid gap-2 text-sm text-[var(--muted)]">
-          <p>150k x 3 - 25rb</p>
-          <p>1.5jt / 6</p>
-          <p>(500k + 250k) / 5</p>
         </div>
-      </DashboardPanel>
+        <DashboardPanel className="self-start">
+          <h2 className="text-sm font-semibold uppercase tracking-wide">Contoh cepat</h2>
+          <div className="mt-3 grid gap-2 text-sm text-[var(--muted)]">
+            <p>150k x 3 - 25rb</p>
+            <p>1.5jt / 6</p>
+            <p>(500k + 250k) / 5</p>
+          </div>
+        </DashboardPanel>
+      </div>
     </div>
   );
 }
@@ -2126,7 +2126,7 @@ function DashboardPanel({
   return (
     <section
       className={cn(
-        "rounded-[16px] border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--soft-shadow)]",
+        "rounded-[18px] border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--soft-shadow)]",
         className,
       )}
     >
@@ -2149,7 +2149,7 @@ function TransactionTypeSegment({
   ];
 
   return (
-    <div className="grid min-h-11 grid-cols-3 rounded-[12px] border border-[var(--line)] bg-[var(--surface)] p-1 text-xs font-semibold md:w-[214px]">
+    <div className="grid min-h-11 grid-cols-3 rounded-[12px] border border-[var(--line)] bg-[var(--panel)] p-1 text-xs font-semibold md:w-[214px]">
       {options.map((option) => (
         <button
           key={option.value}
@@ -2158,7 +2158,7 @@ function TransactionTypeSegment({
           className={cn(
             "rounded-[9px] px-2 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-500",
             value === option.value
-              ? "bg-[#0D3A23] text-white"
+              ? "bg-[var(--primary)] text-white shadow-[var(--soft-shadow)]"
               : "text-[var(--muted)] hover:bg-[var(--panel)] hover:text-[var(--foreground)]",
           )}
         >
@@ -2181,7 +2181,7 @@ function CountMetricCard({
   loading: boolean;
 }) {
   return (
-    <Card className="col-span-2 min-h-[112px] p-4 sm:col-span-1">
+    <Card className="min-h-[132px] min-w-0 p-3.5 sm:p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
@@ -2190,7 +2190,7 @@ function CountMetricCard({
           {loading ? (
             <Skeleton className="mt-3 h-8 w-24" />
           ) : (
-            <p className="mt-2 font-mono text-2xl font-semibold tabular-nums">
+            <p className="mt-3 font-mono text-2xl font-semibold tabular-nums">
               {value}
             </p>
           )}
@@ -2323,7 +2323,7 @@ function UpcomingPanel({
   reminders: Reminder[];
 }) {
   return (
-    <div className="rounded-[16px] border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--soft-shadow)]">
+    <div className="rounded-[18px] border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--soft-shadow)]">
       <h2 className="font-semibold">Agenda Terdekat</h2>
       <div className="mt-3 space-y-3">
         {reminders.map((reminder) => (
@@ -2395,7 +2395,7 @@ function AiCommandBar({
         trigger={
           <button
             type="button"
-            className="group flex min-h-12 items-center gap-3 rounded-[16px] border border-emerald-300/20 bg-[#0a1422]/95 px-3 pr-4 text-sm font-semibold text-emerald-100 shadow-[0_18px_45px_rgba(0,0,0,0.32)] backdrop-blur transition hover:border-emerald-300/35 hover:bg-[#0d1a2a] focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-300"
+            className="group flex min-h-12 items-center gap-3 rounded-[14px] border border-[var(--line)] bg-[var(--card)] px-3 pr-4 text-sm font-semibold text-[var(--foreground)] shadow-[var(--soft-shadow)] transition hover:border-[var(--muted-2)] hover:bg-[var(--surface)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
             aria-label="Buka AI Assistant BotUang"
           >
             <span className="botuang-ai-orb botuang-ai-orb-sm" aria-hidden="true" />
@@ -2413,7 +2413,7 @@ function CalculatorBubble() {
       <SheetTrigger asChild>
         <button
           type="button"
-          className="fixed bottom-[calc(6.5rem+env(safe-area-inset-bottom))] right-4 z-40 flex min-h-12 items-center gap-2 rounded-[16px] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--foreground)] shadow-[0_14px_36px_rgba(0,0,0,0.22)] transition hover:border-emerald-300/35 hover:bg-[var(--panel)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-300 xl:bottom-[82px] xl:right-5"
+          className="fixed bottom-[calc(6.5rem+env(safe-area-inset-bottom))] right-4 z-40 flex min-h-12 items-center gap-2 rounded-[14px] border border-[var(--line)] bg-[var(--card)] px-3 text-sm font-semibold text-[var(--foreground)] shadow-[var(--soft-shadow)] transition hover:border-[var(--muted-2)] hover:bg-[var(--panel)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] xl:bottom-[82px] xl:right-5"
           aria-label="Buka kalkulator"
         >
           <Calculator className="h-4 w-4 text-emerald-500" />
@@ -3185,9 +3185,9 @@ function FinanceCalculator() {
 
 function InfoPill({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[14px] border border-[var(--line)] bg-[var(--surface)] px-3 py-2">
-      <p className="text-xs text-[var(--muted)]">{label}</p>
-      <p className="mt-1 font-semibold">{value}</p>
+    <div className="flex min-h-14 items-center justify-between gap-4 border-b border-[var(--line)] py-3 last:border-b-0">
+      <p className="text-sm text-[var(--muted)]">{label}</p>
+      <p className="text-right font-semibold tabular-nums">{value}</p>
     </div>
   );
 }
@@ -3218,9 +3218,9 @@ function MetricCard({
   return (
     <Card
       className={cn(
-        "min-h-[118px] p-4 sm:min-h-[132px]",
+        "min-h-[150px] min-w-0 p-3.5 sm:min-h-[156px] sm:p-4",
         primary
-          ? "col-span-2 border-emerald-900/20 bg-[#0D3A23] text-white shadow-[0_18px_38px_-24px_rgba(13,58,35,0.8)] sm:col-span-1"
+          ? "border-transparent bg-[var(--primary)] text-white shadow-[var(--primary-shadow)]"
           : "",
       )}
     >
@@ -3240,7 +3240,7 @@ function MetricCard({
             <p
               className={cn(
                 "mt-2 font-mono font-semibold tabular-nums",
-                primary ? "text-3xl xl:text-4xl" : "text-2xl",
+                primary ? "text-xl sm:text-2xl xl:text-3xl" : "text-xl sm:text-2xl",
                 color,
               )}
             >
@@ -3248,7 +3248,7 @@ function MetricCard({
             </p>
           )}
           {primary ? (
-            <p className="mt-3 text-xs font-medium text-emerald-100/70">
+            <p className="mt-3 hidden text-xs font-medium text-emerald-100/70 sm:block">
               Total kas dari transaksi grup aktif.
             </p>
           ) : null}
@@ -3513,7 +3513,7 @@ function EmptyState({
   description: string;
 }) {
   return (
-    <div className="mt-5 rounded-[18px] border border-dashed border-[var(--line)] bg-[var(--surface)] p-6 text-center">
+    <div className="mt-5 rounded-[16px] border border-dashed border-[var(--line)] bg-[var(--panel)]/55 p-6 text-center">
       <p className="font-semibold">{title}</p>
       <p className="mx-auto mt-2 max-w-sm text-sm text-[var(--muted)]">{description}</p>
     </div>
@@ -3530,9 +3530,9 @@ function PageIntro({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div>
-        <h2 className="text-xl font-semibold">{title}</h2>
+        <h1 className="text-[28px] font-semibold leading-tight tracking-normal md:text-[34px]">{title}</h1>
         <p className="mt-1 text-sm text-[var(--muted)]">{description}</p>
       </div>
       {action ? <div className="shrink-0">{action}</div> : null}
@@ -3550,7 +3550,7 @@ function SummaryTile({
   tone?: "neutral" | "income" | "warning";
 }) {
   return (
-    <div className="rounded-[18px] border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--soft-shadow)]">
+    <div className="min-w-0 rounded-[18px] border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--soft-shadow)]">
       <p className="text-xs text-[var(--muted)]">{label}</p>
       <p
         className={cn(
