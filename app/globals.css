@@ -712,6 +712,14 @@ a {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  [data-fernly-shell],
+  [data-fernly-reveal],
+  [data-fernly-character],
+  [data-fernly-exit] {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
   *,
   *::before,
   *::after {

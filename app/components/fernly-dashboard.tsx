@@ -14,6 +14,8 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
   AlertCircle,
+  ArrowDownRight,
+  ArrowUpRight,
   Bell,
   Bot,
   BookOpen,
@@ -52,13 +54,16 @@ import {
   Users,
   WalletCards,
 } from "lucide-react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence } from "motion/react";
 import {
   Area,
   AreaChart,
   Bar,
   BarChart,
+  Cell,
   CartesianGrid,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -71,6 +76,14 @@ import { resolveDashboardImage, uploadDashboardImage } from "@/app/lib/image-upl
 import { supabase } from "@/app/lib/supabase";
 import { cn } from "@/app/lib/utils";
 import { OwnerDashboardPage } from "./owner-dashboard-page";
+import {
+  FadeUp,
+  FernlyPage,
+  RevealImage,
+  RevealHeading,
+  ShellEntrance,
+  StaggerContainer,
+} from "./motion/fernly-motion";
 import { Badge } from "./ui/badge";
 import { AiThinkingOrbAndInput } from "./ui/ai-thinking-orb-and-input";
 import { Button } from "./ui/button";
@@ -285,7 +298,7 @@ const navItems = [
   { key: "overview", label: "Ringkasan", href: "/dashboard/#overview", icon: Home },
   { key: "transactions", label: "Transaksi", href: "/dashboard/#transactions", icon: WalletCards },
   { key: "reports", label: "Laporan", href: "/dashboard/#reports", icon: ChartNoAxesCombined },
-  { key: "todos", label: "Todo", href: "/dashboard/#todos", icon: ListTodo },
+  { key: "todos", label: "Tasks", href: "/dashboard/#todos", icon: ListTodo },
   { key: "reminders", label: "Kalender", href: "/dashboard/#reminders", icon: CalendarClock },
   { key: "participants", label: "Anggota", href: "/dashboard/#participants", icon: Users },
   { key: "commands", label: "Otomasi", href: "/dashboard/#commands", icon: Bot },
@@ -552,11 +565,10 @@ async function fetchBotGroupData({
 }
 
 export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
-  const reduceMotion = useReducedMotion();
   const router = useRouter();
   const pathname = usePathname();
   const [activeSection, setActiveSection] = useState<DashboardSection>(() =>
-    resolveInitialSection(pathname),
+    resolveSectionFromPath(pathname),
   );
   const [groupId, setGroupId] = useState(preview ? "visual-test@g.us" : "");
   const [sessionToken, setSessionToken] = useState("");
@@ -1053,7 +1065,7 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
 
   return (
     <main className="min-h-screen bg-[var(--background)] p-2.5 text-[var(--foreground)] lg:p-3">
-      <div className="flex min-h-[calc(100vh-20px)] gap-3 lg:min-h-[calc(100vh-24px)]">
+      <ShellEntrance className="flex min-h-[calc(100vh-20px)] gap-3 lg:min-h-[calc(100vh-24px)]">
         <aside className="sticky top-3 hidden h-[calc(100vh-24px)] w-[252px] shrink-0 overflow-y-auto rounded-[26px] bg-[var(--sidebar)] px-4 py-5 xl:block">
           <Brand
             groupId={groupId}
@@ -1207,13 +1219,9 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
             </div>
           </header>
 
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.div
+          <AnimatePresence mode="wait">
+            <FernlyPage
               key={activeSection}
-              initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={reduceMotion ? { opacity: 1 } : { opacity: 0, y: -4 }}
-              transition={{ duration: reduceMotion ? 0 : 0.16, ease: "easeOut" }}
               className="mt-3 min-h-[calc(100vh-108px)] w-full rounded-[22px] bg-[var(--surface)] p-3 md:min-h-[calc(100vh-98px)] md:rounded-[26px] md:p-5"
             >
               {!loading && !groupId && !["owner", "help"].includes(activeSection) ? (
@@ -1266,9 +1274,6 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
               {groupId && activeSection === "reports" ? (
                 <ReportsPage
                   loading={loading}
-                  summary={summary}
-                  monthlyChart={monthlyChart}
-                  weeklyChart={weeklyChart}
                   transactions={transactions}
                 />
               ) : null}
@@ -1286,6 +1291,7 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
                 <TodosPage
                   loading={loading}
                   groupId={groupId}
+                  currentUserName={currentUser.name || currentUser.email || "Dashboard"}
                   sessionToken={sessionToken}
                   botApiUrl={botApiUrl}
                   todos={todos}
@@ -1328,7 +1334,7 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
               {groupId && activeSection === "calculator" ? <CalculatorPage /> : null}
               {activeSection === "help" ? <HelpPage role={role} /> : null}
               {activeSection === "owner" ? <OwnerDashboardPage embedded preview={preview} /> : null}
-            </motion.div>
+            </FernlyPage>
           </AnimatePresence>
           {groupId && activeSection !== "owner" ? (
             <>
@@ -1345,7 +1351,7 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
             </>
           ) : null}
         </div>
-      </div>
+      </ShellEntrance>
 
       <MobileNav
         section={activeSection}
@@ -1718,50 +1724,40 @@ function Overview({
     <div className="space-y-4">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-[28px] font-semibold leading-tight tracking-normal md:text-[34px]">Ringkasan</h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            Ringkasan keuangan {displayGroupName(groupName, groupId)}
-          </p>
+          <RevealHeading className="text-[28px] font-semibold leading-tight tracking-normal md:text-[34px]">
+            Ringkasan
+          </RevealHeading>
+          <FadeUp variant="compact" delay={0.08}>
+            <p className="mt-1 text-sm text-[var(--muted)]">
+              Ringkasan keuangan {displayGroupName(groupName, groupId)}
+            </p>
+          </FadeUp>
         </div>
         {groupId ? (
-          <TransactionSheet
-            groupId={groupId}
-            sessionToken={sessionToken}
-            botApiUrl={botApiUrl}
-            onSaved={onSaved}
-          />
+          <FadeUp variant="compact" delay={0.13}>
+            <TransactionSheet
+              groupId={groupId}
+              sessionToken={sessionToken}
+              botApiUrl={botApiUrl}
+              onSaved={onSaved}
+            />
+          </FadeUp>
         ) : null}
       </div>
 
       <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <MetricCard
-          label="Saldo Kas"
-          value={summary.balance}
-          icon={WalletCards}
-          tone="neutral"
-          primary
-          loading={loading}
-        />
-        <MetricCard
-          label="Pemasukan"
-          value={summary.income}
-          icon={CircleDollarSign}
-          tone="income"
-          loading={loading}
-        />
-        <MetricCard
-          label="Pengeluaran"
-          value={summary.expense}
-          icon={WalletCards}
-          tone="expense"
-          loading={loading}
-        />
-        <CountMetricCard
-          label="Transaksi"
-          value={transactions.length}
-          description="pada filter aktif"
-          loading={loading}
-        />
+        <FadeUp className="col-span-2 sm:col-span-1" variant="card" delay={0.1}>
+          <MetricCard label="Saldo Kas" value={summary.balance} icon={WalletCards} tone="neutral" primary loading={loading} />
+        </FadeUp>
+        <FadeUp variant="card" delay={0.17}>
+          <MetricCard label="Pemasukan" value={summary.income} icon={CircleDollarSign} tone="income" loading={loading} />
+        </FadeUp>
+        <FadeUp variant="card" delay={0.24}>
+          <MetricCard label="Pengeluaran" value={summary.expense} icon={WalletCards} tone="expense" loading={loading} />
+        </FadeUp>
+        <FadeUp className="col-span-2 sm:col-span-1" variant="card" delay={0.31}>
+          <CountMetricCard label="Transaksi" value={transactions.length} description="pada filter aktif" loading={loading} />
+        </FadeUp>
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_360px]">
@@ -1999,105 +1995,444 @@ function TransactionsPage({
 
 function ReportsPage({
   loading,
-  summary,
-  monthlyChart,
-  weeklyChart,
   transactions,
 }: {
   loading: boolean;
-  summary: { income: number; expense: number; balance: number };
-  monthlyChart: ChartPoint[];
-  weeklyChart: ChartPoint[];
   transactions: Transaction[];
 }) {
-  const expenseRatio = summary.income
-    ? Math.round((summary.expense / summary.income) * 100)
-    : 0;
-  const averageTransaction = transactions.length
-    ? transactions.reduce((total, item) => total + Number(item.amount || 0), 0) /
-      transactions.length
-    : 0;
+  const [rangeDays, setRangeDays] = useState<7 | 30 | 90>(30);
+  const analytics = useMemo(
+    () => buildFinancialAnalytics(transactions, rangeDays),
+    [rangeDays, transactions],
+  );
+
+  function exportAnalytics() {
+    const rows = [
+      ["Tanggal", "Pemasukan", "Pengeluaran", "Pemasukan periode lalu", "Pengeluaran periode lalu"],
+      ...analytics.daily.map((day) => [
+        day.date,
+        String(day.income),
+        String(day.expense),
+        String(day.previousIncome),
+        String(day.previousExpense),
+      ]),
+    ];
+    const csv = rows
+      .map((row) => row.map((cell) => `"${cell.replaceAll('"', '""')}"`).join(","))
+      .join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `botuang-analytics-${rangeDays}d.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    toast.success("Analytics diekspor ke CSV.");
+  }
 
   return (
     <div className="space-y-4">
       <PageIntro
         title="Laporan"
-        description="Analisis arus kas berdasarkan transaksi nyata grup aktif"
+        description="Performa kas grup dan pola pengeluaran berdasarkan transaksi nyata"
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex rounded-[11px] border border-[var(--line)] bg-[var(--card)] p-1">
+              {([7, 30, 90] as const).map((days) => (
+                <button
+                  key={days}
+                  type="button"
+                  aria-pressed={rangeDays === days}
+                  onClick={() => setRangeDays(days)}
+                  className={cn(
+                    "min-h-9 rounded-[8px] px-3 text-xs font-semibold transition",
+                    rangeDays === days
+                      ? "bg-[#0D3A23] text-white"
+                      : "text-[var(--muted)] hover:text-[var(--foreground)]",
+                  )}
+                >
+                  {days}D
+                </button>
+              ))}
+            </div>
+            <Button variant="outline" onClick={exportAnalytics} disabled={!analytics.current.count}>
+              <Download className="h-4 w-4" />
+              Export CSV
+            </Button>
+          </div>
+        }
       />
 
-      <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <CompactMoneyStat label="Saldo saat ini" value={summary.balance} loading={loading} />
-        <CompactMoneyStat label="Total pemasukan" value={summary.income} tone="income" loading={loading} />
-        <CompactMoneyStat label="Total pengeluaran" value={summary.expense} tone="expense" loading={loading} />
-        <DashboardPanel className="flex min-h-[92px] flex-col justify-center">
-          <p className="text-xs font-medium text-[var(--muted)]">Rasio pengeluaran</p>
-          {loading ? (
-            <Skeleton className="mt-2 h-6 w-20" />
-          ) : (
-            <p className="mt-1 text-xl font-semibold tabular-nums">{expenseRatio}%</p>
-          )}
-        </DashboardPanel>
-      </section>
+      <StaggerContainer className="grid grid-cols-2 gap-3 xl:grid-cols-4" delay={0.1} stagger={0.06}>
+        <AnalyticsKpi
+          label="Total pemasukan"
+          value={formatRupiah(analytics.current.income)}
+          current={analytics.current.income}
+          previous={analytics.previous.income}
+          points={analytics.daily.map((point) => point.income)}
+          loading={loading}
+          tone="income"
+          rangeDays={rangeDays}
+        />
+        <AnalyticsKpi
+          label="Total pengeluaran"
+          value={formatRupiah(analytics.current.expense)}
+          current={analytics.current.expense}
+          previous={analytics.previous.expense}
+          points={analytics.daily.map((point) => point.expense)}
+          loading={loading}
+          tone="expense"
+          rangeDays={rangeDays}
+          lowerIsBetter
+        />
+        <AnalyticsKpi
+          label="Saldo periode"
+          value={formatRupiah(analytics.current.balance)}
+          current={analytics.current.balance}
+          previous={analytics.previous.balance}
+          points={analytics.daily.map((point) => point.income - point.expense)}
+          loading={loading}
+          tone="neutral"
+          rangeDays={rangeDays}
+        />
+        <AnalyticsKpi
+          label="Jumlah transaksi"
+          value={String(analytics.current.count)}
+          current={analytics.current.count}
+          previous={analytics.previous.count}
+          points={analytics.daily.map((point) => point.count)}
+          loading={loading}
+          tone="neutral"
+          rangeDays={rangeDays}
+        />
+      </StaggerContainer>
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(300px,.65fr)]">
-        <DashboardPanel className="self-start">
-          <div className="mb-4">
-            <h2 className="font-semibold">Tren arus kas</h2>
-            <p className="mt-1 text-sm text-[var(--muted)]">Delapan periode transaksi terakhir.</p>
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,.55fr)]">
+        <DashboardPanel>
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="font-semibold">Arus Kas</h2>
+              <p className="mt-1 text-sm text-[var(--muted)]">
+                Pemasukan dan pengeluaran per hari, dibandingkan periode sebelumnya.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3 text-xs text-[var(--muted)]">
+              <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-emerald-500" />Pemasukan</span>
+              <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-rose-500" />Pengeluaran</span>
+              <span className="flex items-center gap-1.5"><i className="h-px w-4 border-t border-dashed border-zinc-400" />Periode lalu</span>
+            </div>
           </div>
           {loading ? (
             <Skeleton className="h-72" />
-          ) : monthlyChart.length ? (
+          ) : analytics.current.count ? (
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={monthlyChart}>
+                <AreaChart data={analytics.daily}>
                   <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
-                  <XAxis dataKey="label" stroke="var(--muted)" fontSize={12} />
-                  <YAxis stroke="var(--muted)" fontSize={12} tickFormatter={(value) => `${Number(value) / 1000}k`} />
+                  <XAxis dataKey="label" stroke="var(--muted)" fontSize={11} minTickGap={28} />
+                  <YAxis stroke="var(--muted)" fontSize={11} tickFormatter={formatCompactRupiah} width={54} />
                   <Tooltip content={<ChartTooltip />} />
                   <Area type="monotone" dataKey="income" stroke="#10B981" fill="#10B981" fillOpacity={0.16} />
                   <Area type="monotone" dataKey="expense" stroke="#F43F5E" fill="#F43F5E" fillOpacity={0.1} />
+                  <Area type="monotone" dataKey="previousIncome" stroke="#10B981" strokeOpacity={0.38} strokeDasharray="5 5" fillOpacity={0} />
+                  <Area type="monotone" dataKey="previousExpense" stroke="#F43F5E" strokeOpacity={0.38} strokeDasharray="5 5" fillOpacity={0} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
           ) : (
-            <EmptyState title="Belum ada data laporan" description="Laporan akan terbentuk setelah transaksi pertama tercatat." />
+            <EmptyState title="Belum ada arus kas" description={`Belum ada transaksi pada ${rangeDays} hari terakhir.`} />
           )}
+          {!loading && analytics.current.count ? (
+            <p className="mt-3 border-t border-[var(--line)] pt-3 text-xs text-[var(--muted)]">
+              {analytics.summary}
+            </p>
+          ) : null}
         </DashboardPanel>
 
-        <div className="grid gap-4">
-          <DashboardPanel>
-            <h2 className="font-semibold">Ringkasan</h2>
-            <div className="mt-4 divide-y divide-[var(--line)]">
-              <InfoPill label="Jumlah transaksi" value={String(transactions.length)} />
-              <InfoPill label="Rata-rata nominal" value={formatRupiah(averageTransaction)} />
-              <InfoPill label="Selisih kas" value={formatRupiah(summary.balance)} />
-            </div>
-          </DashboardPanel>
-          <DashboardPanel>
-            <h2 className="font-semibold">Aktivitas mingguan</h2>
-            {loading ? (
-              <Skeleton className="mt-4 h-40" />
-            ) : weeklyChart.length ? (
-              <div className="mt-4 h-40">
+        <DashboardPanel>
+          <h2 className="font-semibold">Pengeluaran per kategori</h2>
+          <p className="mt-1 text-sm text-[var(--muted)]">
+            Kategori otomatis dari catatan transaksi - {rangeDays} hari
+          </p>
+          {loading ? (
+            <Skeleton className="mt-4 h-72" />
+          ) : analytics.categories.length ? (
+            <>
+              <div className="relative mx-auto mt-4 h-40 max-w-[220px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={weeklyChart}>
-                    <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
-                    <XAxis dataKey="label" stroke="var(--muted)" fontSize={12} />
-                    <Tooltip content={<ChartTooltip />} />
-                    <Bar dataKey="income" fill="#10B981" radius={[5, 5, 0, 0]} />
-                    <Bar dataKey="expense" fill="#F43F5E" radius={[5, 5, 0, 0]} />
-                  </BarChart>
+                  <PieChart>
+                    <Pie
+                      data={analytics.categories}
+                      dataKey="amount"
+                      nameKey="name"
+                      innerRadius={48}
+                      outerRadius={68}
+                      paddingAngle={2}
+                      stroke="none"
+                    >
+                      {analytics.categories.map((category) => (
+                        <Cell key={category.name} fill={category.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value) => formatRupiah(Number(value))} />
+                  </PieChart>
                 </ResponsiveContainer>
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+                  <strong className="font-mono text-base tabular-nums">{formatRupiah(analytics.current.expense)}</strong>
+                  <span className="text-[10px] text-[var(--muted)]">total keluar</span>
+                </div>
               </div>
-            ) : (
-              <EmptyState title="Belum ada aktivitas" description="Belum ada transaksi mingguan untuk dianalisis." />
-            )}
-          </DashboardPanel>
-        </div>
+              <div className="mt-3 divide-y divide-[var(--line)]">
+                {analytics.categories.map((category) => (
+                  <div key={category.name} className="py-2.5">
+                    <div className="flex items-center justify-between gap-3 text-sm">
+                      <span className="flex min-w-0 items-center gap-2 font-medium">
+                        <i className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: category.color }} />
+                        <span className="truncate">{category.name}</span>
+                      </span>
+                      <strong className="shrink-0 font-mono text-xs tabular-nums">{formatRupiah(category.amount)}</strong>
+                    </div>
+                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--line)]">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${category.share}%`,
+                          backgroundColor: category.color,
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 rounded-[12px] bg-[var(--panel)] p-3 text-xs text-[var(--muted)]">
+                Pengeluaran terbesar: <strong className="text-[var(--foreground)]">{analytics.categories[0].name}</strong>{" "}
+                sebesar <strong className="font-mono text-rose-500 tabular-nums">{formatRupiah(analytics.categories[0].amount)}</strong>.
+              </p>
+            </>
+          ) : (
+            <EmptyState title="Belum ada pengeluaran" description={`Tidak ada pengeluaran pada ${rangeDays} hari terakhir.`} />
+          )}
+        </DashboardPanel>
       </section>
     </div>
   );
+}
+
+type AnalyticsTone = "income" | "expense" | "neutral";
+
+function AnalyticsKpi({
+  label,
+  value,
+  current,
+  previous,
+  points,
+  loading,
+  tone,
+  rangeDays,
+  lowerIsBetter = false,
+}: {
+  label: string;
+  value: string;
+  current: number;
+  previous: number;
+  points: number[];
+  loading: boolean;
+  tone: AnalyticsTone;
+  rangeDays: number;
+  lowerIsBetter?: boolean;
+}) {
+  const change = calculatePeriodChange(current, previous);
+  const improved = change === null || (lowerIsBetter ? change <= 0 : change >= 0);
+  const stroke = tone === "income" ? "#10B981" : tone === "expense" ? "#F43F5E" : "#64748B";
+  const chartData = points.map((point, index) => ({ index, value: point }));
+
+  return (
+    <div className="min-h-[150px] rounded-[16px] border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--soft-shadow)]">
+      <p className="text-xs font-medium text-[var(--muted)]">{label}</p>
+      {loading ? (
+        <Skeleton className="mt-3 h-8 w-32" />
+      ) : (
+        <p className="mt-2 truncate font-mono text-xl font-semibold tabular-nums sm:text-2xl">{value}</p>
+      )}
+      <div className="mt-2 flex min-h-5 items-center gap-1 text-[11px]">
+        {change === null ? (
+          <span className="text-[var(--muted)]">Belum ada periode pembanding</span>
+        ) : (
+          <>
+            <span className={cn("inline-flex items-center gap-0.5 font-semibold", improved ? "text-emerald-500" : "text-rose-500")}>
+              {change >= 0 ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
+              {Math.abs(change).toFixed(1)}%
+            </span>
+            <span className="text-[var(--muted)]">vs {rangeDays} hari sebelumnya</span>
+          </>
+        )}
+      </div>
+      {!loading ? (
+        <div className="mt-2 h-8" aria-hidden="true">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={chartData}>
+              <Area type="monotone" dataKey="value" stroke={stroke} fill={stroke} fillOpacity={0.1} strokeWidth={1.5} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+type FinancialDailyPoint = {
+  date: string;
+  label: string;
+  income: number;
+  expense: number;
+  count: number;
+  previousIncome: number;
+  previousExpense: number;
+};
+
+const expenseCategoryDefinitions = [
+  {
+    name: "Makan & Jajan",
+    color: "#F43F5E",
+    pattern: /makan|jajan|kopi|pop\s*ice|konsumsi|snack|warung|resto|restaurant|cafe|nasi|ayam|minum/i,
+  },
+  {
+    name: "Transportasi",
+    color: "#3B82F6",
+    pattern: /bensin|transport|parkir|tol|ojol|gojek|grab|angkot|bus|kereta|tiket/i,
+  },
+  {
+    name: "Tagihan & Utilitas",
+    color: "#8B5CF6",
+    pattern: /tagihan|listrik|internet|wifi|air|pulsa|sewa|token|iuran bulanan/i,
+  },
+  {
+    name: "Kegiatan",
+    color: "#F59E0B",
+    pattern: /acara|rapat|event|kegiatan|lomba|outing|seminar|pelatihan/i,
+  },
+  {
+    name: "Belanja",
+    color: "#06B6D4",
+    pattern: /belanja|beli|perlengkapan|alat|atk|kebutuhan|inventaris/i,
+  },
+  {
+    name: "Iuran & Donasi",
+    color: "#10B981",
+    pattern: /iuran|donasi|sumbangan|kas/i,
+  },
+] as const;
+
+function buildFinancialAnalytics(transactions: Transaction[], rangeDays: number) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const currentStart = new Date(today);
+  currentStart.setDate(currentStart.getDate() - rangeDays + 1);
+  const currentEnd = new Date(today);
+  currentEnd.setDate(currentEnd.getDate() + 1);
+  const previousStart = new Date(currentStart);
+  previousStart.setDate(previousStart.getDate() - rangeDays);
+
+  const liveTransactions = transactions.filter((item) => !item.deleted_at);
+  const currentTransactions = liveTransactions.filter((item) => {
+    const time = new Date(item.created_at).getTime();
+    return time >= currentStart.getTime() && time < currentEnd.getTime();
+  });
+  const previousTransactions = liveTransactions.filter((item) => {
+    const time = new Date(item.created_at).getTime();
+    return time >= previousStart.getTime() && time < currentStart.getTime();
+  });
+
+  const total = (items: Transaction[]) => {
+    const income = items
+      .filter((item) => item.type === "income")
+      .reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const expense = items
+      .filter((item) => item.type === "expense")
+      .reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    return { income, expense, balance: income - expense, count: items.length };
+  };
+
+  const sumForDate = (items: Transaction[], date: Date) => {
+    const key = toLocalDateKey(date);
+    return items.reduce(
+      (result, item) => {
+        if (toLocalDateKey(new Date(item.created_at)) !== key) return result;
+        result[item.type] += Number(item.amount || 0);
+        result.count += 1;
+        return result;
+      },
+      { income: 0, expense: 0, count: 0 },
+    );
+  };
+
+  const daily: FinancialDailyPoint[] = Array.from({ length: rangeDays }, (_, index) => {
+    const date = new Date(currentStart);
+    date.setDate(date.getDate() + index);
+    const previousDate = new Date(previousStart);
+    previousDate.setDate(previousDate.getDate() + index);
+    const currentDay = sumForDate(currentTransactions, date);
+    const previousDay = sumForDate(previousTransactions, previousDate);
+    return {
+      date: toLocalDateKey(date),
+      label: new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short" }).format(date),
+      income: currentDay.income,
+      expense: currentDay.expense,
+      count: currentDay.count,
+      previousIncome: previousDay.income,
+      previousExpense: previousDay.expense,
+    };
+  });
+
+  const current = total(currentTransactions);
+  const previous = total(previousTransactions);
+  const categoryMap = new Map<string, { name: string; amount: number; color: string }>();
+  currentTransactions
+    .filter((item) => item.type === "expense")
+    .forEach((item) => {
+      const definition = expenseCategoryDefinitions.find((category) => category.pattern.test(item.note ?? ""));
+      const name = definition?.name ?? "Lainnya";
+      const color = definition?.color ?? "#94A3B8";
+      const existing = categoryMap.get(name) ?? { name, amount: 0, color };
+      existing.amount += Number(item.amount || 0);
+      categoryMap.set(name, existing);
+    });
+  const categories = Array.from(categoryMap.values())
+    .sort((a, b) => b.amount - a.amount)
+    .map((category) => ({
+      ...category,
+      share: current.expense ? Math.max(2, (category.amount / current.expense) * 100) : 0,
+    }));
+
+  const busiestExpenseDay = daily.reduce<FinancialDailyPoint | null>(
+    (largest, point) => (!largest || point.expense > largest.expense ? point : largest),
+    null,
+  );
+  const summary = busiestExpenseDay?.expense
+    ? `${rangeDays} hari terakhir: ${current.count} transaksi. Pengeluaran tertinggi ${busiestExpenseDay.label} sebesar ${formatRupiah(busiestExpenseDay.expense)}.`
+    : `${rangeDays} hari terakhir: ${current.count} transaksi tanpa pengeluaran tercatat.`;
+
+  return { current, previous, daily, categories, summary };
+}
+
+function toLocalDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function calculatePeriodChange(current: number, previous: number) {
+  if (current === 0 && previous === 0) return null;
+  if (previous === 0) return 100;
+  return ((current - previous) / Math.abs(previous)) * 100;
+}
+
+function formatCompactRupiah(value: number) {
+  const absolute = Math.abs(Number(value));
+  if (absolute >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)}M`;
+  if (absolute >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}jt`;
+  if (absolute >= 1_000) return `${Math.round(value / 1_000)}k`;
+  return String(value);
 }
 
 function CalculatorPage() {
@@ -2131,14 +2466,16 @@ function DashboardPanel({
   className?: string;
 }) {
   return (
-    <section
+    <FadeUp
+      as="section"
+      variant="card"
       className={cn(
         "rounded-[18px] border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--soft-shadow)]",
         className,
       )}
     >
       {children}
-    </section>
+    </FadeUp>
   );
 }
 
@@ -2299,7 +2636,7 @@ function CompactMoneyStat({
   loading: boolean;
 }) {
   return (
-    <div className="rounded-[18px] border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--soft-shadow)]">
+    <FadeUp className="rounded-[18px] border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--soft-shadow)]" variant="card">
       <p className="text-xs font-medium text-[var(--muted)]">{label}</p>
       {loading ? (
         <Skeleton className="mt-2 h-6 w-28" />
@@ -2318,7 +2655,7 @@ function CompactMoneyStat({
           {formatRupiah(value)}
         </p>
       )}
-    </div>
+    </FadeUp>
   );
 }
 
@@ -3499,12 +3836,18 @@ function ChartTooltip({
   label?: string;
 }) {
   if (!active || !payload?.length) return null;
+  const labels: Record<string, string> = {
+    income: "Pemasukan",
+    expense: "Pengeluaran",
+    previousIncome: "Pemasukan periode lalu",
+    previousExpense: "Pengeluaran periode lalu",
+  };
   return (
     <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3 text-sm shadow-xl">
       <p className="mb-2 font-semibold">{label}</p>
       {payload.map((item) => (
         <p key={item.dataKey} className="font-mono tabular-nums">
-          {item.dataKey === "income" ? "Pemasukan" : "Pengeluaran"}:{" "}
+          {labels[item.dataKey] ?? item.dataKey}:{" "}
           {formatRupiah(item.value)}
         </p>
       ))}
@@ -3520,10 +3863,10 @@ function EmptyState({
   description: string;
 }) {
   return (
-    <div className="mt-5 rounded-[16px] border border-dashed border-[var(--line)] bg-[var(--panel)]/55 p-6 text-center">
+    <FadeUp className="mt-5 rounded-[16px] border border-dashed border-[var(--line)] bg-[var(--panel)]/55 p-6 text-center" variant="content">
       <p className="font-semibold">{title}</p>
       <p className="mx-auto mt-2 max-w-sm text-sm text-[var(--muted)]">{description}</p>
-    </div>
+    </FadeUp>
   );
 }
 
@@ -3539,10 +3882,14 @@ function PageIntro({
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div>
-        <h1 className="text-[28px] font-semibold leading-tight tracking-normal md:text-[34px]">{title}</h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">{description}</p>
+        <RevealHeading className="text-[28px] font-semibold leading-tight tracking-normal md:text-[34px]">
+          {title}
+        </RevealHeading>
+        <FadeUp variant="compact" delay={0.08}>
+          <p className="mt-1 text-sm text-[var(--muted)]">{description}</p>
+        </FadeUp>
       </div>
-      {action ? <div className="shrink-0">{action}</div> : null}
+      {action ? <FadeUp className="shrink-0" variant="compact" delay={0.13}>{action}</FadeUp> : null}
     </div>
   );
 }
@@ -3557,7 +3904,7 @@ function SummaryTile({
   tone?: "neutral" | "income" | "warning";
 }) {
   return (
-    <div className="min-w-0 rounded-[18px] border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--soft-shadow)]">
+    <FadeUp className="min-w-0 rounded-[18px] border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--soft-shadow)]" variant="card">
       <p className="text-xs text-[var(--muted)]">{label}</p>
       <p
         className={cn(
@@ -3567,7 +3914,7 @@ function SummaryTile({
       >
         {value}
       </p>
-    </div>
+    </FadeUp>
   );
 }
 
@@ -4059,16 +4406,29 @@ function ParticipantsPage({
 type TaskStage = "todo" | "in_progress" | "in_review" | "done";
 
 function parseTaskDetails(todo_text: string) {
-  // Check for stage prefix: [stage:in_progress], [stage:in_review], etc.
   let stage: TaskStage = "todo";
   let priority = "normal";
   let tag = "Design";
+  let due = "";
+  let owner = "";
   let cleanText = todo_text;
 
   const stageMatch = cleanText.match(/\[stage:(todo|in_progress|in_review|done)\]/i);
   if (stageMatch) {
     stage = stageMatch[1].toLowerCase() as TaskStage;
     cleanText = cleanText.replace(stageMatch[0], "").trim();
+  }
+
+  const dueMatch = cleanText.match(/\[due:(\d{4}-\d{2}-\d{2})\]/i);
+  if (dueMatch) {
+    due = dueMatch[1];
+    cleanText = cleanText.replace(dueMatch[0], "").trim();
+  }
+
+  const ownerMatch = cleanText.match(/\[owner:([^\]]+)\]/i);
+  if (ownerMatch) {
+    owner = ownerMatch[1].trim();
+    cleanText = cleanText.replace(ownerMatch[0], "").trim();
   }
 
   const priMatch = cleanText.match(/\[(tinggi|rendah|normal|high|medium|low)\]/i);
@@ -4091,12 +4451,53 @@ function parseTaskDetails(todo_text: string) {
     else if (lower.includes("iklan") || lower.includes("promo") || lower.includes("sewa")) tag = "Marketing";
   }
 
-  return { stage, priority, tag, title: cleanText || todo_text };
+  return { stage, priority, tag, due, owner, title: cleanText || todo_text };
+}
+
+function buildTaskText({
+  stage,
+  priority,
+  tag,
+  due,
+  owner,
+  title,
+}: {
+  stage: TaskStage;
+  priority: string;
+  tag: string;
+  due?: string;
+  owner?: string;
+  title: string;
+}) {
+  return [
+    "[stage:" + stage + "]",
+    "[" + priority + "]",
+    "[tag:" + tag + "]",
+    due ? "[due:" + due + "]" : "",
+    owner ? "[owner:" + owner.replaceAll("]", "") + "]" : "",
+    title.trim(),
+  ]
+    .filter(Boolean)
+    .join("");
+}
+
+function formatTaskDue(due: string) {
+  if (!due) return "Belum dijadwalkan";
+  const target = new Date(due + "T00:00:00");
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const difference = Math.round((target.getTime() - today.getTime()) / 86_400_000);
+  if (difference < 0) return "Terlambat " + Math.abs(difference) + " hari";
+  if (difference === 0) return "Hari ini";
+  if (difference === 1) return "Besok";
+  if (difference <= 7) return difference + " hari lagi";
+  return new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short" }).format(target);
 }
 
 function TodosPage({
   loading,
   groupId,
+  currentUserName,
   sessionToken = "",
   botApiUrl = "",
   todos,
@@ -4104,6 +4505,7 @@ function TodosPage({
 }: {
   loading: boolean;
   groupId: string;
+  currentUserName: string;
   sessionToken?: string;
   botApiUrl?: string;
   todos: Todo[];
@@ -4113,6 +4515,8 @@ function TodosPage({
   const [priority, setPriority] = useState("normal");
   const [tag, setTag] = useState("Frontend");
   const [initialStage, setInitialStage] = useState<TaskStage>("todo");
+  const [dueDate, setDueDate] = useState("");
+  const [assignee, setAssignee] = useState(currentUserName);
   const [open, setOpen] = useState(false);
   const [filterSegment, setFilterSegment] = useState<"all" | "mine" | "high" | "week">("all");
 
@@ -4121,6 +4525,9 @@ function TodosPage({
   const [editPriority, setEditPriority] = useState("normal");
   const [editTag, setEditTag] = useState("Frontend");
   const [editStage, setEditStage] = useState<TaskStage>("todo");
+  const [editDueDate, setEditDueDate] = useState("");
+  const [editAssignee, setEditAssignee] = useState("");
+  const [draggedTodoId, setDraggedTodoId] = useState("");
   const [saving, setSaving] = useState(false);
 
   // Parse items
@@ -4128,7 +4535,7 @@ function TodosPage({
     return todos.map((t) => {
       const details = parseTaskDetails(t.todo_text);
       // If legacy is_done is true and no stage was encoded, default to "done"
-      const finalStage: TaskStage = t.is_done && details.stage === "todo" ? "done" : details.stage;
+      const finalStage: TaskStage = t.is_done ? "done" : details.stage;
       return {
         ...t,
         parsed: {
@@ -4146,15 +4553,18 @@ function TodosPage({
         return item.parsed.priority === "tinggi" || item.parsed.priority === "high";
       }
       if (filterSegment === "mine") {
-        // filter by created_by or group owner
-        return true;
+        return item.parsed.owner.toLowerCase() === currentUserName.toLowerCase();
       }
       if (filterSegment === "week") {
-        return item.parsed.stage !== "done";
+        if (!item.parsed.due || item.parsed.stage === "done") return false;
+        const dueTime = new Date(item.parsed.due + "T23:59:59").getTime();
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        return dueTime >= today.getTime() && dueTime <= today.getTime() + 7 * 86_400_000;
       }
       return true;
     });
-  }, [parsedTodos, filterSegment]);
+  }, [currentUserName, parsedTodos, filterSegment]);
 
   // Stage columns
   const columns: { stage: TaskStage; label: string; dotColor: string }[] = [
@@ -4166,7 +4576,14 @@ function TodosPage({
 
   async function add(event: FormEvent) {
     event.preventDefault();
-    const todo_text = `[stage:${initialStage}][${priority}][tag:${tag}] ${text}`;
+    const todo_text = buildTaskText({
+      stage: initialStage,
+      priority,
+      tag,
+      due: dueDate,
+      owner: assignee || currentUserName,
+      title: text,
+    });
     let botOk = false;
 
     if (shouldWriteLegacyBot(botApiUrl)) {
@@ -4192,6 +4609,8 @@ function TodosPage({
     if (error && !botOk) toast.error(error.message);
     else {
       setText("");
+      setDueDate("");
+      setAssignee(currentUserName);
       setOpen(false);
       toast.success("Task baru ditambahkan.");
       onChanged();
@@ -4200,7 +4619,7 @@ function TodosPage({
 
   async function updateTaskStage(todo: Todo, nextStage: TaskStage) {
     const details = parseTaskDetails(todo.todo_text);
-    const newText = `[stage:${nextStage}][${details.priority}][tag:${details.tag}] ${details.title}`;
+    const newText = buildTaskText({ ...details, stage: nextStage });
     const nextDone = nextStage === "done";
 
     let botOk = false;
@@ -4243,7 +4662,9 @@ function TodosPage({
     setEditText(parsed.title);
     setEditPriority(parsed.priority);
     setEditTag(parsed.tag);
-    setEditStage(todo.is_done && parsed.stage === "todo" ? "done" : parsed.stage);
+    setEditStage(todo.is_done ? "done" : parsed.stage);
+    setEditDueDate(parsed.due);
+    setEditAssignee(parsed.owner || currentUserName);
     setEditTodo(todo);
   }
 
@@ -4251,7 +4672,14 @@ function TodosPage({
     event.preventDefault();
     if (!editTodo) return;
     setSaving(true);
-    const todo_text = `[stage:${editStage}][${editPriority}][tag:${editTag}] ${editText}`;
+    const todo_text = buildTaskText({
+      stage: editStage,
+      priority: editPriority,
+      tag: editTag,
+      due: editDueDate,
+      owner: editAssignee || currentUserName,
+      title: editText,
+    });
     const nextDone = editStage === "done";
 
     let botOk = false;
@@ -4324,22 +4752,27 @@ function TodosPage({
       {/* Header matching Fernly */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-[var(--foreground)] sm:text-2xl">Tasks</h1>
-          <p className="mt-0.5 text-xs text-[var(--muted)] sm:text-sm">
-            Drag a card to another stage, or use its menu to move it.
-          </p>
+          <RevealHeading className="text-xl font-bold tracking-tight text-[var(--foreground)] sm:text-2xl">
+            Tasks
+          </RevealHeading>
+          <FadeUp variant="compact" delay={0.08}>
+            <p className="mt-0.5 text-xs text-[var(--muted)] sm:text-sm">
+              Drag a card to another stage, or use its menu to move it.
+            </p>
+          </FadeUp>
         </div>
 
-        <Sheet open={open} onOpenChange={setOpen}>
-          <SheetTrigger asChild>
-            <Button className="h-9 gap-1.5 px-3.5 text-xs font-semibold">
-              <Plus className="h-4 w-4" />
-              New Task
-            </Button>
-          </SheetTrigger>
-          <SheetContent>
-            <SheetTitle>New Task</SheetTitle>
-            <form onSubmit={add} className="mt-5 space-y-3">
+        <FadeUp variant="compact" delay={0.13}>
+          <Sheet open={open} onOpenChange={setOpen}>
+            <SheetTrigger asChild>
+              <Button className="h-9 gap-1.5 px-3.5 text-xs font-semibold">
+                <Plus className="h-4 w-4" />
+                New Task
+              </Button>
+            </SheetTrigger>
+            <SheetContent>
+              <SheetTitle>New Task</SheetTitle>
+              <form onSubmit={add} className="mt-5 space-y-3">
               <Input
                 value={text}
                 onChange={(event) => setText(event.target.value)}
@@ -4387,14 +4820,35 @@ function TodosPage({
                   <option value="done">Done</option>
                 </select>
               </div>
-              <Button className="w-full" disabled={saving}>Simpan Task</Button>
-            </form>
-          </SheetContent>
-        </Sheet>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-xs font-medium text-[var(--muted)]">
+                  Due date
+                  <Input
+                    className="mt-1"
+                    type="date"
+                    value={dueDate}
+                    onChange={(event) => setDueDate(event.target.value)}
+                  />
+                </label>
+                <label className="text-xs font-medium text-[var(--muted)]">
+                  Penanggung jawab
+                  <Input
+                    className="mt-1"
+                    value={assignee}
+                    onChange={(event) => setAssignee(event.target.value)}
+                    placeholder="Nama"
+                  />
+                </label>
+              </div>
+                <Button className="w-full" disabled={saving}>Simpan Task</Button>
+              </form>
+            </SheetContent>
+          </Sheet>
+        </FadeUp>
       </div>
 
       {/* Segment filters bar matching Fernly */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] pb-3">
+      <FadeUp className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] pb-3" variant="compact" delay={0.18}>
         <div className="inline-flex items-center gap-1 rounded-[10px] border border-[var(--line)] bg-[var(--surface)] p-1 text-xs">
           {[
             { id: "all", label: "All" },
@@ -4421,24 +4875,37 @@ function TodosPage({
         <span className="text-xs font-medium text-[var(--muted)]">
           {filteredTodos.length} tasks shown
         </span>
-      </div>
+      </FadeUp>
 
       {/* 4 Kanban Columns */}
       {loading ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StaggerContainer className="grid gap-4 md:grid-cols-2 xl:grid-cols-4" delay={0.1} stagger={0.08} variant="task">
           <Skeleton className="h-64 rounded-[16px]" />
           <Skeleton className="h-64 rounded-[16px]" />
           <Skeleton className="h-64 rounded-[16px]" />
           <Skeleton className="h-64 rounded-[16px]" />
-        </div>
+        </StaggerContainer>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StaggerContainer className="grid gap-4 md:grid-cols-2 xl:grid-cols-4" delay={0.1} stagger={0.08} variant="task">
           {columns.map((col) => {
             const colTasks = filteredTodos.filter((t) => t.parsed.stage === col.stage);
             return (
               <div
                 key={col.stage}
-                className="flex flex-col rounded-[16px] border border-[var(--line)] bg-[var(--card)] p-3.5 shadow-[var(--soft-shadow)]"
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  const todoId = event.dataTransfer.getData("text/task-id") || draggedTodoId;
+                  const todo = parsedTodos.find((item) => String(item.id) === todoId);
+                  setDraggedTodoId("");
+                  if (todo && todo.parsed.stage !== col.stage) {
+                    void updateTaskStage(todo, col.stage);
+                  }
+                }}
+                className={cn(
+                  "flex flex-col rounded-[16px] border bg-[var(--card)] p-3.5 shadow-[var(--soft-shadow)] transition-colors",
+                  draggedTodoId ? "border-[var(--line-strong)]" : "border-[var(--line)]",
+                )}
               >
                 {/* Column header */}
                 <div className="mb-3 flex items-center justify-between">
@@ -4464,7 +4931,18 @@ function TodosPage({
                       return (
                         <div
                           key={item.id}
-                          className="group relative rounded-[12px] border border-[var(--line)] bg-[var(--surface)] p-3 transition hover:border-[var(--line-strong)] hover:shadow-xs"
+                          draggable
+                          onDragStart={(event) => {
+                            const todoId = String(item.id);
+                            setDraggedTodoId(todoId);
+                            event.dataTransfer.effectAllowed = "move";
+                            event.dataTransfer.setData("text/task-id", todoId);
+                          }}
+                          onDragEnd={() => setDraggedTodoId("")}
+                          className={cn(
+                            "group relative cursor-grab rounded-[12px] border border-[var(--line)] bg-[var(--surface)] p-3 transition hover:border-[var(--line-strong)] hover:shadow-xs active:cursor-grabbing",
+                            draggedTodoId === String(item.id) && "opacity-50",
+                          )}
                         >
                           {/* Tags & Priority row */}
                           <div className="mb-2 flex items-center justify-between gap-2">
@@ -4519,12 +4997,33 @@ function TodosPage({
 
                           {/* Footer with due info & actions */}
                           <div className="mt-3 flex items-center justify-between border-t border-[var(--line)]/60 pt-2 text-[10px] text-[var(--muted)]">
-                            <span className="flex items-center gap-1 font-mono">
-                              <Clock className="h-3 w-3" />
-                              {item.parsed.stage === "done" ? "Selesai" : "Aktif"}
-                            </span>
+                            <div className="min-w-0">
+                              <span className={cn(
+                                "flex items-center gap-1 font-mono",
+                                item.parsed.due && new Date(item.parsed.due + "T23:59:59").getTime() < Date.now() && item.parsed.stage !== "done"
+                                  ? "text-rose-500"
+                                  : "",
+                              )}>
+                                <Clock className="h-3 w-3" />
+                                {item.parsed.stage === "done" ? "Selesai" : formatTaskDue(item.parsed.due)}
+                              </span>
+                              {item.parsed.owner ? (
+                                <span className="mt-1 block max-w-28 truncate" title={item.parsed.owner}>
+                                  {item.parsed.owner}
+                                </span>
+                              ) : null}
+                            </div>
 
                             <div className="flex items-center gap-1">
+                              {item.parsed.owner ? (
+                                <span
+                                  className="mr-1 flex h-6 w-6 items-center justify-center rounded-full bg-[var(--panel)] text-[9px] font-bold text-[var(--foreground)]"
+                                  title={item.parsed.owner}
+                                  aria-label={"Ditugaskan kepada " + item.parsed.owner}
+                                >
+                                  {getUserInitials({ name: item.parsed.owner, email: "" })}
+                                </span>
+                              ) : null}
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -4557,7 +5056,7 @@ function TodosPage({
               </div>
             );
           })}
-        </div>
+        </StaggerContainer>
       )}
 
       {/* Edit Dialog/Sheet */}
@@ -4612,6 +5111,26 @@ function TodosPage({
                 <option value="done">Done</option>
               </select>
             </div>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="text-xs font-medium text-[var(--muted)]">
+                Due date
+                <Input
+                  className="mt-1"
+                  type="date"
+                  value={editDueDate}
+                  onChange={(event) => setEditDueDate(event.target.value)}
+                />
+              </label>
+              <label className="text-xs font-medium text-[var(--muted)]">
+                Penanggung jawab
+                <Input
+                  className="mt-1"
+                  value={editAssignee}
+                  onChange={(event) => setEditAssignee(event.target.value)}
+                  placeholder="Nama"
+                />
+              </label>
+            </div>
             <Button className="w-full" disabled={saving}>
               {saving ? "Menyimpan..." : "Simpan Perubahan"}
             </Button>
@@ -4623,8 +5142,8 @@ function TodosPage({
 }
 
 function parseTodo(value: string) {
-  const match = value.match(/^\[(.+?)\]\s(.+)$/);
-  return { priority: match?.[1] ?? "normal", text: match?.[2] ?? value };
+  const details = parseTaskDetails(value);
+  return { priority: details.priority, text: details.title };
 }
 
 type ReminderScheduleType = "time" | "date" | "datetime";
@@ -4801,7 +5320,7 @@ function ReminderScheduleFields({
   );
 }
 
-const INDONESIAN_HOLIDAYS_2025_2026 = [
+const INDONESIAN_HOLIDAYS = [
   { date: "2025-01-01", name: "Tahun Baru 2025 Masehi" },
   { date: "2025-01-27", name: "Isra Mi'raj Nabi Muhammad SAW" },
   { date: "2025-01-29", name: "Tahun Baru Imlek 2576 Kongzili" },
@@ -4814,18 +5333,46 @@ const INDONESIAN_HOLIDAYS_2025_2026 = [
   { date: "2025-05-12", name: "Hari Raya Waisak 2569 BE" },
   { date: "2025-05-29", name: "Kenaikan Yesus Kristus" },
   { date: "2025-06-01", name: "Hari Lahir Pancasila" },
-  { date: "2025-06-07", name: "Hari Raya Idul Adha 1446 H" },
+  { date: "2025-06-06", name: "Hari Raya Idul Adha 1446 H" },
   { date: "2025-06-27", name: "1 Muharam 1447 H (Tahun Baru Islam)" },
   { date: "2025-08-17", name: "Hari Kemerdekaan RI ke-80" },
   { date: "2025-09-05", name: "Maulid Nabi Muhammad SAW" },
   { date: "2025-12-25", name: "Hari Raya Natal" },
   { date: "2026-01-01", name: "Tahun Baru 2026 Masehi" },
-  { date: "2026-02-17", name: "Tahun Baru Imlek 2577" },
-  { date: "2026-03-20", name: "Hari Raya Idul Fitri 1447 H" },
+  { date: "2026-01-16", name: "Isra Mikraj Nabi Muhammad SAW" },
+  { date: "2026-02-17", name: "Tahun Baru Imlek 2577 Kongzili" },
+  { date: "2026-03-19", name: "Hari Suci Nyepi (Tahun Baru Saka 1948)" },
+  { date: "2026-03-21", name: "Hari Raya Idul Fitri 1447 H" },
+  { date: "2026-03-22", name: "Hari Raya Idul Fitri 1447 H (Hari ke-2)" },
+  { date: "2026-04-03", name: "Wafat Yesus Kristus" },
+  { date: "2026-04-05", name: "Kebangkitan Yesus Kristus (Paskah)" },
   { date: "2026-05-01", name: "Hari Buruh Internasional" },
+  { date: "2026-05-14", name: "Kenaikan Yesus Kristus" },
+  { date: "2026-05-27", name: "Hari Raya Idul Adha 1447 H" },
+  { date: "2026-05-31", name: "Hari Raya Waisak 2570 BE" },
+  { date: "2026-06-01", name: "Hari Lahir Pancasila" },
+  { date: "2026-06-16", name: "1 Muharam 1448 H (Tahun Baru Islam)" },
   { date: "2026-08-17", name: "Hari Kemerdekaan RI ke-81" },
   { date: "2026-08-25", name: "Maulid Nabi Muhammad SAW" },
   { date: "2026-12-25", name: "Hari Raya Natal" },
+  { date: "2027-01-01", name: "Tahun Baru 2027 Masehi" },
+  { date: "2027-01-05", name: "Isra Mikraj Nabi Muhammad SAW 1448 H" },
+  { date: "2027-02-06", name: "Tahun Baru Imlek 2578 Kongzili" },
+  { date: "2027-03-08", name: "Hari Suci Nyepi (Tahun Baru Saka 1949)" },
+  { date: "2027-03-10", name: "Hari Raya Idul Fitri 1448 H" },
+  { date: "2027-03-11", name: "Hari Raya Idul Fitri 1448 H (Hari ke-2)" },
+  { date: "2027-03-26", name: "Wafat Yesus Kristus" },
+  { date: "2027-03-28", name: "Kebangkitan Yesus Kristus (Paskah)" },
+  { date: "2027-05-01", name: "Hari Buruh Internasional" },
+  { date: "2027-05-06", name: "Kenaikan Yesus Kristus" },
+  { date: "2027-05-17", name: "Hari Raya Idul Adha 1448 H" },
+  { date: "2027-05-20", name: "Hari Raya Waisak 2571 BE" },
+  { date: "2027-06-01", name: "Hari Lahir Pancasila" },
+  { date: "2027-06-06", name: "1 Muharam 1449 H (Tahun Baru Islam)" },
+  { date: "2027-08-15", name: "Maulid Nabi Muhammad SAW" },
+  { date: "2027-08-17", name: "Hari Proklamasi Kemerdekaan" },
+  { date: "2027-12-25", name: "Kelahiran Yesus Kristus" },
+  { date: "2027-12-26", name: "Isra Mikraj Nabi Muhammad SAW 1449 H" },
 ];
 
 function RemindersPage({
@@ -4865,8 +5412,17 @@ function RemindersPage({
   const monthHolidays = useMemo(() => {
     const monthStr = String(currentMonthIdx + 1).padStart(2, "0");
     const prefix = `${currentYear}-${monthStr}`;
-    return INDONESIAN_HOLIDAYS_2025_2026.filter((h) => h.date.startsWith(prefix));
+    return INDONESIAN_HOLIDAYS.filter((h) => h.date.startsWith(prefix));
   }, [currentYear, currentMonthIdx]);
+
+  const dueTasks = useMemo(
+    () =>
+      todos
+        .map((todo) => ({ todo, details: parseTaskDetails(todo.todo_text) }))
+        .filter((item) => !item.todo.is_done && Boolean(item.details.due))
+        .sort((a, b) => a.details.due.localeCompare(b.details.due)),
+    [todos],
+  );
 
   async function add(event: FormEvent) {
     event.preventDefault();
@@ -4954,7 +5510,7 @@ function RemindersPage({
   return (
     <div className="space-y-5">
       <PageIntro
-        title="Kalender & Pengingat"
+        title="Kalender"
         description="Kelola jadwal pengingat, pantau hari libur nasional, dan tenggat tugas grup"
         action={
           <Sheet open={open} onOpenChange={setOpen}>
@@ -4993,13 +5549,13 @@ function RemindersPage({
               {monthNames[currentMonthIdx]} {currentYear}
             </h3>
             <div className="flex items-center gap-1.5">
-              <Button variant="outline" size="icon" className="h-8 w-8" onClick={prevMonth}>
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={prevMonth} aria-label="Bulan sebelumnya">
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs" onClick={() => setSelectedMonth(new Date())}>
                 Bulan Ini
               </Button>
-              <Button variant="outline" size="icon" className="h-8 w-8" onClick={nextMonth}>
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={nextMonth} aria-label="Bulan berikutnya">
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
@@ -5030,8 +5586,9 @@ function RemindersPage({
                 new Date().getMonth() === currentMonthIdx &&
                 new Date().getFullYear() === currentYear;
 
-              const holiday = INDONESIAN_HOLIDAYS_2025_2026.find((h) => h.date === fullDateStr);
+              const holiday = INDONESIAN_HOLIDAYS.find((h) => h.date === fullDateStr);
               const dayReminders = reminders.filter((r) => r.remind_value && r.remind_value.includes(fullDateStr));
+              const dayTasks = dueTasks.filter((item) => item.details.due === fullDateStr);
               const isSunday = (daysInMonth.firstDayIndex + i) % 7 === 0;
 
               return (
@@ -5052,15 +5609,19 @@ function RemindersPage({
                     >
                       {day}
                     </span>
-                    {holiday ? (
-                      <span className="h-1.5 w-1.5 rounded-full bg-rose-500" title={holiday.name} />
-                    ) : dayReminders.length > 0 ? (
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                    ) : null}
+                    <span className="flex items-center gap-1">
+                      {holiday ? <i className="h-1.5 w-1.5 rounded-full bg-rose-500" title={holiday.name} /> : null}
+                      {dayReminders.length ? <i className="h-1.5 w-1.5 rounded-full bg-emerald-500" title="Reminder" /> : null}
+                      {dayTasks.length ? <i className="h-1.5 w-1.5 rounded-full bg-blue-500" title="Due task" /> : null}
+                    </span>
                   </div>
                   {holiday ? (
                     <p className="line-clamp-2 text-[10px] leading-tight text-rose-500 font-medium" title={holiday.name}>
                       {holiday.name}
+                    </p>
+                  ) : dayTasks.length > 0 ? (
+                    <p className="line-clamp-1 text-[10px] font-medium text-blue-500">
+                      {dayTasks.length} due task
                     </p>
                   ) : dayReminders.length > 0 ? (
                     <p className="line-clamp-1 text-[10px] text-emerald-600 font-medium">
@@ -5093,7 +5654,7 @@ function RemindersPage({
               type="button"
               onClick={() => setActiveTab("reminders")}
               className={cn(
-                "min-h-8 rounded-[9px] px-2 py-1 transition",
+                "min-h-11 rounded-[9px] px-1.5 py-1 text-[10px] transition sm:px-2 sm:text-xs",
                 activeTab === "reminders"
                   ? "bg-[#0D3A23] text-white shadow-sm"
                   : "text-[var(--muted)] hover:text-[var(--foreground)]"
@@ -5105,7 +5666,7 @@ function RemindersPage({
               type="button"
               onClick={() => setActiveTab("holidays")}
               className={cn(
-                "min-h-8 rounded-[9px] px-2 py-1 transition",
+                "min-h-11 rounded-[9px] px-1.5 py-1 text-[10px] transition sm:px-2 sm:text-xs",
                 activeTab === "holidays"
                   ? "bg-[#0D3A23] text-white shadow-sm"
                   : "text-[var(--muted)] hover:text-[var(--foreground)]"
@@ -5117,13 +5678,13 @@ function RemindersPage({
               type="button"
               onClick={() => setActiveTab("tasks")}
               className={cn(
-                "min-h-8 rounded-[9px] px-2 py-1 transition",
+                "min-h-11 rounded-[9px] px-1.5 py-1 text-[10px] transition sm:px-2 sm:text-xs",
                 activeTab === "tasks"
                   ? "bg-[#0D3A23] text-white shadow-sm"
                   : "text-[var(--muted)] hover:text-[var(--foreground)]"
               )}
             >
-              Due Task ({todos.filter((t) => !t.is_done).length})
+              Task ({dueTasks.length})
             </button>
           </div>
 
@@ -5197,7 +5758,7 @@ function RemindersPage({
                 )}
                 <div className="pt-3">
                   <p className="text-[11px] font-semibold text-[var(--muted)] uppercase tracking-wider mb-2">Hari Libur Mendatang</p>
-                  {INDONESIAN_HOLIDAYS_2025_2026.filter((h) => new Date(h.date) >= new Date()).slice(0, 5).map((h) => (
+                  {INDONESIAN_HOLIDAYS.filter((h) => new Date(h.date + "T23:59:59") >= new Date()).slice(0, 5).map((h) => (
                     <div key={`up-${h.date}`} className="flex items-center justify-between py-1.5 text-xs">
                       <span className="truncate pr-2">{h.name}</span>
                       <span className="shrink-0 font-mono text-[var(--muted)] tabular-nums">{h.date}</span>
@@ -5209,24 +5770,23 @@ function RemindersPage({
 
             {activeTab === "tasks" && (
               <div className="divide-y divide-[var(--line)]">
-                {todos.filter((t) => !t.is_done).length ? (
-                  todos.filter((t) => !t.is_done).map((todo) => {
-                    const parsed = parseTodo(todo.todo_text);
+                {dueTasks.length ? (
+                  dueTasks.map(({ todo, details }) => {
                     return (
                       <div key={todo.id} className="flex items-start gap-2.5 rounded-[14px] p-2.5 transition hover:bg-[var(--surface)]">
                         <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] bg-blue-500/10 text-blue-500">
                           <CheckSquare className="h-3.5 w-3.5" />
                         </span>
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-[var(--foreground)]">{parsed.text}</p>
+                          <p className="text-sm font-medium text-[var(--foreground)]">{details.title}</p>
                           <div className="mt-1 flex items-center gap-2">
                             <span className={cn(
                               "rounded-[6px] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
-                              parsed.priority === "tinggi" ? "bg-amber-500/15 text-amber-600 dark:text-amber-400" : "bg-[var(--panel)] text-[var(--muted)]"
+                              details.priority === "tinggi" || details.priority === "high" ? "bg-amber-500/15 text-amber-600 dark:text-amber-400" : "bg-[var(--panel)] text-[var(--muted)]"
                             )}>
-                              {parsed.priority}
+                              {details.priority}
                             </span>
-                            <span className="text-[11px] text-[var(--muted)]">Tenggat aktif</span>
+                            <span className="text-[11px] font-mono text-[var(--muted)]">{formatTaskDue(details.due)}</span>
                           </div>
                         </div>
                       </div>
@@ -5426,7 +5986,7 @@ function CommandsPage({
         {loading ? (
           <Skeleton className="h-32" />
         ) : visibleCommands.length ? (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <StaggerContainer className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" delay={0.1} stagger={0.07}>
             {visibleCommands.map((command) => (
               <div key={command.id} className="flex flex-col justify-between rounded-[20px] border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--soft-shadow)]">
                 <div>
@@ -5460,7 +6020,7 @@ function CommandsPage({
                 </div>
               </div>
             ))}
-          </div>
+          </StaggerContainer>
         ) : (
           <EmptyState title="Command kosong" description="Buat trigger respon otomatis untuk grup WhatsApp." />
         )}
@@ -5490,6 +6050,8 @@ const helpCommandSections = [
     commands: [
       ["agenda", "Todo aktif dan reminder terdekat"],
       ["todo+ Beli konsumsi", "Tambah tugas"],
+      ["task+ todo@20/10/2026@high@Judul", "Tambah task Kanban dengan due date"],
+      ["movetask 2@review", "Pindahkan task ke stage lain"],
       ["todo", "Lihat semua tugas"],
       ["doto 2", "Tandai tugas selesai"],
       ["deltodo 2", "Hapus tugas"],
@@ -6079,14 +6641,16 @@ function SettingsPage({
                 <QrCode className="h-5 w-5 text-emerald-500" />
                 <p className="font-semibold">QRIS Owner</p>
               </div>
-              <Image
-                src={qrisPreviewUrl}
-                alt="QRIS pembayaran owner"
-                width={512}
-                height={512}
-                unoptimized
-                className="max-h-72 w-full rounded-[14px] object-contain"
-              />
+              <RevealImage delay={0.1}>
+                <Image
+                  src={qrisPreviewUrl}
+                  alt="QRIS pembayaran owner"
+                  width={512}
+                  height={512}
+                  unoptimized
+                  className="max-h-72 w-full rounded-[14px] object-contain"
+                />
+              </RevealImage>
             </div>
           ) : (
             <div className="rounded-[16px] border border-dashed border-[var(--line)] bg-[var(--surface)] p-4 text-sm text-[var(--muted)]">

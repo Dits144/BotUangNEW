@@ -24,6 +24,7 @@ import { formatDate } from "@/app/lib/format";
 import { resolveDashboardImage, uploadDashboardImage } from "@/app/lib/image-upload";
 import { supabase } from "@/app/lib/supabase";
 import { cn } from "@/app/lib/utils";
+import { FadeUp, RevealHeading, StaggerContainer } from "./motion/fernly-motion";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
@@ -110,7 +111,7 @@ export function OwnerDashboardPage({
   const router = useRouter();
   const [apiUrl] = useState(getStoredOwnerApiUrl);
   const [accessToken, setAccessToken] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!preview);
   const [groups, setGroups] = useState<OwnerGroup[]>([]);
   const [requests, setRequests] = useState<RentalRequest[]>([]);
   const [health, setHealth] = useState<Health | null>(null);
@@ -139,7 +140,6 @@ export function OwnerDashboardPage({
 
   useEffect(() => {
     if (preview) {
-      setLoading(false);
       return;
     }
     const stored = window.localStorage.getItem(DASHBOARD_SESSION_KEY);
@@ -375,13 +375,19 @@ export function OwnerDashboardPage({
     <div className={embedded ? "space-y-4" : "mx-auto max-w-7xl px-4 py-5 md:px-8 md:py-8"}>
       <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase text-emerald-500">Owner</p>
-          <h1 className="mt-1 text-[28px] font-semibold leading-tight md:text-[34px]">Pusat Operasional</h1>
-          <p className="mt-1 max-w-2xl text-sm text-[var(--muted)]">
-            Kelola sewa grup, pembayaran, broadcast, dan kondisi server bot.
-          </p>
+          <FadeUp variant="compact" delay={0.08}>
+            <p className="text-xs font-semibold uppercase text-emerald-500">Owner</p>
+          </FadeUp>
+          <RevealHeading className="mt-1 text-[28px] font-semibold leading-tight md:text-[34px]">
+            Pusat Operasional
+          </RevealHeading>
+          <FadeUp variant="compact" delay={0.13}>
+            <p className="mt-1 max-w-2xl text-sm text-[var(--muted)]">
+              Kelola sewa grup, pembayaran, broadcast, dan kondisi server bot.
+            </p>
+          </FadeUp>
         </div>
-        <div className="grid grid-cols-2 gap-2 sm:flex">
+        <FadeUp className="grid grid-cols-2 gap-2 sm:flex" variant="compact" delay={0.18}>
           <Button variant="outline" onClick={() => loadOwnerData()} disabled={Boolean(busy)}>
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Perbarui
@@ -392,15 +398,15 @@ export function OwnerDashboardPage({
               Keluar
             </Button>
           ) : null}
-        </div>
+        </FadeUp>
       </header>
 
-      <section aria-label="Ringkasan owner" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <StaggerContainer className="grid grid-cols-2 gap-3 lg:grid-cols-4" delay={0.1} stagger={0.07}>
         <OwnerMetric label="Total grup" value={String(groups.length)} icon={ShieldCheck} primary />
         <OwnerMetric label="Sewa aktif" value={String(activeGroups)} icon={Power} tone="income" />
         <OwnerMetric label="Menunggu" value={String(pendingRequests)} icon={Clock3} tone="warning" />
         <OwnerMetric label="Status bot" value={formatHealthStatus(health?.status)} icon={Server} />
-      </section>
+      </StaggerContainer>
 
       <section className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.75fr)]">
         <Card className="overflow-hidden rounded-[18px]">

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Reminders",
+  title: "Kalender",
 };
 
 export default function Page() {

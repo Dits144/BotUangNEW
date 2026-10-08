@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Todo",
+  title: "Tasks",
 };
 
 export default function Page() {

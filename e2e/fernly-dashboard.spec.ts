@@ -55,7 +55,7 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test("Fernly shell navigates without reload and renders real empty states", async ({ page }) => {
+test("Fernly shell navigates without reload and renders real empty states", async ({ page }, testInfo) => {
   const pageErrors: string[] = [];
   const failedRequests: string[] = [];
   const consoleErrors: string[] = [];
@@ -76,8 +76,8 @@ test("Fernly shell navigates without reload and renders real empty states", asyn
   const navigationEntries = [
     ["Transaksi", "Transaksi"],
     ["Laporan", "Laporan"],
-    ["Todo", "Todo"],
-    ["Kalender", "Reminder"],
+    ["Tasks", "Tasks"],
+    ["Kalender", "Kalender"],
     ["Anggota", "Anggota"],
     ["Otomasi", "Command"],
     ["Pengaturan", "Setting"],
@@ -85,7 +85,13 @@ test("Fernly shell navigates without reload and renders real empty states", asyn
   ] as const;
 
   for (const [linkName, headingName] of navigationEntries) {
-    await page.getByRole("link", { name: linkName, exact: true }).first().click();
+    const links = page.getByRole("link", { name: linkName, exact: true });
+    const link = testInfo.project.name === "mobile-390" ? links.last() : links.first();
+    if (!(await link.isVisible())) {
+      await page.getByRole("button", { name: "Buka menu", exact: true }).click();
+      await expect(links.last()).toBeVisible();
+    }
+    await (testInfo.project.name === "mobile-390" ? links.last() : links.first()).click();
     await expect(page.getByRole("heading", { name: headingName, exact: true }).first()).toBeVisible();
     expect(new URL(page.url()).hash).not.toBe("");
   }
@@ -111,4 +117,114 @@ test("Fernly shell has no horizontal overflow at target viewports", async ({ pag
       fullPage: true,
     });
   }
+});
+
+test("Fernly view motion progresses from reveal to rest", async ({ page }, testInfo) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/preview-dashboard#overview");
+  await expect(page.getByRole("heading", { name: "Ringkasan", exact: true })).toBeVisible();
+  await page.waitForTimeout(1_100);
+  await page.clock.install();
+
+  await page.getByRole("link", { name: "Transaksi", exact: true }).first().click();
+  const heading = page.getByRole("heading", { name: "Transaksi", exact: true }).first();
+  const firstCharacter = heading.locator("[data-fernly-character]").first();
+  const lastCharacter = heading.locator("[data-fernly-character]").last();
+  const firstReveal = page.locator('[data-fernly-reveal="compact"]').first();
+  for (let frame = 0; frame < 90 && (await firstCharacter.count()) === 0; frame += 1) {
+    await page.clock.runFor(16);
+  }
+  expect(await firstCharacter.count()).toBeGreaterThan(0);
+  expect(await firstReveal.count()).toBeGreaterThan(0);
+
+  const sample = () =>
+    firstReveal.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        opacity: Number(style.opacity),
+        transform: style.transform,
+      };
+    });
+  const characterOffset = () =>
+    lastCharacter.evaluate((element) => {
+      const transform = getComputedStyle(element).transform;
+      return transform === "none" ? 0 : new DOMMatrixReadOnly(transform).m42;
+    });
+
+  const start = await sample();
+  const startCharacterY = await characterOffset();
+  await page.screenshot({
+    path: `test-results/motion-${testInfo.project.name}-start.png`,
+    fullPage: true,
+  });
+
+  await page.clock.runFor(120);
+  const middle = await sample();
+  const middleCharacterY = await characterOffset();
+  await page.screenshot({
+    path: `test-results/motion-${testInfo.project.name}-mid.png`,
+    fullPage: true,
+  });
+
+  await page.clock.runFor(900);
+  const end = await sample();
+  const endCharacterY = await characterOffset();
+  await page.screenshot({
+    path: `test-results/motion-${testInfo.project.name}-end.png`,
+    fullPage: true,
+  });
+
+  expect(middle.opacity).toBeGreaterThanOrEqual(start.opacity);
+  expect(end.opacity).toBeGreaterThan(0.999);
+  expect(Math.max(startCharacterY, middleCharacterY)).toBeGreaterThan(0.5);
+  expect(middleCharacterY).toBeLessThanOrEqual(startCharacterY);
+  expect(Math.abs(endCharacterY)).toBeLessThan(0.1);
+  expect(end.transform === "none" || end.transform === "matrix(1, 0, 0, 1, 0, 0)").toBeTruthy();
+});
+
+test("Fernly motion respects reduced motion", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/preview-dashboard#overview");
+  const heading = page.getByRole("heading", { name: "Ringkasan", exact: true });
+  await expect(heading).toBeVisible();
+  await expect.poll(async () =>
+    page.locator("[data-fernly-reveal]").evaluateAll((elements) => {
+      const visible = elements.filter((element) => element.getClientRects().length > 0);
+      return visible.length > 0 && visible.every((element) => {
+        const style = getComputedStyle(element);
+        return Number(style.opacity) === 1 &&
+          (style.transform === "none" || style.transform === "matrix(1, 0, 0, 1, 0, 0)");
+      });
+    }),
+  ).toBe(true);
+});
+
+test("financial analytics, Kanban, and calendar expose the Fernly structures", async ({ page }, testInfo) => {
+  await page.goto("/preview-dashboard#reports");
+  await expect(page.getByRole("heading", { name: "Laporan", exact: true })).toBeVisible();
+  for (const label of ["Total pemasukan", "Total pengeluaran", "Saldo periode", "Jumlah transaksi"]) {
+    await expect(page.getByText(label, { exact: true })).toBeVisible();
+  }
+  await expect(page.getByRole("heading", { name: "Arus Kas", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Pengeluaran per kategori", exact: true })).toBeVisible();
+  await page.waitForTimeout(1_100);
+  await page.screenshot({ path: `test-results/analytics-${testInfo.project.name}.png`, fullPage: true });
+
+  await page.goto("/preview-dashboard#todos");
+  await expect(page.getByRole("heading", { name: "Tasks", exact: true })).toBeVisible();
+  for (const label of ["To do", "In progress", "In review", "Done"]) {
+    await expect(page.getByRole("heading", { name: label, exact: true })).toBeVisible();
+  }
+  await expect(page.getByRole("button", { name: "New Task", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Due this week", exact: true })).toBeVisible();
+  await page.waitForTimeout(1_100);
+  await page.screenshot({ path: `test-results/tasks-${testInfo.project.name}.png`, fullPage: true });
+
+  await page.goto("/preview-dashboard#reminders");
+  await expect(page.getByRole("heading", { name: "Kalender", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Reminder \(/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Hari Libur \(/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Task \(/ })).toBeVisible();
+  await page.waitForTimeout(1_100);
+  await page.screenshot({ path: `test-results/calendar-${testInfo.project.name}.png`, fullPage: true });
 });

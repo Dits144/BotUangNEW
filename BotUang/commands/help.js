@@ -70,6 +70,15 @@ const REMINDER_SECTION = [
   '🗑️ deltodo 2                 - Hapus tugas',
 ].join('\n');
 
+const KANBAN_SECTION = [
+  '',
+  LINE,
+  '*KANBAN TASK*',
+  LINE,
+  'task+ todo@20/10/2026@high@Judul - Tambah task dengan stage dan due date',
+  'movetask 2@review                  - Pindahkan task ke stage lain',
+].join('\n');
+
 const SERVICES_SECTION = [
   '',
   LINE,
@@ -121,6 +130,7 @@ function menuText(role = 'user') {
       USER_SECTION,
       ADMIN_SECTION,
       REMINDER_SECTION,
+      KANBAN_SECTION,
       SERVICES_SECTION,
       OWNER_SECTION,
     ].join('\n');
@@ -132,6 +142,7 @@ function menuText(role = 'user') {
       USER_SECTION,
       ADMIN_SECTION,
       REMINDER_SECTION,
+      KANBAN_SECTION,
       SERVICES_SECTION,
     ].join('\n');
   }

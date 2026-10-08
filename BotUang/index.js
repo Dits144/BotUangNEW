@@ -42,7 +42,7 @@ const cooldown = new Map();
 const COMMAND_CANDIDATES = [
   // V2 short commands
   'trx','edittrx','deltrx','pt','addpt','editpt','delpt','sethead',
-  'r','rl','delr','todo','todo+','doto','deltodo',
+  'r','rl','delr','todo','todo+','task+','movetask','doto','deltodo',
   'cmd','addcmd','editcmd','delcmd','dash','cekbot','pin','newpin',
   'role','calc','wthr','typo','laporan','report','agenda',
   // V1 aliases kept
@@ -419,10 +419,10 @@ async function start() {
       }
 
       /* ─────────────────────────────────────────
-         TO-DO (V2: todo, todo+, doto, deltodo)
+         TO-DO (V2: todo, todo+, task+, movetask, doto, deltodo)
          Legacy: todolist
       ───────────────────────────────────────── */
-      if (/^(todo\+|todo\s+(?!lihat)|todolist\s+.+)/i.test(text) || /^todo\+\s*/i.test(text)) {
+      if (/^(todo\+|task\+|movetask\s+|todo\s+(?!lihat)|todolist\s+.+)/i.test(text) || /^(todo|task)\+\s*/i.test(text)) {
         if (!canManage) { await sock.sendMessage(groupId, { text: '❌ Hanya admin.' }, { quoted: msg }); return; }
         const res = todo.handleTodo(ctx, canManage);
         if (res) await sock.sendMessage(groupId, { text: res }, { quoted: msg });
