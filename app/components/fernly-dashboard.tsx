@@ -2058,6 +2058,23 @@ function ReportsPage({
     () => buildFinancialAnalytics(transactions, rangeDays),
     [rangeDays, transactions],
   );
+  const trendData = useMemo(() => {
+    const windowSize = rangeDays === 7 ? 1 : 7;
+    return analytics.daily.map((point, index, points) => {
+      const start = Math.max(0, index - windowSize + 1);
+      const window = points.slice(start, index + 1);
+      const divisor = window.length || 1;
+      return {
+        ...point,
+        cashflow: window.reduce((sum, day) => sum + day.income - day.expense, 0) / divisor,
+        previousCashflow:
+          window.reduce(
+            (sum, day) => sum + day.previousIncome - day.previousExpense,
+            0,
+          ) / divisor,
+      };
+    });
+  }, [analytics.daily, rangeDays]);
 
   function exportAnalytics() {
     const rows = [
@@ -2086,7 +2103,7 @@ function ReportsPage({
     <div className="space-y-4">
       <PageIntro
         title="Analytics"
-        description="Performa kas grup dan pola pengeluaran berdasarkan transaksi nyata"
+        description="Bagaimana arus kas bergerak dan ke mana pengeluaran digunakan."
         action={
           <div className="flex flex-wrap items-center gap-2">
             <div className="inline-flex rounded-[11px] border border-[var(--line)] bg-[var(--card)] p-1">
@@ -2117,7 +2134,7 @@ function ReportsPage({
 
       <StaggerContainer className="grid grid-cols-2 gap-3 xl:grid-cols-4" delay={0.1} stagger={0.06}>
         <AnalyticsKpi
-          label="Total pemasukan"
+          label="Total Pemasukan"
           value={formatRupiah(analytics.current.income)}
           current={analytics.current.income}
           previous={analytics.previous.income}
@@ -2127,7 +2144,7 @@ function ReportsPage({
           rangeDays={rangeDays}
         />
         <AnalyticsKpi
-          label="Total pengeluaran"
+          label="Total Pengeluaran"
           value={formatRupiah(analytics.current.expense)}
           current={analytics.current.expense}
           previous={analytics.previous.expense}
@@ -2138,7 +2155,7 @@ function ReportsPage({
           lowerIsBetter
         />
         <AnalyticsKpi
-          label="Saldo periode"
+          label="Saldo Periode"
           value={formatRupiah(analytics.current.balance)}
           current={analytics.current.balance}
           previous={analytics.previous.balance}
@@ -2148,7 +2165,7 @@ function ReportsPage({
           rangeDays={rangeDays}
         />
         <AnalyticsKpi
-          label="Jumlah transaksi"
+          label="Jumlah Transaksi"
           value={String(analytics.current.count)}
           current={analytics.current.count}
           previous={analytics.previous.count}
@@ -2159,19 +2176,18 @@ function ReportsPage({
         />
       </StaggerContainer>
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,.55fr)]">
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
         <DashboardPanel>
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h2 className="font-semibold">Arus Kas</h2>
               <p className="mt-1 text-sm text-[var(--muted)]">
-                Pemasukan dan pengeluaran per hari, dibandingkan periode sebelumnya.
+                Saldo bersih per hari{rangeDays === 7 ? "" : ", rata-rata 7 hari"}, dibandingkan periode sebelumnya.
               </p>
             </div>
             <div className="flex flex-wrap gap-3 text-xs text-[var(--muted)]">
-              <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-emerald-500" />Pemasukan</span>
-              <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-rose-500" />Pengeluaran</span>
-              <span className="flex items-center gap-1.5"><i className="h-px w-4 border-t border-dashed border-zinc-400" />Periode lalu</span>
+              <span className="flex items-center gap-1.5"><i className="h-[3px] w-4 rounded-full bg-emerald-500" />Periode ini</span>
+              <span className="flex items-center gap-1.5"><i className="h-px w-4 border-t border-dashed border-zinc-400" />Sebelumnya</span>
             </div>
           </div>
           {loading ? (
@@ -2179,15 +2195,13 @@ function ReportsPage({
           ) : analytics.current.count ? (
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={analytics.daily}>
+                <AreaChart data={trendData}>
                   <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
                   <XAxis dataKey="label" stroke="var(--muted)" fontSize={11} minTickGap={28} />
                   <YAxis stroke="var(--muted)" fontSize={11} tickFormatter={formatCompactRupiah} width={54} />
                   <Tooltip content={<ChartTooltip />} />
-                  <Area type="monotone" dataKey="income" stroke="#10B981" fill="#10B981" fillOpacity={0.16} />
-                  <Area type="monotone" dataKey="expense" stroke="#F43F5E" fill="#F43F5E" fillOpacity={0.1} />
-                  <Area type="monotone" dataKey="previousIncome" stroke="#10B981" strokeOpacity={0.38} strokeDasharray="5 5" fillOpacity={0} />
-                  <Area type="monotone" dataKey="previousExpense" stroke="#F43F5E" strokeOpacity={0.38} strokeDasharray="5 5" fillOpacity={0} />
+                  <Area type="monotone" dataKey="cashflow" stroke="#10B981" fill="#10B981" fillOpacity={0.16} strokeWidth={2.5} />
+                  <Area type="monotone" dataKey="previousCashflow" stroke="#94A3B8" strokeDasharray="5 5" fillOpacity={0} strokeWidth={1.6} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -2202,15 +2216,21 @@ function ReportsPage({
         </DashboardPanel>
 
         <DashboardPanel>
-          <h2 className="font-semibold">Pengeluaran per kategori</h2>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            Kategori otomatis dari catatan transaksi - {rangeDays} hari
-          </p>
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <h2 className="font-semibold">Pengeluaran per kategori</h2>
+              <p className="mt-1 text-sm text-[var(--muted)]">Kategori otomatis dari catatan transaksi</p>
+            </div>
+            <div className="shrink-0 text-right">
+              <p className="font-mono text-lg font-semibold tabular-nums">{formatRupiah(analytics.current.expense)}</p>
+              <p className="text-[10px] text-[var(--muted)]">tercatat · {rangeDays}d</p>
+            </div>
+          </div>
           {loading ? (
             <Skeleton className="mt-4 h-72" />
           ) : analytics.categories.length ? (
             <>
-              <div className="relative mx-auto mt-4 h-40 max-w-[220px]">
+              <div className="relative mx-auto mt-5 h-44 max-w-[220px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -2230,11 +2250,11 @@ function ReportsPage({
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-                  <strong className="font-mono text-base tabular-nums">{formatRupiah(analytics.current.expense)}</strong>
-                  <span className="text-[10px] text-[var(--muted)]">total keluar</span>
+                  <strong className="font-mono text-base tabular-nums">{analytics.categories.length}</strong>
+                  <span className="text-[10px] text-[var(--muted)]">kategori</span>
                 </div>
               </div>
-              <div className="mt-3 divide-y divide-[var(--line)]">
+              <div className="mt-4 divide-y divide-[var(--line)]">
                 {analytics.categories.map((category) => (
                   <div key={category.name} className="py-2.5">
                     <div className="flex items-center justify-between gap-3 text-sm">
@@ -2299,12 +2319,12 @@ function AnalyticsKpi({
   const chartData = points.map((point, index) => ({ index, value: point }));
 
   return (
-    <div className="min-h-[150px] rounded-[16px] border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--soft-shadow)]">
-      <p className="text-xs font-medium text-[var(--muted)]">{label}</p>
+    <div className="flex min-h-[168px] flex-col overflow-hidden rounded-[16px] border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--soft-shadow)]">
+      <p className="text-sm font-medium text-[var(--muted)]">{label}</p>
       {loading ? (
         <Skeleton className="mt-3 h-8 w-32" />
       ) : (
-        <p className="mt-2 truncate font-mono text-xl font-semibold tabular-nums sm:text-2xl">{value}</p>
+        <p className="mt-2 truncate font-mono text-2xl font-semibold tabular-nums sm:text-3xl">{value}</p>
       )}
       <div className="mt-2 flex min-h-5 items-center gap-1 text-[11px]">
         {change === null ? (
@@ -2315,12 +2335,12 @@ function AnalyticsKpi({
               {change >= 0 ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
               {Math.abs(change).toFixed(1)}%
             </span>
-            <span className="text-[var(--muted)]">vs {rangeDays} hari sebelumnya</span>
+            <span className="text-[var(--muted)]">vs previous {rangeDays}d</span>
           </>
         )}
       </div>
       {!loading ? (
-        <div className="mt-2 h-8" aria-hidden="true">
+        <div className="mt-auto h-10 pt-2" aria-hidden="true">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData}>
               <Area type="monotone" dataKey="value" stroke={stroke} fill={stroke} fillOpacity={0.1} strokeWidth={1.5} />
@@ -2456,13 +2476,19 @@ function buildFinancialAnalytics(transactions: Transaction[], rangeDays: number)
       share: current.expense ? Math.max(2, (category.amount / current.expense) * 100) : 0,
     }));
 
-  const busiestExpenseDay = daily.reduce<FinancialDailyPoint | null>(
-    (largest, point) => (!largest || point.expense > largest.expense ? point : largest),
+  const busiestCashflowDay = daily.reduce<FinancialDailyPoint | null>(
+    (largest, point) =>
+      !largest || point.income + point.expense > largest.income + largest.expense
+        ? point
+        : largest,
     null,
   );
-  const summary = busiestExpenseDay?.expense
-    ? `${rangeDays} hari terakhir: ${current.count} transaksi. Pengeluaran tertinggi ${busiestExpenseDay.label} sebesar ${formatRupiah(busiestExpenseDay.expense)}.`
-    : `${rangeDays} hari terakhir: ${current.count} transaksi tanpa pengeluaran tercatat.`;
+  const busiestVolume = busiestCashflowDay
+    ? busiestCashflowDay.income + busiestCashflowDay.expense
+    : 0;
+  const summary = current.count
+    ? `Arus kas ${rangeDays} hari: saldo bersih ${formatRupiah(current.balance)}, periode sebelumnya ${formatRupiah(previous.balance)}. Hari paling aktif ${busiestCashflowDay?.label ?? "-"} dengan pergerakan ${formatRupiah(busiestVolume)}.`
+    : `Belum ada aktivitas kas pada ${rangeDays} hari terakhir.`;
 
   return { current, previous, daily, categories, summary };
 }
@@ -3802,6 +3828,8 @@ function ChartTooltip({
     expense: "Pengeluaran",
     previousIncome: "Pemasukan periode lalu",
     previousExpense: "Pengeluaran periode lalu",
+    cashflow: "Periode ini",
+    previousCashflow: "Sebelumnya",
   };
   return (
     <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3 text-sm shadow-xl">

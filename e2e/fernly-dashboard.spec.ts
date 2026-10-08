@@ -202,11 +202,13 @@ test("Fernly motion respects reduced motion", async ({ page }) => {
 test("financial analytics, Kanban, and calendar expose the Fernly structures", async ({ page }, testInfo) => {
   await page.goto("/preview-dashboard#reports");
   await expect(page.getByRole("heading", { name: "Analytics", exact: true })).toBeVisible();
-  for (const label of ["Total pemasukan", "Total pengeluaran", "Saldo periode", "Jumlah transaksi"]) {
+  for (const label of ["Total Pemasukan", "Total Pengeluaran", "Saldo Periode", "Jumlah Transaksi"]) {
     await expect(page.getByText(label, { exact: true })).toBeVisible();
   }
   await expect(page.getByRole("heading", { name: "Arus Kas", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Pengeluaran per kategori", exact: true })).toBeVisible();
+  await expect(page.getByText("Periode ini", { exact: true })).toBeVisible();
+  await expect(page.getByText("Sebelumnya", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Daftar Transaksi", exact: true })).toHaveCount(0);
   await page.waitForTimeout(1_100);
   await page.screenshot({ path: `test-results/analytics-${testInfo.project.name}.png`, fullPage: true });
