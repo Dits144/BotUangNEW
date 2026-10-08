@@ -1,5 +1,5 @@
-import { DashboardPage } from "../components/dashboard-page";
+import { FernlyDashboard } from "../components/fernly-dashboard";
 
 export default function DashboardLayout() {
-  return <DashboardPage />;
+  return <FernlyDashboard />;
 }

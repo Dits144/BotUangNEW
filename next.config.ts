@@ -21,6 +21,11 @@ const nextConfig: NextConfig = {
         permanent: false,
       },
       {
+        source: "/dashboard/reports",
+        destination: "/dashboard/#reports",
+        permanent: false,
+      },
+      {
         source: "/dashboard/todos",
         destination: "/dashboard/#todos",
         permanent: false,
@@ -48,6 +53,11 @@ const nextConfig: NextConfig = {
       {
         source: "/dashboard/owner",
         destination: "/dashboard/#owner",
+        permanent: false,
+      },
+      {
+        source: "/dashboard/help",
+        destination: "/dashboard/#help",
         permanent: false,
       },
     ];

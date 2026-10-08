@@ -15,8 +15,10 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   Bell,
   Bot,
+  BookOpen,
   CalendarClock,
   Calculator,
+  ChartNoAxesCombined,
   Check,
   CircleDollarSign,
   CloudSun,
@@ -82,12 +84,14 @@ import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 type DashboardSection =
   | "overview"
   | "transactions"
+  | "reports"
   | "participants"
   | "todos"
   | "reminders"
   | "commands"
   | "settings"
   | "calculator"
+  | "help"
   | "owner";
 
 type Transaction = {
@@ -272,37 +276,43 @@ type BotCommandPayload = {
 const DASHBOARD_SYNCED_SENDER_ID = "dashboard_synced";
 
 const navItems = [
-  { key: "overview", label: "Overview", href: "/dashboard/#overview", icon: Home },
+  { key: "overview", label: "Ringkasan", href: "/dashboard/#overview", icon: Home },
   { key: "transactions", label: "Transaksi", href: "/dashboard/#transactions", icon: WalletCards },
-  { key: "participants", label: "Anggota", href: "/dashboard/#participants", icon: Users },
+  { key: "reports", label: "Laporan", href: "/dashboard/#reports", icon: ChartNoAxesCombined },
   { key: "todos", label: "Todo", href: "/dashboard/#todos", icon: ListTodo },
-  { key: "reminders", label: "Reminder", href: "/dashboard/#reminders", icon: Bell },
-  { key: "commands", label: "Command", href: "/dashboard/#commands", icon: Bot },
-  { key: "settings", label: "Setting", href: "/dashboard/#settings", icon: Settings },
+  { key: "reminders", label: "Kalender", href: "/dashboard/#reminders", icon: CalendarClock },
+  { key: "participants", label: "Anggota", href: "/dashboard/#participants", icon: Users },
+  { key: "commands", label: "Otomasi", href: "/dashboard/#commands", icon: Bot },
+  { key: "settings", label: "Pengaturan", href: "/dashboard/#settings", icon: Settings },
+  { key: "help", label: "Bantuan", href: "/dashboard/#help", icon: BookOpen },
   { key: "owner", label: "Owner", href: "/dashboard/#owner", icon: ShieldCheck },
 ] as const;
 
 const dashboardSectionKeys: DashboardSection[] = [
   "overview",
   "transactions",
+  "reports",
   "participants",
   "todos",
   "reminders",
   "commands",
   "settings",
   "calculator",
+  "help",
   "owner",
 ];
 const dashboardSectionSet = new Set<DashboardSection>(dashboardSectionKeys);
 
 function resolveSectionFromPath(pathname: string): DashboardSection {
   if (pathname.endsWith("/transactions")) return "transactions";
+  if (pathname.endsWith("/reports")) return "reports";
   if (pathname.endsWith("/participants")) return "participants";
   if (pathname.endsWith("/todos")) return "todos";
   if (pathname.endsWith("/reminders")) return "reminders";
   if (pathname.endsWith("/commands")) return "commands";
   if (pathname.endsWith("/settings")) return "settings";
   if (pathname.endsWith("/calculator")) return "calculator";
+  if (pathname.endsWith("/help")) return "help";
   if (pathname.endsWith("/owner")) return "owner";
   return "overview";
 }
@@ -323,16 +333,16 @@ function sectionHref(section: DashboardSection) {
 
 const navGroups = [
   {
-    label: "Overview",
-    items: ["overview", "transactions"],
+    label: "Keuangan",
+    items: ["overview", "transactions", "reports", "todos", "reminders"],
   },
   {
-    label: "Group",
-    items: ["participants", "todos", "reminders", "commands"],
+    label: "Grup",
+    items: ["participants", "commands"],
   },
   {
-    label: "Utilitas",
-    items: ["settings"],
+    label: "Umum",
+    items: ["settings", "help"],
   },
   {
     label: "Owner",
@@ -535,19 +545,25 @@ async function fetchBotGroupData({
   }
 }
 
-export function DashboardPage() {
+export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
   const reduceMotion = useReducedMotion();
   const router = useRouter();
   const pathname = usePathname();
   const [activeSection, setActiveSection] = useState<DashboardSection>(() =>
     resolveInitialSection(pathname),
   );
-  const [groupId, setGroupId] = useState("");
+  const [groupId, setGroupId] = useState(preview ? "visual-test@g.us" : "");
   const [sessionToken, setSessionToken] = useState("");
   const [botApiUrl, setBotApiUrl] = useState("");
-  const [groupName, setGroupName] = useState("Grup WhatsApp");
-  const [groups, setGroups] = useState<AccessibleGroup[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [groupName, setGroupName] = useState(
+    preview ? "Preview Grup BotUang" : "Grup WhatsApp",
+  );
+  const [groups, setGroups] = useState<AccessibleGroup[]>(
+    preview
+      ? [{ group_id: "visual-test@g.us", group_name: "Preview Grup BotUang", role: "owner" }]
+      : [],
+  );
+  const [loading, setLoading] = useState(!preview);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [todos, setTodos] = useState<Todo[]>([]);
@@ -555,11 +571,13 @@ export function DashboardPage() {
   const [commands, setCommands] = useState<Command[]>([]);
   const [rental, setRental] = useState<Rental | null>(null);
   const [settings, setSettings] = useState<GroupSettings | null>(null);
-  const [botStatus, setBotStatus] = useState<BotStatus | null>(null);
-  const [role, setRole] = useState<"admin" | "owner">("admin");
+  const [botStatus, setBotStatus] = useState<BotStatus | null>(
+    preview ? { ok: true, status: "connected" } : null,
+  );
+  const [role, setRole] = useState<"admin" | "owner">(preview ? "owner" : "admin");
   const [currentUser, setCurrentUser] = useState<DashboardUser>({
-    name: "",
-    email: "",
+    name: preview ? "Owner BotUang" : "",
+    email: preview ? "owner@example.test" : "",
   });
   const [query, setQuery] = useState("");
   const [fromDate, setFromDate] = useState("");
@@ -575,7 +593,11 @@ export function DashboardPage() {
     setActiveSection(section);
     setMenuOpen(false);
     if (typeof window !== "undefined") {
-      window.history.pushState(null, "", sectionHref(section));
+      window.history.pushState(
+        null,
+        "",
+        preview ? `/preview-dashboard#${section}` : sectionHref(section),
+      );
       window.dispatchEvent(new HashChangeEvent("hashchange"));
     }
   }
@@ -619,6 +641,15 @@ export function DashboardPage() {
       Boolean(settings);
 
     if (!hasExistingData) setLoading(true);
+    const loadBotResource = (resource: string) =>
+      preview
+        ? Promise.resolve({ ok: true, data: [] } satisfies BotGroupDataResponse)
+        : fetchBotGroupData({
+            resource,
+            groupId: targetGroupId,
+            apiUrl,
+            token: authToken,
+          });
     const [
       txResult,
       participantResult,
@@ -633,46 +664,38 @@ export function DashboardPage() {
       botReminderResult,
       botCommandResult,
     ] = await Promise.all([
-      supabase
-        .from("transactions")
-        .select("*")
-        .eq("group_id", targetGroupId)
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("participants")
-        .select("*")
-        .eq("group_id", targetGroupId)
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("todos")
-        .select("*")
-        .eq("group_id", targetGroupId)
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("reminders")
-        .select("*")
-        .eq("group_id", targetGroupId)
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("custom_commands")
-        .select("*")
-        .eq("group_id", targetGroupId)
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("group_rentals")
-        .select("*")
-        .eq("group_id", targetGroupId)
-        .maybeSingle(),
-      supabase
-        .from("group_settings")
-        .select("*")
-        .eq("group_id", targetGroupId)
-        .maybeSingle(),
+      preview
+        ? Promise.resolve({ data: [], error: null })
+        : supabase.from("transactions").select("*").eq("group_id", targetGroupId).is("deleted_at", null).order("created_at", { ascending: false }),
+      preview
+        ? Promise.resolve({ data: [], error: null })
+        : supabase.from("participants").select("*").eq("group_id", targetGroupId).is("deleted_at", null).order("created_at", { ascending: false }),
+      preview
+        ? Promise.resolve({ data: [], error: null })
+        : supabase.from("todos").select("*").eq("group_id", targetGroupId).is("deleted_at", null).order("created_at", { ascending: false }),
+      preview
+        ? Promise.resolve({ data: [], error: null })
+        : supabase.from("reminders").select("*").eq("group_id", targetGroupId).is("deleted_at", null).order("created_at", { ascending: false }),
+      preview
+        ? Promise.resolve({ data: [], error: null })
+        : supabase.from("custom_commands").select("*").eq("group_id", targetGroupId).is("deleted_at", null).order("created_at", { ascending: false }),
+      preview
+        ? Promise.resolve({
+            data: {
+              group_id: targetGroupId,
+              group_name: "Preview Grup BotUang",
+              is_active: true,
+              start_at: null,
+              expire_at: "2029-06-18T23:59:00.000+07:00",
+              updated_at: null,
+              password: null,
+            },
+            error: null,
+          })
+        : supabase.from("group_rentals").select("*").eq("group_id", targetGroupId).maybeSingle(),
+      preview
+        ? Promise.resolve({ data: null, error: null })
+        : supabase.from("group_settings").select("*").eq("group_id", targetGroupId).maybeSingle(),
       fetch(
         `/api/bot/status?group_id=${encodeURIComponent(targetGroupId)}&api_url=${encodeURIComponent(apiUrl)}`,
         {
@@ -685,30 +708,10 @@ export function DashboardPage() {
       )
         .then((response) => response.json())
         .catch(() => ({ ok: false, message: "Status bot tidak tersedia" })),
-      fetchBotGroupData({
-        resource: "participants",
-        groupId: targetGroupId,
-        apiUrl,
-        token: authToken,
-      }),
-      fetchBotGroupData({
-        resource: "todos",
-        groupId: targetGroupId,
-        apiUrl,
-        token: authToken,
-      }),
-      fetchBotGroupData({
-        resource: "reminders",
-        groupId: targetGroupId,
-        apiUrl,
-        token: authToken,
-      }),
-      fetchBotGroupData({
-        resource: "commands",
-        groupId: targetGroupId,
-        apiUrl,
-        token: authToken,
-      }),
+      loadBotResource("participants"),
+      loadBotResource("todos"),
+      loadBotResource("reminders"),
+      loadBotResource("commands"),
     ]);
 
     if (txResult.error) toast.error(txResult.error.message);
@@ -746,11 +749,7 @@ export function DashboardPage() {
     setLoading(false);
   }
 
-  async function loadAccessibleGroups(session: {
-    groupId?: string;
-    groupName?: string;
-    role?: "admin" | "owner";
-  }) {
+  async function loadAccessibleGroups() {
     const auth = await supabase.auth.getSession();
     const accessToken = auth.data.session?.access_token ?? "";
     const collected = new Map<string, AccessibleGroup>();
@@ -829,6 +828,10 @@ export function DashboardPage() {
     };
 
     async function bootDashboard() {
+      if (preview) {
+        return;
+      }
+
       const auth = await supabase.auth.getSession();
       const accessToken = auth.data.session?.access_token ?? "";
       if (!accessToken) {
@@ -836,7 +839,7 @@ export function DashboardPage() {
         return;
       }
 
-      const accessibleGroups = await loadAccessibleGroups(session);
+      const accessibleGroups = await loadAccessibleGroups();
       const authUser = auth.data.session?.user;
       const authUserName =
         (authUser?.user_metadata?.full_name as string | undefined) ??
@@ -933,7 +936,7 @@ export function DashboardPage() {
     }
 
     bootDashboard();
-  }, []);
+  }, [preview]);
 
   useEffect(() => {
     const storedTheme = window.localStorage.getItem("botuang.theme");
@@ -1043,9 +1046,9 @@ export function DashboardPage() {
       : navItems.filter((item) => item.key !== "owner");
 
   return (
-    <main className="min-h-screen bg-[var(--background)] p-2.5 text-[var(--foreground)] md:p-3">
+    <main className="min-h-screen bg-[var(--background)] p-2 text-[var(--foreground)] sm:p-2.5 lg:p-3">
       <div className="flex min-h-[calc(100vh-20px)] gap-3 md:min-h-[calc(100vh-24px)]">
-        <aside className="hidden w-[252px] shrink-0 rounded-[26px] bg-[var(--sidebar)] p-4 shadow-[var(--soft-shadow)] md:block">
+        <aside className="sticky top-3 hidden h-[calc(100vh-24px)] w-[252px] shrink-0 overflow-y-auto rounded-[22px] border border-[var(--line)] bg-[var(--sidebar)] p-4 shadow-[var(--soft-shadow)] xl:block">
           <Brand
             groupId={groupId}
             groupName={groupName}
@@ -1071,6 +1074,7 @@ export function DashboardPage() {
                         key={item.key}
                         item={item}
                         active={activeSection === item.key}
+                        href={preview ? `/preview-dashboard#${item.key}` : item.href}
                         onNavigate={() => navigateDashboardSection(item.key)}
                       />
                     ))}
@@ -1081,8 +1085,8 @@ export function DashboardPage() {
           </nav>
         </aside>
 
-        <div className="min-w-0 flex-1 pb-24 md:pb-0">
-          <header className="sticky top-2.5 z-30 rounded-[22px] bg-[var(--surface)]/94 px-4 py-3 shadow-[var(--soft-shadow)] backdrop-blur-xl md:top-3 md:rounded-[26px] md:px-5">
+        <div className="min-w-0 flex-1 pb-24 xl:pb-0">
+          <header className="sticky top-2 z-30 rounded-[18px] border border-[var(--line)] bg-[var(--surface)]/94 px-3 py-2.5 shadow-[var(--soft-shadow)] backdrop-blur-xl sm:px-4 md:top-3 md:px-5">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
@@ -1100,9 +1104,9 @@ export function DashboardPage() {
                     {displayGroupName(groupName, groupId)}
                   </p>
                 </div>
-                <h1 className="truncate text-lg font-semibold">
+                <p className="truncate text-lg font-semibold">
                   {visibleNavItems.find((item) => item.key === activeSection)?.label}
-                </h1>
+                </p>
                 {activeSection !== "owner" && groups.length > 1 ? (
                   <select
                     value={groupId}
@@ -1112,7 +1116,7 @@ export function DashboardPage() {
                       );
                       if (selected) selectGroup(selected);
                     }}
-                    className="mt-2 min-h-10 w-full max-w-xs rounded-[11px] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm md:hidden"
+                    className="mt-2 min-h-10 w-full max-w-xs rounded-[11px] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm xl:hidden"
                     aria-label="Pilih grup aktif"
                   >
                     {groups.map((group) => (
@@ -1138,7 +1142,7 @@ export function DashboardPage() {
                   variant="ghost"
                   size="icon"
                   aria-label="Notifikasi"
-                  className="hidden md:inline-flex"
+                  className="hidden xl:inline-flex"
                 >
                   <Bell className="h-5 w-5" />
                 </Button>
@@ -1150,7 +1154,7 @@ export function DashboardPage() {
                 >
                   {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                 </Button>
-                {groupId && !["owner", "overview", "transactions", "calculator"].includes(activeSection) ? (
+                {groupId && !["owner", "overview", "transactions", "reports", "calculator", "help"].includes(activeSection) ? (
                   <TransactionSheet
                     groupId={groupId}
                     sessionToken={sessionToken}
@@ -1158,7 +1162,7 @@ export function DashboardPage() {
                     onSaved={() => loadData()}
                   />
                 ) : null}
-                <div className="hidden min-h-11 items-center gap-3 rounded-[12px] border border-[var(--line)] bg-[var(--background)] px-2.5 pr-3 md:flex">
+                <div className="hidden min-h-11 items-center gap-3 rounded-[12px] border border-[var(--line)] bg-[var(--background)] px-2.5 pr-3 xl:flex">
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-emerald-500 text-xs font-bold text-white">
                     {getUserInitials(currentUser)}
                   </span>
@@ -1182,7 +1186,7 @@ export function DashboardPage() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="md:hidden"
+                  className="xl:hidden"
                   onClick={() => setMenuOpen(true)}
                   aria-label="Buka menu"
                 >
@@ -1199,9 +1203,9 @@ export function DashboardPage() {
               animate={{ opacity: 1, y: 0 }}
               exit={reduceMotion ? { opacity: 1 } : { opacity: 0, y: -4 }}
               transition={{ duration: reduceMotion ? 0 : 0.16, ease: "easeOut" }}
-              className="mt-3 min-h-[calc(100vh-112px)] w-full rounded-[22px] bg-[var(--surface)] p-3 shadow-[var(--soft-shadow)] md:min-h-[calc(100vh-106px)] md:rounded-[26px] md:p-5"
+              className="mt-3 min-h-[calc(100vh-108px)] w-full rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-3 shadow-[var(--soft-shadow)] md:min-h-[calc(100vh-98px)] md:p-5"
             >
-              {!loading && !groupId && activeSection !== "owner" ? (
+              {!loading && !groupId && !["owner", "help"].includes(activeSection) ? (
                 <NoGroupsEmptyState />
               ) : null}
               {groupId && activeSection === "overview" ? (
@@ -1246,6 +1250,15 @@ export function DashboardPage() {
                   setTransactionTypeFilter={setTransactionTypeFilter}
                   onExport={exportTransactions}
                   onSaved={() => loadData()}
+                />
+              ) : null}
+              {groupId && activeSection === "reports" ? (
+                <ReportsPage
+                  loading={loading}
+                  summary={summary}
+                  monthlyChart={monthlyChart}
+                  weeklyChart={weeklyChart}
+                  transactions={transactions}
                 />
               ) : null}
               {groupId && activeSection === "participants" ? (
@@ -1301,6 +1314,7 @@ export function DashboardPage() {
                 />
               ) : null}
               {groupId && activeSection === "calculator" ? <CalculatorPage /> : null}
+              {activeSection === "help" ? <HelpPage role={role} /> : null}
               {activeSection === "owner" ? <OwnerDashboardPage embedded /> : null}
             </motion.div>
           </AnimatePresence>
@@ -1360,6 +1374,7 @@ export function DashboardPage() {
                 key={item.key}
                 item={item}
                 active={activeSection === item.key}
+                href={preview ? `/preview-dashboard#${item.key}` : item.href}
                 onNavigate={() => navigateDashboardSection(item.key)}
               />
             ))}
@@ -1401,7 +1416,7 @@ function Brand({
       </div>
       <div className="mt-5">
         <label className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
-          Your Groups
+          Grup aktif
           <select
             value={groupId}
             onChange={(event) => {
@@ -1434,7 +1449,7 @@ function Brand({
           href="/connect"
           className="mt-2 block text-sm font-semibold text-emerald-400 hover:text-emerald-300"
         >
-          + Connect Group
+          + Hubungkan grup
         </Link>
       </div>
       <div className="mt-5 rounded-[14px] border border-[var(--line)] bg-[var(--panel)] p-3">
@@ -1460,23 +1475,29 @@ function Brand({
 function NavLink({
   item,
   active,
+  href,
   onNavigate,
 }: {
   item: (typeof navItems)[number];
   active: boolean;
+  href?: string;
   onNavigate?: () => void;
 }) {
   const Icon = item.icon;
   return (
     <Link
-      href={item.href}
+      href={href ?? item.href}
       prefetch
-      onClick={onNavigate}
+      onClick={(event) => {
+        if (!onNavigate) return;
+        event.preventDefault();
+        onNavigate();
+      }}
       className={cn(
         "relative flex min-h-11 w-full items-center gap-3 rounded-[12px] px-3 text-left text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-500",
         "before:absolute before:left-0 before:top-2 before:h-7 before:w-1 before:rounded-r-md before:bg-transparent before:transition",
         active
-          ? "bg-transparent text-[var(--foreground)] before:bg-emerald-600"
+          ? "bg-[var(--card)] text-[var(--foreground)] shadow-[var(--soft-shadow)] before:bg-emerald-600"
           : "text-[var(--muted)] hover:bg-[var(--panel)] hover:text-[var(--foreground)]",
       )}
     >
@@ -1518,7 +1539,7 @@ function MobileNav({
   ];
 
   return (
-    <nav className="fixed inset-x-3 bottom-3 z-40 rounded-[22px] border border-[var(--line)] bg-[var(--surface)]/96 px-2 pb-[calc(0.35rem+env(safe-area-inset-bottom))] pt-2 shadow-[0_18px_44px_-24px_rgba(19,26,21,0.38)] backdrop-blur-xl md:hidden">
+    <nav className="fixed inset-x-3 bottom-3 z-40 rounded-[22px] border border-[var(--line)] bg-[var(--surface)]/96 px-2 pb-[calc(0.35rem+env(safe-area-inset-bottom))] pt-2 shadow-[0_18px_44px_-24px_rgba(19,26,21,0.38)] backdrop-blur-xl xl:hidden">
       <div className="grid grid-cols-5 items-end gap-0.5">
         {items.slice(0, 2).map((item) => {
           const Icon = item.icon;
@@ -1528,7 +1549,10 @@ function MobileNav({
               key={item.key}
               href={item.href}
               prefetch
-              onClick={() => onNavigate?.(item.key as DashboardSection)}
+              onClick={(event) => {
+                event.preventDefault();
+                onNavigate?.(item.key as DashboardSection);
+              }}
               className={cn(
                 "flex min-h-14 min-w-16 flex-col items-center justify-center gap-1 rounded-[12px] text-[11px] font-semibold transition",
                 active
@@ -1583,7 +1607,10 @@ function MobileNav({
               key={item.key}
               href={item.href}
               prefetch
-              onClick={() => onNavigate?.(targetSection)}
+              onClick={(event) => {
+                event.preventDefault();
+                onNavigate?.(targetSection);
+              }}
               className={cn(
                 "flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-[12px] text-[11px] font-semibold transition",
                 active
@@ -1668,6 +1695,7 @@ function Overview({
   onSaved: () => void;
 }) {
   const openTodos = todos.filter((todo) => !todo.is_done).slice(0, 3);
+  const openTodoCount = todos.filter((todo) => !todo.is_done).length;
   const nextReminders = reminders.slice(0, 3);
   const expenseRatio = summary.income
     ? `${Math.round((summary.expense / summary.income) * 100)}%`
@@ -1678,7 +1706,7 @@ function Overview({
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-normal">Overview</h1>
+          <h1 className="text-2xl font-semibold tracking-normal">Ringkasan</h1>
           <p className="mt-1 text-sm text-[var(--muted)]">
             Ringkasan keuangan {displayGroupName(groupName, groupId)}
           </p>
@@ -1725,25 +1753,15 @@ function Overview({
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_360px]">
-        <DashboardPanel>
+        <DashboardPanel className="self-start">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold uppercase tracking-wide">Arus Kas</h2>
               <p className="text-sm text-[var(--muted)]">Pemasukan dan pengeluaran per bulan.</p>
             </div>
-            <div className="hidden rounded-[11px] border border-[var(--line)] p-1 text-xs font-semibold text-[var(--muted)] sm:flex">
-              {["7 Hari", "30 Hari", "3 Bulan", "1 Tahun"].map((item, index) => (
-                <span
-                  key={item}
-                  className={cn(
-                    "rounded-[9px] px-2.5 py-1",
-                    index === 1 ? "bg-emerald-500 text-white" : "",
-                  )}
-                >
-                  {item}
-                </span>
-              ))}
-            </div>
+            <span className="hidden text-xs font-medium text-[var(--muted)] sm:inline">
+              8 periode terakhir
+            </span>
           </div>
           {loading ? (
             <Skeleton className="h-64" />
@@ -1771,35 +1789,15 @@ function Overview({
             <div className="mt-4 grid gap-3">
               <InfoPill label="Rasio keluar" value={expenseRatio} />
               <InfoPill label="Transaksi" value={`${transactions.length} tercatat`} />
-              <InfoPill label="Todo aktif" value={`${openTodos.length} prioritas`} />
-              <InfoPill label="Reminder" value={`${nextReminders.length} terdekat`} />
+              <InfoPill label="Todo aktif" value={`${openTodoCount} belum selesai`} />
+              <InfoPill label="Reminder" value={`${reminders.length} aktif`} />
             </div>
-          </DashboardPanel>
-          <DashboardPanel>
-            <h2 className="text-sm font-semibold uppercase tracking-wide">Breakdown Mingguan</h2>
-            {loading ? (
-              <Skeleton className="mt-4 h-40" />
-            ) : weeklyChart.length ? (
-              <div className="mt-4 h-40">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={weeklyChart}>
-                    <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
-                    <XAxis dataKey="label" stroke="var(--muted)" fontSize={12} />
-                    <Tooltip content={<ChartTooltip />} />
-                    <Bar dataKey="income" fill="#10B981" radius={[6, 6, 0, 0]} />
-                    <Bar dataKey="expense" fill="#F43F5E" radius={[6, 6, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <EmptyState title="Data mingguan kosong" description="Tambahkan transaksi untuk melihat pola mingguan." />
-            )}
           </DashboardPanel>
         </div>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_360px]">
-        <DashboardPanel>
+      <section className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.45fr)_360px]">
+        <DashboardPanel className="self-start">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
               <h2 className="text-sm font-semibold uppercase tracking-wide">Transaksi Terbaru</h2>
@@ -1838,6 +1836,26 @@ function Overview({
         </DashboardPanel>
 
         <div className="grid gap-4">
+          <DashboardPanel>
+            <h2 className="text-sm font-semibold uppercase tracking-wide">Breakdown Mingguan</h2>
+            {loading ? (
+              <Skeleton className="mt-4 h-40" />
+            ) : weeklyChart.length ? (
+              <div className="mt-4 h-40">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={weeklyChart}>
+                    <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
+                    <XAxis dataKey="label" stroke="var(--muted)" fontSize={12} />
+                    <Tooltip content={<ChartTooltip />} />
+                    <Bar dataKey="income" fill="#10B981" radius={[6, 6, 0, 0]} />
+                    <Bar dataKey="expense" fill="#F43F5E" radius={[6, 6, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <EmptyState title="Data mingguan kosong" description="Tambahkan transaksi untuk melihat pola mingguan." />
+            )}
+          </DashboardPanel>
           <OverviewAiPanel
             groupId={groupId}
             groupName={groupName}
@@ -1971,6 +1989,109 @@ function TransactionsPage({
   );
 }
 
+function ReportsPage({
+  loading,
+  summary,
+  monthlyChart,
+  weeklyChart,
+  transactions,
+}: {
+  loading: boolean;
+  summary: { income: number; expense: number; balance: number };
+  monthlyChart: ChartPoint[];
+  weeklyChart: ChartPoint[];
+  transactions: Transaction[];
+}) {
+  const expenseRatio = summary.income
+    ? Math.round((summary.expense / summary.income) * 100)
+    : 0;
+  const averageTransaction = transactions.length
+    ? transactions.reduce((total, item) => total + Number(item.amount || 0), 0) /
+      transactions.length
+    : 0;
+
+  return (
+    <div className="space-y-4">
+      <PageIntro
+        title="Laporan"
+        description="Analisis arus kas berdasarkan transaksi nyata grup aktif"
+      />
+
+      <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <CompactMoneyStat label="Saldo saat ini" value={summary.balance} loading={loading} />
+        <CompactMoneyStat label="Total pemasukan" value={summary.income} tone="income" loading={loading} />
+        <CompactMoneyStat label="Total pengeluaran" value={summary.expense} tone="expense" loading={loading} />
+        <DashboardPanel className="flex min-h-[92px] flex-col justify-center">
+          <p className="text-xs font-medium text-[var(--muted)]">Rasio pengeluaran</p>
+          {loading ? (
+            <Skeleton className="mt-2 h-6 w-20" />
+          ) : (
+            <p className="mt-1 text-xl font-semibold tabular-nums">{expenseRatio}%</p>
+          )}
+        </DashboardPanel>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(300px,.65fr)]">
+        <DashboardPanel className="self-start">
+          <div className="mb-4">
+            <h2 className="font-semibold">Tren arus kas</h2>
+            <p className="mt-1 text-sm text-[var(--muted)]">Delapan periode transaksi terakhir.</p>
+          </div>
+          {loading ? (
+            <Skeleton className="h-72" />
+          ) : monthlyChart.length ? (
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={monthlyChart}>
+                  <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
+                  <XAxis dataKey="label" stroke="var(--muted)" fontSize={12} />
+                  <YAxis stroke="var(--muted)" fontSize={12} tickFormatter={(value) => `${Number(value) / 1000}k`} />
+                  <Tooltip content={<ChartTooltip />} />
+                  <Area type="monotone" dataKey="income" stroke="#10B981" fill="#10B981" fillOpacity={0.16} />
+                  <Area type="monotone" dataKey="expense" stroke="#F43F5E" fill="#F43F5E" fillOpacity={0.1} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <EmptyState title="Belum ada data laporan" description="Laporan akan terbentuk setelah transaksi pertama tercatat." />
+          )}
+        </DashboardPanel>
+
+        <div className="grid gap-4">
+          <DashboardPanel>
+            <h2 className="font-semibold">Ringkasan</h2>
+            <div className="mt-4 divide-y divide-[var(--line)]">
+              <InfoPill label="Jumlah transaksi" value={String(transactions.length)} />
+              <InfoPill label="Rata-rata nominal" value={formatRupiah(averageTransaction)} />
+              <InfoPill label="Selisih kas" value={formatRupiah(summary.balance)} />
+            </div>
+          </DashboardPanel>
+          <DashboardPanel>
+            <h2 className="font-semibold">Aktivitas mingguan</h2>
+            {loading ? (
+              <Skeleton className="mt-4 h-40" />
+            ) : weeklyChart.length ? (
+              <div className="mt-4 h-40">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={weeklyChart}>
+                    <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
+                    <XAxis dataKey="label" stroke="var(--muted)" fontSize={12} />
+                    <Tooltip content={<ChartTooltip />} />
+                    <Bar dataKey="income" fill="#10B981" radius={[5, 5, 0, 0]} />
+                    <Bar dataKey="expense" fill="#F43F5E" radius={[5, 5, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <EmptyState title="Belum ada aktivitas" description="Belum ada transaksi mingguan untuk dianalisis." />
+            )}
+          </DashboardPanel>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function CalculatorPage() {
   return (
     <div className="mx-auto grid max-w-5xl gap-4 lg:grid-cols-[minmax(0,420px)_1fr]">
@@ -2005,7 +2126,7 @@ function DashboardPanel({
   return (
     <section
       className={cn(
-        "rounded-[20px] border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--soft-shadow)]",
+        "rounded-[16px] border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--soft-shadow)]",
         className,
       )}
     >
@@ -2060,7 +2181,7 @@ function CountMetricCard({
   loading: boolean;
 }) {
   return (
-    <Card className="p-4">
+    <Card className="col-span-2 min-h-[112px] p-4 sm:col-span-1">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
@@ -2167,7 +2288,7 @@ function CompactMoneyStat({
 }: {
   label: string;
   value: number;
-  tone: "income" | "expense";
+  tone?: "income" | "expense";
   loading: boolean;
 }) {
   return (
@@ -2179,10 +2300,14 @@ function CompactMoneyStat({
         <p
           className={cn(
             "mt-1 font-mono text-base font-semibold tabular-nums",
-            tone === "income" ? "text-emerald-500" : "text-rose-500",
+            tone === "income"
+              ? "text-emerald-500"
+              : tone === "expense"
+                ? "text-rose-500"
+                : "text-[var(--foreground)]",
           )}
         >
-          {tone === "income" ? "+" : "-"}
+          {tone === "income" ? "+" : tone === "expense" ? "-" : ""}
           {formatRupiah(value)}
         </p>
       )}
@@ -2198,7 +2323,7 @@ function UpcomingPanel({
   reminders: Reminder[];
 }) {
   return (
-    <div className="rounded-[20px] border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--soft-shadow)]">
+    <div className="rounded-[16px] border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--soft-shadow)]">
       <h2 className="font-semibold">Agenda Terdekat</h2>
       <div className="mt-3 space-y-3">
         {reminders.map((reminder) => (
@@ -2258,7 +2383,7 @@ function AiCommandBar({
   onSaved: () => void;
 }) {
   return (
-    <div className="fixed bottom-5 right-5 z-40 hidden md:block">
+    <div className="fixed bottom-5 right-5 z-40 hidden xl:block">
       <AiAssistantSheet
         groupId={groupId}
         groupName={groupName}
@@ -2288,7 +2413,7 @@ function CalculatorBubble() {
       <SheetTrigger asChild>
         <button
           type="button"
-          className="fixed bottom-[calc(6.5rem+env(safe-area-inset-bottom))] right-4 z-40 flex min-h-12 items-center gap-2 rounded-[16px] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--foreground)] shadow-[0_14px_36px_rgba(0,0,0,0.22)] transition hover:border-emerald-300/35 hover:bg-[var(--panel)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-300 md:bottom-[82px] md:right-5"
+          className="fixed bottom-[calc(6.5rem+env(safe-area-inset-bottom))] right-4 z-40 flex min-h-12 items-center gap-2 rounded-[16px] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--foreground)] shadow-[0_14px_36px_rgba(0,0,0,0.22)] transition hover:border-emerald-300/35 hover:bg-[var(--panel)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-300 xl:bottom-[82px] xl:right-5"
           aria-label="Buka kalkulator"
         >
           <Calculator className="h-4 w-4 text-emerald-500" />
@@ -2957,97 +3082,6 @@ function formatAiDescription(intent: BotAiIntent) {
   return intent.note;
 }
 
-function MoneyCalculator() {
-  const [expression, setExpression] = useState("");
-  const result = useMemo(() => calculateMoneyExpression(expression), [expression]);
-  const buttons = [
-    "C",
-    "⌫",
-    "(",
-    ")",
-    "7",
-    "8",
-    "9",
-    "÷",
-    "4",
-    "5",
-    "6",
-    "×",
-    "1",
-    "2",
-    "3",
-    "-",
-    "0",
-    ".",
-    "=",
-    "+",
-  ];
-
-  function press(value: string) {
-    if (value === "C") {
-      setExpression("");
-      return;
-    }
-    if (value === "⌫") {
-      setExpression((current) => current.slice(0, -1));
-      return;
-    }
-    if (value === "=") {
-      if (result.ok) setExpression(String(Math.round(result.value)));
-      return;
-    }
-    setExpression((current) => `${current}${value === "×" ? "*" : value === "÷" ? "/" : value}`);
-  }
-
-  return (
-    <div>
-      <div className="flex items-center gap-2">
-        <Calculator className="h-5 w-5 text-emerald-500" />
-        <h2 className="font-semibold">Kalkulator</h2>
-      </div>
-      <div className="mt-3 rounded-[20px] border border-[var(--line)] bg-[var(--card)] p-3 shadow-[var(--soft-shadow)]">
-        <Input
-          className="font-mono text-right text-base"
-          value={expression}
-          onChange={(event) => setExpression(event.target.value)}
-          placeholder="150k*3-25rb"
-          inputMode="decimal"
-          aria-label="Input kalkulator"
-        />
-        <p className="mt-3 text-right font-mono text-xl font-semibold tabular-nums">
-          {result.ok ? formatRupiah(result.value) : "Format salah"}
-        </p>
-        <div className="mt-3 grid grid-cols-4 gap-2">
-          {buttons.map((button) => (
-            <Button
-              key={button}
-              type="button"
-              variant={button === "=" ? "default" : "outline"}
-              className="min-h-11 px-0 font-mono"
-              onClick={() => press(button)}
-            >
-              {button}
-            </Button>
-          ))}
-        </div>
-        <div className="mt-2 grid grid-cols-3 gap-2">
-          {["k", "rb", "jt"].map((suffix) => (
-            <Button
-              key={suffix}
-              type="button"
-              variant="ghost"
-              className="min-h-10 font-mono"
-              onClick={() => setExpression((current) => `${current}${suffix}`)}
-            >
-              {suffix}
-            </Button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function FinanceCalculator() {
   const [expression, setExpression] = useState("");
   const result = useMemo(() => calculateMoneyExpression(expression), [expression]);
@@ -3184,9 +3218,9 @@ function MetricCard({
   return (
     <Card
       className={cn(
-        "min-h-[132px] p-4",
+        "min-h-[118px] p-4 sm:min-h-[132px]",
         primary
-          ? "border-emerald-900/20 bg-[#0D3A23] text-white shadow-[0_18px_38px_-24px_rgba(13,58,35,0.8)]"
+          ? "col-span-2 border-emerald-900/20 bg-[#0D3A23] text-white shadow-[0_18px_38px_-24px_rgba(13,58,35,0.8)] sm:col-span-1"
           : "",
       )}
     >
@@ -3674,7 +3708,7 @@ function TransactionSheet({
           className={cn(compact ? "h-12 w-12 rounded-full shadow-lg" : "", triggerClassName)}
         >
           <Plus className="h-4 w-4" />
-          {compact ? null : <span className={label ? "" : "hidden sm:inline"}>{label ?? "Catat Transaksi"}</span>}
+          {compact ? null : <span>{label ?? "Catat Transaksi"}</span>}
         </Button>
       </SheetTrigger>
       <SheetContent>
@@ -4876,6 +4910,136 @@ function CommandsPage({
           <EmptyState title="Command kosong" description="Buat trigger respon otomatis untuk grup WhatsApp." />
         )}
       </div>
+    </div>
+  );
+}
+
+const helpCommandSections = [
+  {
+    title: "Keuangan",
+    roles: ["admin", "owner"] as const,
+    commands: [
+      ["+500k Donasi", "Catat pemasukan"],
+      ["-75k Konsumsi", "Catat pengeluaran"],
+      ["trx", "Lihat transaksi terbaru"],
+      ["trx 12", "Lihat detail transaksi"],
+      ["edittrx 12 +600k Revisi", "Ubah transaksi"],
+      ["deltrx 12", "Hapus transaksi"],
+      ["laporan", "Ringkasan kas bulan berjalan"],
+      ["calc 150k x 3", "Kalkulator nominal"],
+    ],
+  },
+  {
+    title: "Agenda",
+    roles: ["admin", "owner"] as const,
+    commands: [
+      ["agenda", "Todo aktif dan reminder terdekat"],
+      ["todo+ Beli konsumsi", "Tambah tugas"],
+      ["todo", "Lihat semua tugas"],
+      ["doto 2", "Tandai tugas selesai"],
+      ["deltodo 2", "Hapus tugas"],
+      ["r besok 08:00@Rapat", "Buat reminder"],
+      ["rl", "Lihat reminder aktif"],
+      ["delr 2", "Hapus reminder"],
+    ],
+  },
+  {
+    title: "Grup & Otomasi",
+    roles: ["admin", "owner"] as const,
+    commands: [
+      ["pt", "Lihat daftar anggota"],
+      ["addpt Budi@0812", "Tambah anggota"],
+      ["editpt 12@Budi S", "Ubah anggota"],
+      ["delpt 12", "Hapus anggota"],
+      ["cmd", "Lihat custom command"],
+      ["addcmd INFO@Teks", "Tambah custom command"],
+      ["editcmd INFO@Teks", "Ubah custom command"],
+      ["delcmd INFO", "Hapus custom command"],
+    ],
+  },
+  {
+    title: "Layanan",
+    roles: ["admin", "owner"] as const,
+    commands: [
+      ["dash", "Buat link dashboard grup"],
+      ["wthr", "Lihat cuaca lokasi grup"],
+      ["lokweather Bogor", "Atur lokasi cuaca"],
+      ["cekbot", "Cek masa aktif sewa"],
+      ["pin", "Cek PIN dashboard"],
+      ["newpin", "Buat PIN dashboard baru"],
+      ["typo on", "Aktifkan koreksi perintah"],
+      ["help", "Buka daftar perintah sesuai role"],
+    ],
+  },
+  {
+    title: "Owner",
+    roles: ["owner"] as const,
+    commands: [
+      ["#info (idgrup)", "Informasi detail grup"],
+      ["#on (idgrup) 30", "Aktifkan sewa grup"],
+      ["#off (idgrup)", "Nonaktifkan sewa grup"],
+      ["#rent", "Status seluruh sewa"],
+      ["#bc@pesan", "Broadcast semua grup"],
+      ["#bcnomor 62xxx@pesan", "Broadcast nomor"],
+      ["#server", "Cek kesehatan server"],
+      ["#backup", "Buat backup database"],
+      ["#resettotal", "Mulai reset total"],
+    ],
+  },
+] as const;
+
+function HelpPage({ role }: { role: "admin" | "owner" }) {
+  const [search, setSearch] = useState("");
+  const normalizedSearch = search.trim().toLowerCase();
+  const sections = helpCommandSections
+    .filter((section) => section.roles.includes(role as never))
+    .map((section) => ({
+      ...section,
+      commands: section.commands.filter(([command, description]) =>
+        `${command} ${description}`.toLowerCase().includes(normalizedSearch),
+      ),
+    }))
+    .filter((section) => section.commands.length > 0);
+
+  return (
+    <div className="space-y-5">
+      <PageIntro
+        title="Bantuan"
+        description="Perintah WhatsApp aktif untuk akun dan grup BotUang"
+      />
+      <label className="relative block max-w-xl">
+        <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-[var(--muted)]" />
+        <Input
+          className="pl-9"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Cari perintah atau fungsi"
+        />
+      </label>
+
+      {sections.length ? (
+        <div className="grid gap-x-8 gap-y-7 xl:grid-cols-2">
+          {sections.map((section) => (
+            <section key={section.title} aria-labelledby={`help-${section.title}`}>
+              <h2 id={`help-${section.title}`} className="border-b border-[var(--line)] pb-3 font-semibold">
+                {section.title}
+              </h2>
+              <div className="divide-y divide-[var(--line)]">
+                {section.commands.map(([command, description]) => (
+                  <div key={command} className="grid min-h-14 gap-1 py-3 sm:grid-cols-[minmax(170px,.8fr)_1fr] sm:items-center sm:gap-4">
+                    <code className="w-fit rounded-[8px] bg-[var(--panel)] px-2 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                      {command}
+                    </code>
+                    <p className="text-sm text-[var(--muted)]">{description}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      ) : (
+        <EmptyState title="Perintah tidak ditemukan" description="Coba kata kunci lain." />
+      )}
     </div>
   );
 }

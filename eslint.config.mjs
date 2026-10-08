@@ -13,6 +13,8 @@ const eslintConfig = defineConfig([
     "build/**",
     "dist/**",
     "BotUang/**",
+    "dashboard_fernly/**",
+    "public/fernly/**",
     ".wrangler/**",
     "next-env.d.ts",
   ]),

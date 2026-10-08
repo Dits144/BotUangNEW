@@ -104,15 +104,17 @@ test.describe("authenticated dashboard smoke", () => {
   test("session restores and dashboard navigation is SPA-like", async ({ page }) => {
     await login(page);
     await page.goto("/dashboard");
-    await expect(page.getByRole("heading", { name: "Overview", exact: true }).first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Ringkasan", exact: true }).first()).toBeVisible();
 
     for (const path of [
       "/dashboard/transactions",
+      "/dashboard/reports",
       "/dashboard/participants",
       "/dashboard/todos",
       "/dashboard/reminders",
       "/dashboard/commands",
       "/dashboard/settings",
+      "/dashboard/help",
     ]) {
       await page.goto(path);
       await expect(page.locator("main")).toBeVisible();
@@ -176,10 +178,10 @@ test.describe("authenticated dashboard smoke", () => {
 
     await login(page);
     await page.goto("/dashboard");
-    await expect(page.getByRole("heading", { name: "Overview", exact: true }).first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Ringkasan", exact: true }).first()).toBeVisible();
     await page.waitForLoadState("networkidle");
 
-    for (const name of ["Transaksi", "Anggota", "Todo", "Reminder", "Command", "Setting"] as const) {
+    for (const name of ["Transaksi", "Laporan", "Anggota", "Todo", "Kalender", "Otomasi", "Pengaturan", "Bantuan"] as const) {
       await page.getByRole("link", { name, exact: true }).first().click();
       await expect(page.locator("main")).toBeVisible();
     }
@@ -196,7 +198,7 @@ test.describe("authenticated dashboard smoke", () => {
     test.skip((page.viewportSize()?.width ?? 1000) > 500, "Mobile viewport only.");
     await login(page);
     await page.goto("/dashboard");
-    await expect(page.getByRole("heading", { name: "Overview", exact: true }).first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Ringkasan", exact: true }).first()).toBeVisible();
 
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
@@ -213,7 +215,7 @@ test.describe("authenticated dashboard smoke", () => {
     await page.getByRole("link", { name: "Aktivitas", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Todo", exact: true }).first()).toBeVisible();
     await page.getByRole("link", { name: "Home", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Overview", exact: true }).first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Ringkasan", exact: true }).first()).toBeVisible();
 
     const initialTheme = await page.locator("html").getAttribute("data-theme");
     await page.getByRole("button", { name: "Ganti tema" }).click();

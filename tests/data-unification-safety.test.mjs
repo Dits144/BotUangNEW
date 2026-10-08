@@ -7,7 +7,7 @@ const bootstrap = fs.readFileSync(
   "utf8",
 );
 const health = fs.readFileSync("app/api/bot/sync-health/route.ts", "utf8");
-const dashboard = fs.readFileSync("app/components/dashboard-page.tsx", "utf8");
+const dashboard = fs.readFileSync("app/components/fernly-dashboard.tsx", "utf8");
 const reconciliation = fs.readFileSync("app/api/bot/reconcile/route.ts", "utf8");
 
 test("group bootstrap is dry-run by default and requires reviewed state", () => {
