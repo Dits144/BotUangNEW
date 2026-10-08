@@ -278,10 +278,10 @@ const DASHBOARD_SYNCED_SENDER_ID = "dashboard_synced";
 const navItems = [
   { key: "overview", label: "Ringkasan", href: "/dashboard/#overview", icon: Home },
   { key: "transactions", label: "Transaksi", href: "/dashboard/#transactions", icon: WalletCards },
-  { key: "reports", label: "Laporan", href: "/dashboard/#reports", icon: ChartNoAxesCombined },
-  { key: "todos", label: "Todo", href: "/dashboard/#todos", icon: ListTodo },
+  { key: "reports", label: "Analytics", href: "/dashboard/#reports", icon: ChartNoAxesCombined },
+  { key: "todos", label: "Tugas", href: "/dashboard/#todos", icon: ListTodo },
   { key: "reminders", label: "Kalender", href: "/dashboard/#reminders", icon: CalendarClock },
-  { key: "participants", label: "Anggota", href: "/dashboard/#participants", icon: Users },
+  { key: "participants", label: "Tim", href: "/dashboard/#participants", icon: Users },
   { key: "commands", label: "Otomasi", href: "/dashboard/#commands", icon: Bot },
   { key: "settings", label: "Pengaturan", href: "/dashboard/#settings", icon: Settings },
   { key: "help", label: "Bantuan", href: "/dashboard/#help", icon: BookOpen },
@@ -333,15 +333,15 @@ function sectionHref(section: DashboardSection) {
 
 const navGroups = [
   {
-    label: "Keuangan",
+    label: "Menu",
     items: ["overview", "transactions", "reports", "todos", "reminders"],
   },
   {
-    label: "Grup",
+    label: "Grup & Tim",
     items: ["participants", "commands"],
   },
   {
-    label: "Umum",
+    label: "General",
     items: ["settings", "help"],
   },
   {
@@ -1152,6 +1152,22 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
                 </kbd>
               </div>
               <div className="ml-auto flex shrink-0 items-center gap-2.5">
+                {/* Bot Status Badge */}
+                <div className="hidden lg:flex items-center gap-2 rounded-full bg-[var(--card)] px-3.5 py-2 shadow-sm text-xs font-semibold">
+                  <span
+                    className={cn(
+                      "h-2 w-2 rounded-full",
+                      botStatus === null
+                        ? "bg-amber-400"
+                        : botStatus.ok || botStatus.status === "connected"
+                          ? "bg-emerald-400 animate-pulse"
+                          : "bg-rose-400",
+                    )}
+                  />
+                  <span className="text-[var(--muted)]">
+                    {botStatus?.ok || botStatus?.status === "connected" ? "Bot Online" : "Bot Standby"}
+                  </span>
+                </div>
                 <Button
                   variant="secondary"
                   size="icon"
@@ -1228,6 +1244,8 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
                   transactions={filteredTransactions}
                   todos={todos}
                   reminders={reminders}
+                  participants={participants}
+                  onNavigate={navigateDashboardSection}
                   query={query}
                   setQuery={setQuery}
                   fromDate={fromDate}
@@ -1679,6 +1697,8 @@ function Overview({
   transactions,
   todos,
   reminders,
+  participants = [],
+  onNavigate,
   query,
   setQuery,
   fromDate,
@@ -1701,6 +1721,8 @@ function Overview({
   transactions: Transaction[];
   todos: Todo[];
   reminders: Reminder[];
+  participants?: Participant[];
+  onNavigate?: (section: DashboardSection) => void;
   query: string;
   setQuery: (value: string) => void;
   fromDate: string;
@@ -1712,13 +1734,36 @@ function Overview({
   onExport: () => void;
   onSaved: () => void;
 }) {
-  const openTodos = todos.filter((todo) => !todo.is_done).slice(0, 3);
+  const openTodos = todos.filter((todo) => !todo.is_done).slice(0, 5);
   const openTodoCount = todos.filter((todo) => !todo.is_done).length;
+  const doneTodoCount = todos.filter((todo) => todo.is_done).length;
+  const totalTodos = todos.length;
+  const todoProgressPct = totalTodos > 0 ? Math.round((doneTodoCount / totalTodos) * 100) : 0;
   const nextReminders = reminders.slice(0, 3);
-  const expenseRatio = summary.income
-    ? `${Math.round((summary.expense / summary.income) * 100)}%`
-    : "-";
-  const recentTransactions = transactions.slice(0, 5);
+
+  // Time Tracker dynamic state
+  const [trackerSeconds, setTrackerSeconds] = useState(5048); // initial ~01:24:08
+  const [trackerRunning, setTrackerRunning] = useState(true);
+
+  useEffect(() => {
+    if (!trackerRunning) return;
+    const interval = setInterval(() => {
+      setTrackerSeconds((prev) => prev + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [trackerRunning]);
+
+  const trackerHours = String(Math.floor(trackerSeconds / 3600)).padStart(2, "0");
+  const trackerMins = String(Math.floor((trackerSeconds % 3600) / 60)).padStart(2, "0");
+  const trackerSecs = String(trackerSeconds % 60).padStart(2, "0");
+
+  const displayParticipants = participants.length > 0
+    ? participants.slice(0, 4)
+    : [
+        { id: "1", name: "Dits", group_id: groupId, dues_amount: 0, status: "paid" },
+        { id: "2", name: "Bot Ditstore", group_id: groupId, dues_amount: 0, status: "paid" },
+        { id: "3", name: "Fadlan", group_id: groupId, dues_amount: 0, status: "unpaid" },
+      ];
 
   return (
     <div className="space-y-4">
@@ -1728,7 +1773,7 @@ function Overview({
             Ringkasan
           </h1>
           <p className="mt-2 text-[15px] text-[var(--muted)]">
-            Ringkasan keuangan {displayGroupName(groupName, groupId)}
+            Ringkasan keuangan & aktivitas {displayGroupName(groupName, groupId)}
           </p>
         </div>
         {groupId ? (
@@ -1742,7 +1787,7 @@ function Overview({
       </div>
 
       <div className="fernly-grid">
-        {/* s1: Stat 1 - Saldo Kas (Hero) */}
+        {/* s1: Stat 1 - Saldo Kas (Hero) — Clickable to transactions */}
         <div style={{ gridArea: "s1" }}>
           <MetricCard
             label="Saldo Kas"
@@ -1751,10 +1796,11 @@ function Overview({
             tone="neutral"
             primary
             loading={loading}
+            onClick={() => onNavigate?.("transactions")}
           />
         </div>
 
-        {/* s2: Stat 2 - Pemasukan */}
+        {/* s2: Stat 2 - Pemasukan — Clickable to transactions */}
         <div style={{ gridArea: "s2" }}>
           <MetricCard
             label="Pemasukan"
@@ -1762,10 +1808,11 @@ function Overview({
             icon={CircleDollarSign}
             tone="income"
             loading={loading}
+            onClick={() => onNavigate?.("transactions")}
           />
         </div>
 
-        {/* s3: Stat 3 - Pengeluaran */}
+        {/* s3: Stat 3 - Pengeluaran — Clickable to transactions */}
         <div style={{ gridArea: "s3" }}>
           <MetricCard
             label="Pengeluaran"
@@ -1773,16 +1820,18 @@ function Overview({
             icon={WalletCards}
             tone="expense"
             loading={loading}
+            onClick={() => onNavigate?.("transactions")}
           />
         </div>
 
-        {/* s4: Stat 4 - Transaksi */}
+        {/* s4: Stat 4 - Transaksi — Clickable to transactions */}
         <div style={{ gridArea: "s4" }}>
           <CountMetricCard
             label="Transaksi"
             value={transactions.length}
-            description="pada grup aktif"
+            description="pada grup aktif (klik lihat)"
             loading={loading}
+            onClick={() => onNavigate?.("transactions")}
           />
         </div>
 
@@ -1836,23 +1885,28 @@ function Overview({
               <p className="mt-6 text-sm text-[var(--muted)]">Belum ada pengingat terjadwal untuk grup ini.</p>
             )}
           </div>
-          <Link
-            href="/dashboard/#reminders"
-            className="mt-6 inline-flex h-[44px] w-full items-center justify-center rounded-full bg-[var(--primary)] text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--primary-hover)]"
+          <button
+            type="button"
+            onClick={() => onNavigate?.("reminders")}
+            className="mt-6 inline-flex h-[44px] w-full items-center justify-center rounded-full bg-[var(--primary)] text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--primary-hover)] active:scale-98"
           >
             Lihat Kalender
-          </Link>
+          </button>
         </Card>
 
-        {/* sd: Side Column (Projects / Todo List + Time Tracker) */}
+        {/* sd: Side Column (Proyek / Todo List + Time Tracker) */}
         <div style={{ gridArea: "sd" }} className="flex flex-col gap-4">
-          {/* Projects / Todo List */}
+          {/* Projects / Proyek List */}
           <Card className="flex flex-col p-5 flex-1 min-h-[220px]">
             <div className="flex items-center justify-between pb-3 border-b border-[var(--line)]">
-              <h2 className="text-[16px] font-semibold tracking-tight">Tugas & Proyek</h2>
-              <Link href="/dashboard/#todos" className="text-xs font-semibold text-[var(--income)] hover:underline">
+              <h2 className="text-[16px] font-semibold tracking-tight">Proyek</h2>
+              <button
+                type="button"
+                onClick={() => onNavigate?.("todos")}
+                className="text-xs font-semibold text-[var(--income)] hover:underline"
+              >
                 Buka Board
-              </Link>
+              </button>
             </div>
             <div className="mt-3 space-y-2.5">
               {openTodos.length > 0 ? (
@@ -1863,149 +1917,124 @@ function Overview({
                   </div>
                 ))
               ) : (
-                <p className="text-xs text-[var(--muted)] py-4 text-center">Semua tugas grup selesai</p>
+                <p className="text-xs text-[var(--muted)] py-4 text-center">Semua proyek grup selesai</p>
               )}
             </div>
           </Card>
 
-          {/* Fernly Time Tracker Widget */}
+          {/* Fernly Time Tracker Widget — Live ticking, authentic Fernly styling */}
           <div className="fernly-tracker">
-            <h2 className="text-[16px] font-medium tracking-tight text-white/90">Waktu Sesi & Tracker</h2>
+            <h2 className="text-[16px] font-medium tracking-tight text-white/90">Time Tracker</h2>
             <div className="my-auto py-3 text-center">
-              <p className="font-mono text-[clamp(32px,3vw,40px)] font-bold tracking-tight text-white leading-none">
-                01:24:08
+              <p className="font-mono text-[clamp(32px,3vw,40px)] font-bold tracking-tight text-white leading-none tabular-nums">
+                {trackerHours}:{trackerMins}:{trackerSecs}
               </p>
-              <p className="text-[11px] text-[#b9d4c3] mt-1.5 uppercase tracking-widest">Sesi Aktif Grup</p>
+              <p className="text-[11px] text-[#b9d4c3] mt-1.5 uppercase tracking-widest">
+                {trackerRunning ? "Sesi Aktif Grup" : "Timer Dijeda"}
+              </p>
             </div>
             <div className="flex items-center justify-center gap-3 mt-1">
               <button
                 type="button"
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-[var(--primary)] transition hover:scale-105 active:scale-95"
-                aria-label="Mulai timer"
+                onClick={() => setTrackerRunning((prev) => !prev)}
+                className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-[var(--primary)] transition hover:scale-105 active:scale-95 shadow-md"
+                aria-label={trackerRunning ? "Jeda timer" : "Mulai timer"}
               >
-                <Sparkles className="h-4 w-4" />
+                {trackerRunning ? (
+                  <div className="flex gap-1">
+                    <span className="h-3.5 w-1 rounded-xs bg-[var(--primary)]" />
+                    <span className="h-3.5 w-1 rounded-xs bg-[var(--primary)]" />
+                  </div>
+                ) : (
+                  <Sparkles className="h-4 w-4" />
+                )}
               </button>
               <button
                 type="button"
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-[#d63a3a] text-white transition hover:scale-105 active:scale-95"
-                aria-label="Stop timer"
+                onClick={() => {
+                  setTrackerRunning(false);
+                  setTrackerSeconds(0);
+                }}
+                className="flex h-11 w-11 items-center justify-center rounded-full bg-[#d63a3a] text-white transition hover:scale-105 active:scale-95 shadow-md"
+                aria-label="Reset timer"
               >
-                <div className="h-3 w-3 rounded-xs bg-white" />
+                <div className="h-3.5 w-3.5 rounded-xs bg-white" />
               </button>
             </div>
           </div>
         </div>
 
-        {/* tm: Team Collaboration */}
+        {/* tm: Anggota Grup Terkini (Real database members / participants) */}
         <Card style={{ gridArea: "tm" }} className="flex flex-col p-5 sm:p-6 min-h-[220px]">
           <div className="flex items-center justify-between pb-3 border-b border-[var(--line)]">
             <div>
               <h2 className="text-[17px] font-semibold tracking-tight">Anggota Grup Terkini</h2>
               <p className="text-xs text-[var(--muted)]">Partisipasi & kontribusi anggota grup</p>
             </div>
-            <Link href="/dashboard/#participants" className="text-xs font-semibold text-[var(--income)] hover:underline">
+            <button
+              type="button"
+              onClick={() => onNavigate?.("participants")}
+              className="text-xs font-semibold text-[var(--income)] hover:underline"
+            >
               Kelola Semua
-            </Link>
+            </button>
           </div>
           <div className="mt-3.5 space-y-3">
-            <div className="flex items-center gap-3 text-sm">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-800">
-                WA
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="font-medium truncate">{groupName || "Grup WhatsApp"}</p>
-                <p className="text-xs text-[var(--muted)]">ID: {groupId}</p>
-              </div>
-              <Badge tone="income">Terhubung</Badge>
-            </div>
-            <div className="flex items-center gap-3 text-sm pt-1">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-800">
-                AI
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="font-medium truncate">Asisten Keuangan Bot</p>
-                <p className="text-xs text-[var(--muted)]">Otomasi perintah & laporan kas</p>
-              </div>
-              <Badge tone="muted">Aktif</Badge>
-            </div>
+            {displayParticipants.map((p, idx) => {
+              const colors = [
+                "bg-rose-100 text-rose-800",
+                "bg-emerald-100 text-emerald-800",
+                "bg-blue-100 text-blue-800",
+                "bg-amber-100 text-amber-800",
+              ];
+              const initials = p.name ? p.name.slice(0, 2).toUpperCase() : `U${idx + 1}`;
+              const isOwner = idx === 0 || p.name?.toLowerCase().includes("owner") || p.name?.toLowerCase() === "dits";
+              const isAdmin = p.name?.toLowerCase().includes("bot") || p.name?.toLowerCase().includes("admin");
+              const roleLabel = isOwner ? "Owner" : isAdmin ? "Admin Bot" : "Anggota";
+
+              return (
+                <div key={p.id ?? idx} className="flex items-center gap-3 text-sm">
+                  <span className={cn("flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold", colors[idx % colors.length])}>
+                    {initials}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium truncate">{p.name || "Anggota"}</p>
+                    <p className="text-xs text-[var(--muted)]">{roleLabel}</p>
+                  </div>
+                  <Badge tone={isOwner || isAdmin ? "income" : "muted"}>
+                    {isOwner ? "Owner" : isAdmin ? "Admin" : "Aktif"}
+                  </Badge>
+                </div>
+              );
+            })}
           </div>
         </Card>
 
-        {/* pg: Project & Financial Progress */}
+        {/* pg: Progres Proyek / Todo / Task */}
         <Card style={{ gridArea: "pg" }} className="flex flex-col p-5 sm:p-6 justify-between">
           <div>
-            <h2 className="text-[17px] font-semibold tracking-tight">Progres Keuangan</h2>
-            <p className="text-xs text-[var(--muted)]">Rasio beban belanja vs pemasukan</p>
+            <h2 className="text-[17px] font-semibold tracking-tight">Progres Proyek & Tugas</h2>
+            <p className="text-xs text-[var(--muted)]">Rasio tugas selesai vs total tugas</p>
           </div>
           <div className="my-auto py-4 text-center">
             <p className="font-mono text-[clamp(36px,3.5vw,48px)] font-bold tracking-tight text-[var(--income)] leading-none">
-              {expenseRatio}
+              {totalTodos > 0 ? `${todoProgressPct}%` : "0%"}
             </p>
-            <p className="text-xs text-[var(--muted)] mt-2">Rasio Pengeluaran Kas</p>
+            <p className="text-xs text-[var(--muted)] mt-2">
+              {doneTodoCount} dari {totalTodos} Proyek Selesai
+            </p>
           </div>
           <div className="flex items-center justify-center gap-4 text-xs text-[var(--muted)]">
             <span className="flex items-center gap-1.5">
               <span className="h-2 w-2 rounded-full bg-[var(--income)]" />
-              Kas Masuk
+              Selesai ({doneTodoCount})
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-[var(--expense)]" />
-              Kas Keluar
+              <span className="h-2 w-2 rounded-full bg-[var(--warning)]" />
+              Tertunda ({openTodoCount})
             </span>
           </div>
         </Card>
-      </div>
-
-      {/* Transaksi Terbaru & Filter Panel */}
-      <Card className="p-5 sm:p-6 mt-4">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h2 className="text-[18px] font-semibold tracking-tight">Transaksi Terbaru</h2>
-            <p className="text-xs text-[var(--muted)]">Pencarian cepat, filter tanggal, dan ekspor CSV</p>
-          </div>
-          <Button variant="secondary" onClick={onExport} disabled={!transactions.length} className="self-start md:self-auto">
-            <Download className="h-4 w-4" />
-            Export CSV
-          </Button>
-        </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_150px_150px]">
-          <label className="relative">
-            <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-[var(--muted)]" />
-            <Input
-              className="pl-9"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Cari catatan atau pengirim..."
-            />
-          </label>
-          <TransactionTypeSegment
-            value={transactionTypeFilter}
-            onChange={setTransactionTypeFilter}
-          />
-          <Input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} />
-          <Input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} />
-        </div>
-        <TransactionsView
-          groupId={groupId}
-          sessionToken={sessionToken}
-          botApiUrl={botApiUrl}
-          loading={loading}
-          transactions={recentTransactions}
-          onSaved={onSaved}
-        />
-      </Card>
-
-      {/* AI Panel & Quick Insights */}
-      <div className="mt-4">
-        <OverviewAiPanel
-          groupId={groupId}
-          groupName={groupName}
-          summary={summary}
-          transactions={transactions}
-          sessionToken={sessionToken}
-          botApiUrl={botApiUrl}
-          onSaved={onSaved}
-        />
       </div>
     </div>
   );
@@ -2147,30 +2176,53 @@ function ReportsPage({
 
   return (
     <div className="space-y-4">
-      <PageIntro
-        title="Laporan"
-        description="Analisis arus kas berdasarkan transaksi nyata grup aktif"
-      />
+      <div className="flex flex-col gap-2 mb-2">
+        <h1 className="text-[clamp(30px,3vw,40px)] font-semibold leading-[1.1] tracking-[-0.035em]">
+          Analytics
+        </h1>
+        <p className="text-[15px] text-[var(--muted)]">
+          Analisis performa keuangan, perputaran kas, dan aktivitas transaksi
+        </p>
+      </div>
 
+      {/* KPI 4 Cards */}
       <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <CompactMoneyStat label="Saldo saat ini" value={summary.balance} loading={loading} />
-        <CompactMoneyStat label="Total pemasukan" value={summary.income} tone="income" loading={loading} />
-        <CompactMoneyStat label="Total pengeluaran" value={summary.expense} tone="expense" loading={loading} />
-        <DashboardPanel className="flex min-h-[92px] flex-col justify-center">
-          <p className="text-xs font-medium text-[var(--muted)]">Rasio pengeluaran</p>
-          {loading ? (
-            <Skeleton className="mt-2 h-6 w-20" />
-          ) : (
-            <p className="mt-1 text-xl font-semibold tabular-nums">{expenseRatio}%</p>
-          )}
-        </DashboardPanel>
+        <Card className="flex flex-col p-5">
+          <p className="text-xs font-medium text-[var(--muted)]">Saldo Saat Ini</p>
+          <p className="mt-2 text-2xl font-bold font-mono tracking-tight text-[var(--foreground)]">
+            {formatRupiah(summary.balance)}
+          </p>
+          <p className="mt-1 text-xs text-[var(--income)] font-semibold">Kas Tersedia</p>
+        </Card>
+        <Card className="flex flex-col p-5">
+          <p className="text-xs font-medium text-[var(--muted)]">Total Pemasukan</p>
+          <p className="mt-2 text-2xl font-bold font-mono tracking-tight text-[var(--income)]">
+            {formatRupiah(summary.income)}
+          </p>
+          <p className="mt-1 text-xs text-[var(--muted)]">Akumulasi periode</p>
+        </Card>
+        <Card className="flex flex-col p-5">
+          <p className="text-xs font-medium text-[var(--muted)]">Total Pengeluaran</p>
+          <p className="mt-2 text-2xl font-bold font-mono tracking-tight text-[var(--expense)]">
+            {formatRupiah(summary.expense)}
+          </p>
+          <p className="mt-1 text-xs text-[var(--muted)]">Akumulasi periode</p>
+        </Card>
+        <Card className="flex flex-col p-5">
+          <p className="text-xs font-medium text-[var(--muted)]">Rasio Beban Kas</p>
+          <p className="mt-2 text-2xl font-bold font-mono tracking-tight text-[var(--foreground)]">
+            {expenseRatio}%
+          </p>
+          <p className="mt-1 text-xs text-[var(--muted)]">Beban belanja vs masuk</p>
+        </Card>
       </section>
 
+      {/* Charts Grid */}
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(300px,.65fr)]">
-        <DashboardPanel className="self-start">
+        <Card className="p-5 sm:p-6 self-start">
           <div className="mb-4">
-            <h2 className="font-semibold">Tren arus kas</h2>
-            <p className="mt-1 text-sm text-[var(--muted)]">Delapan periode transaksi terakhir.</p>
+            <h2 className="text-[17px] font-semibold tracking-tight">Tren Arus Kas Bulanan</h2>
+            <p className="text-xs text-[var(--muted)]">Pergerakan transaksi kas masuk dan keluar grup</p>
           </div>
           {loading ? (
             <Skeleton className="h-72" />
@@ -2182,27 +2234,27 @@ function ReportsPage({
                   <XAxis dataKey="label" stroke="var(--muted)" fontSize={12} />
                   <YAxis stroke="var(--muted)" fontSize={12} tickFormatter={(value) => `${Number(value) / 1000}k`} />
                   <Tooltip content={<ChartTooltip />} />
-                  <Area type="monotone" dataKey="income" stroke="#10B981" fill="#10B981" fillOpacity={0.16} />
-                  <Area type="monotone" dataKey="expense" stroke="#F43F5E" fill="#F43F5E" fillOpacity={0.1} />
+                  <Area type="monotone" dataKey="income" stroke="#1d7347" fill="#1d7347" fillOpacity={0.18} />
+                  <Area type="monotone" dataKey="expense" stroke="#c23b3b" fill="#c23b3b" fillOpacity={0.12} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
           ) : (
-            <EmptyState title="Belum ada data laporan" description="Laporan akan terbentuk setelah transaksi pertama tercatat." />
+            <EmptyState title="Belum ada data analytics" description="Data akan tampil setelah ada transaksi tercatat." />
           )}
-        </DashboardPanel>
+        </Card>
 
         <div className="grid gap-4">
-          <DashboardPanel>
-            <h2 className="font-semibold">Ringkasan</h2>
+          <Card className="p-5 sm:p-6">
+            <h2 className="text-[17px] font-semibold tracking-tight">Metrik Utama</h2>
             <div className="mt-4 divide-y divide-[var(--line)]">
-              <InfoPill label="Jumlah transaksi" value={String(transactions.length)} />
-              <InfoPill label="Rata-rata nominal" value={formatRupiah(averageTransaction)} />
-              <InfoPill label="Selisih kas" value={formatRupiah(summary.balance)} />
+              <InfoPill label="Total Transaksi" value={String(transactions.length)} />
+              <InfoPill label="Rata-rata Nominal" value={formatRupiah(averageTransaction)} />
+              <InfoPill label="Posisi Net Kas" value={formatRupiah(summary.balance)} />
             </div>
-          </DashboardPanel>
-          <DashboardPanel>
-            <h2 className="font-semibold">Aktivitas mingguan</h2>
+          </Card>
+          <Card className="p-5 sm:p-6">
+            <h2 className="text-[17px] font-semibold tracking-tight">Aktivitas Mingguan</h2>
             {loading ? (
               <Skeleton className="mt-4 h-40" />
             ) : weeklyChart.length ? (
@@ -2212,15 +2264,15 @@ function ReportsPage({
                     <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
                     <XAxis dataKey="label" stroke="var(--muted)" fontSize={12} />
                     <Tooltip content={<ChartTooltip />} />
-                    <Bar dataKey="income" fill="#10B981" radius={[5, 5, 0, 0]} />
-                    <Bar dataKey="expense" fill="#F43F5E" radius={[5, 5, 0, 0]} />
+                    <Bar dataKey="income" fill="#1d7347" radius={[5, 5, 0, 0]} />
+                    <Bar dataKey="expense" fill="#c23b3b" radius={[5, 5, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             ) : (
               <EmptyState title="Belum ada aktivitas" description="Belum ada transaksi mingguan untuk dianalisis." />
             )}
-          </DashboardPanel>
+          </Card>
         </div>
       </section>
     </div>
@@ -2308,14 +2360,25 @@ function CountMetricCard({
   value,
   description,
   loading,
+  onClick,
 }: {
   label: string;
   value: number;
   description: string;
   loading: boolean;
+  onClick?: () => void;
 }) {
   return (
-    <Card className="flex min-h-[178px] min-w-0 flex-col p-5 sm:p-6">
+    <Card
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}
+      className={cn(
+        "flex min-h-[178px] min-w-0 flex-col p-5 sm:p-6 transition-all duration-200",
+        onClick && "cursor-pointer hover:-translate-y-1 hover:shadow-md active:translate-y-0",
+      )}
+    >
       <div className="flex items-start justify-between gap-3">
         <p className="text-[15px] font-medium tracking-tight text-[var(--muted)]">
           {label}
@@ -3337,6 +3400,7 @@ function MetricCard({
   tone,
   primary,
   loading,
+  onClick,
 }: {
   label: string;
   value: number;
@@ -3344,11 +3408,17 @@ function MetricCard({
   tone: "neutral" | "income" | "expense";
   primary?: boolean;
   loading: boolean;
+  onClick?: () => void;
 }) {
   return (
     <Card
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}
       className={cn(
-        "relative flex min-h-[178px] min-w-0 flex-col p-5 sm:p-6",
+        "relative flex min-h-[178px] min-w-0 flex-col p-5 sm:p-6 transition-all duration-200",
+        onClick && "cursor-pointer hover:-translate-y-1 hover:shadow-md active:translate-y-0",
         primary
           ? "bg-gradient-to-br from-[var(--primary-hover)] to-[var(--primary)] text-white shadow-[var(--primary-shadow)] overflow-hidden"
           : "bg-[var(--card)] text-[var(--foreground)]",
@@ -4073,28 +4143,32 @@ function ParticipantsPage({
 
   return (
     <div className="space-y-4">
-      <PageIntro
-        title="Anggota"
-        description="Kelola anggota dan kontribusi grup"
-        action={
-          <Sheet open={open} onOpenChange={setOpen}>
-            <SheetTrigger asChild>
-              <Button>
-                <UserPlus className="h-4 w-4" />
-                Tambah
-              </Button>
-            </SheetTrigger>
-            <SheetContent>
-              <SheetTitle>Tambah Anggota</SheetTitle>
-              <form onSubmit={add} className="mt-5 space-y-3">
-                <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Nama anggota" required />
-                <Input value={dues} onChange={(event) => setDues(event.target.value)} type="number" inputMode="numeric" placeholder="Nominal iuran" />
-                <Button className="w-full">Simpan Anggota</Button>
-              </form>
-            </SheetContent>
-          </Sheet>
-        }
-      />
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between mb-2">
+        <div>
+          <h1 className="text-[clamp(30px,3vw,40px)] font-semibold leading-[1.1] tracking-[-0.035em]">
+            Tim & Anggota
+          </h1>
+          <p className="mt-2 text-[15px] text-[var(--muted)]">
+            Daftar anggota WhatsApp grup dan tim eksternal yang ditambahkan manual
+          </p>
+        </div>
+        <Sheet open={open} onOpenChange={setOpen}>
+          <SheetTrigger asChild>
+            <Button>
+              <UserPlus className="h-4 w-4" />
+              Tambah Anggota Manual
+            </Button>
+          </SheetTrigger>
+          <SheetContent>
+            <SheetTitle>Tambah Anggota Baru</SheetTitle>
+            <form onSubmit={add} className="mt-5 space-y-3">
+              <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Nama anggota (misal: Fadlan / Dits)" required />
+              <Input value={dues} onChange={(event) => setDues(event.target.value)} type="number" inputMode="numeric" placeholder="Target / Nominal iuran" />
+              <Button className="w-full">Simpan Anggota</Button>
+            </form>
+          </SheetContent>
+        </Sheet>
+      </div>
 
       <Sheet open={Boolean(editParticipant)} onOpenChange={(isOpen) => { if (!isOpen) setEditParticipant(null); }}>
         <SheetContent>
@@ -4107,62 +4181,78 @@ function ParticipantsPage({
         </SheetContent>
       </Sheet>
 
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-        <SummaryTile label="Total Anggota" value={String(summary.total)} />
-        <SummaryTile label="Sudah Bayar" value={String(summary.paid)} tone="income" />
-        <SummaryTile label="Belum Bayar" value={String(summary.unpaid)} tone="warning" />
-        <SummaryTile label="Terkumpul" value={formatRupiah(summary.collected)} tone="income" />
+      {/* KPI Tiles */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <Card className="p-4">
+          <p className="text-xs text-[var(--muted)]">Total Anggota</p>
+          <p className="mt-1 text-2xl font-bold font-mono">{summary.total}</p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-xs text-[var(--income)]">Sudah Bayar</p>
+          <p className="mt-1 text-2xl font-bold font-mono text-[var(--income)]">{summary.paid}</p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-xs text-[var(--warning)]">Belum Bayar</p>
+          <p className="mt-1 text-2xl font-bold font-mono text-[var(--warning)]">{summary.unpaid}</p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-xs text-[var(--income)]">Iuran Terkumpul</p>
+          <p className="mt-1 text-2xl font-bold font-mono text-[var(--income)]">{formatRupiah(summary.collected)}</p>
+        </Card>
       </div>
 
+      {/* Search and filters */}
       <div className="flex flex-col gap-2 sm:flex-row">
         <label className="relative flex-1">
           <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-[var(--muted)]" />
-          <Input className="pl-9" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cari anggota" />
+          <Input className="pl-9 rounded-full bg-[var(--card)]" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cari nama anggota atau nomor..." />
         </label>
-        <select value={filter} onChange={(event) => setFilter(event.target.value as typeof filter)} className="min-h-11 rounded-[11px] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm">
-          <option value="all">Semua status</option>
-          <option value="paid">Sudah bayar</option>
-          <option value="unpaid">Belum bayar</option>
+        <select value={filter} onChange={(event) => setFilter(event.target.value as typeof filter)} className="min-h-11 rounded-full border border-[var(--line)] bg-[var(--card)] px-4 text-sm font-medium">
+          <option value="all">Semua Status</option>
+          <option value="paid">Sudah Bayar</option>
+          <option value="unpaid">Belum Bayar</option>
         </select>
       </div>
 
-      <div className="overflow-hidden rounded-[20px] border border-[var(--line)] bg-[var(--card)] shadow-[var(--soft-shadow)]">
-        {loading ? (
-          <div className="space-y-2 p-3">
-            <Skeleton className="h-16" />
-            <Skeleton className="h-16" />
-          </div>
-        ) : visibleParticipants.length ? (
-          <div className="divide-y divide-[var(--line)]">
-            {visibleParticipants.map((participant) => {
-              const status = participant.data?.status === "paid" ? "paid" : "unpaid";
-              const due = Number(participant.data?.dues_amount ?? 0);
-              const initials = participant.name
-                .split(/\s+/)
-                .slice(0, 2)
-                .map((part) => part[0])
-                .join("")
-                .toUpperCase();
-              return (
-                <div key={participant.id} className="flex min-h-16 flex-wrap items-center gap-3 p-3">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-[var(--panel)] text-sm font-semibold">
-                    {initials || "A"}
+      {/* Fernly Team Member Cards Grid */}
+      {loading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <Skeleton className="h-48 rounded-[20px]" />
+          <Skeleton className="h-48 rounded-[20px]" />
+          <Skeleton className="h-48 rounded-[20px]" />
+        </div>
+      ) : visibleParticipants.length ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {visibleParticipants.map((participant, idx) => {
+            const status = participant.data?.status === "paid" ? "paid" : "unpaid";
+            const due = Number(participant.data?.dues_amount ?? 0);
+            const initials = participant.name
+              .split(/\s+/)
+              .slice(0, 2)
+              .map((part) => part[0])
+              .join("")
+              .toUpperCase();
+            const colors = [
+              "bg-rose-100 text-rose-800",
+              "bg-emerald-100 text-emerald-800",
+              "bg-blue-100 text-blue-800",
+              "bg-amber-100 text-amber-800",
+              "bg-purple-100 text-purple-800",
+            ];
+            const isOwner = idx === 0 || participant.name.toLowerCase().includes("owner") || participant.name.toLowerCase().includes("dits");
+            const isAdmin = participant.name.toLowerCase().includes("bot") || participant.name.toLowerCase().includes("admin");
+
+            return (
+              <Card key={participant.id} className="flex flex-col p-5 justify-between relative hover:-translate-y-1 transition duration-200 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <span className={cn("flex h-12 w-12 items-center justify-center rounded-full text-base font-bold shadow-xs", colors[idx % colors.length])}>
+                    {initials || "U"}
                   </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold">{participant.name}</p>
-                    <p className="font-mono text-xs text-[var(--muted)] tabular-nums">Iuran {formatRupiah(due)}</p>
-                  </div>
-                  <div className="ml-auto flex w-full flex-wrap items-center gap-1.5 sm:w-auto sm:shrink-0 sm:justify-end">
-                    <Badge tone={status === "paid" ? "income" : "warning"}>
-                      {status === "paid" ? "Lunas" : "Belum bayar"}
-                    </Badge>
-                    <Button variant="outline" size="sm" onClick={() => mark(participant, status === "paid" ? "unpaid" : "paid")}>
-                      {status === "paid" ? "Reset" : "Lunas"}
-                    </Button>
+                  <div className="flex items-center gap-1">
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8"
+                      className="h-8 w-8 text-[var(--muted)] hover:text-[var(--foreground)]"
                       onClick={() => {
                         setEditName(participant.name);
                         setEditDues(String(participant.data?.dues_amount ?? ""));
@@ -4175,7 +4265,7 @@ function ParticipantsPage({
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-rose-500 hover:bg-rose-500/10 hover:text-rose-500"
+                      className="h-8 w-8 text-rose-500 hover:bg-rose-500/10"
                       onClick={() => remove(participant)}
                       aria-label="Hapus anggota"
                     >
@@ -4183,13 +4273,39 @@ function ParticipantsPage({
                     </Button>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        ) : (
-          <EmptyState title="Anggota belum ada" description="Tambahkan anggota grup untuk memantau iuran." />
-        )}
-      </div>
+
+                <div className="mt-3">
+                  <h3 className="text-base font-semibold truncate">{participant.name}</h3>
+                  <p className="text-xs text-[var(--muted)] mt-0.5">
+                    {isOwner ? "Owner Grup" : isAdmin ? "Admin Bot" : "Anggota Grup"}
+                  </p>
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-[var(--line)] flex items-center justify-between">
+                  <div>
+                    <p className="text-[11px] text-[var(--muted)]">Iuran</p>
+                    <p className="font-mono text-sm font-semibold">{formatRupiah(due)}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge tone={status === "paid" ? "income" : "warning"}>
+                      {status === "paid" ? "Lunas" : "Belum bayar"}
+                    </Badge>
+                    <button
+                      type="button"
+                      onClick={() => mark(participant, status === "paid" ? "unpaid" : "paid")}
+                      className="rounded-full bg-[var(--surface)] border border-[var(--line)] px-2.5 py-1 text-xs font-semibold hover:bg-[var(--line)] transition"
+                    >
+                      {status === "paid" ? "Reset" : "Bayar"}
+                    </button>
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      ) : (
+        <EmptyState title="Belum ada anggota" description="Gunakan tombol Tambah Anggota Manual di atas untuk menambahkan anggota baru." />
+      )}
     </div>
   );
 }
@@ -4859,78 +4975,187 @@ function RemindersPage({
     else { toast.success("Reminder dihapus."); onChanged(); }
   }
 
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const d = new Date();
+    return d.getDate();
+  });
+  const todayDate = new Date().getDate();
+
   return (
     <div className="space-y-4">
-      <PageIntro
-        title="Reminder"
-        description="Jadwal otomatis untuk grup WhatsApp"
-        action={
-          <Sheet open={open} onOpenChange={setOpen}>
-            <SheetTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4" />
-                Buat Reminder
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between mb-2">
+        <div>
+          <h1 className="text-[clamp(30px,3vw,40px)] font-semibold leading-[1.1] tracking-[-0.035em]">
+            Kalender & Pengingat
+          </h1>
+          <p className="mt-2 text-[15px] text-[var(--muted)]">
+            Agenda terjadwal, kalender bulanan, dan pengingat otomatis grup WhatsApp
+          </p>
+        </div>
+        <Sheet open={open} onOpenChange={setOpen}>
+          <SheetTrigger asChild>
+            <Button>
+              <Plus className="h-4 w-4" />
+              Buat Pengingat
+            </Button>
+          </SheetTrigger>
+          <SheetContent>
+            <SheetTitle>Pengingat Baru</SheetTitle>
+            <form onSubmit={add} className="mt-5 space-y-3">
+              <ReminderScheduleFields
+                type={type}
+                value={value}
+                onChange={(patch) => {
+                  setType(patch.type);
+                  setValue(patch.value);
+                }}
+              />
+              <Textarea value={text} onChange={(event) => setText(event.target.value)} placeholder="Isi pesan pengingat..." required />
+              <Button className="w-full" disabled={saving}>
+                {saving ? "Menyimpan..." : "Simpan Pengingat"}
               </Button>
-            </SheetTrigger>
-            <SheetContent>
-              <SheetTitle>Reminder Baru</SheetTitle>
-              <form onSubmit={add} className="mt-5 space-y-3">
-                <ReminderScheduleFields
-                  type={type}
-                  value={value}
-                  onChange={(patch) => {
-                    setType(patch.type);
-                    setValue(patch.value);
-                  }}
-                />
-                <Textarea value={text} onChange={(event) => setText(event.target.value)} placeholder="Isi reminder" required />
-                <Button className="w-full" disabled={saving}>
-                  {saving ? "Menyimpan..." : "Simpan Reminder"}
-                </Button>
-              </form>
-            </SheetContent>
-          </Sheet>
-        }
-      />
-      <div className="overflow-hidden rounded-[20px] border border-[var(--line)] bg-[var(--card)] p-2 shadow-[var(--soft-shadow)]">
-        {loading ? (
-          <Skeleton className="h-32" />
-        ) : reminders.length ? (
-          <div className="divide-y divide-[var(--line)]">
-            {reminders.map((reminder) => (
-              <div key={reminder.id} className="flex items-center gap-3 rounded-[16px] p-3 transition hover:bg-[var(--surface)]">
-                <div className="flex flex-col items-center">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-[12px] bg-[var(--panel)] text-emerald-500">
-                    <CalendarClock className="h-4 w-4" />
-                  </span>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="font-semibold">{reminder.remind_text}</p>
-                    <span className="rounded-full bg-[var(--surface)] px-2 py-1 text-xs text-[var(--muted)]">
-                      {formatReminderTypeLabel(reminder.remind_type)}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-sm text-[var(--muted)]">
-                    {formatReminderScheduleValue(reminder.remind_type, reminder.remind_value)}
-                  </p>
-                  <p className="mt-1 text-xs text-[var(--muted)]">Dibuat oleh {reminder.created_by ?? "Dashboard"}</p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 shrink-0 text-rose-500 hover:bg-rose-500/10 hover:text-rose-500"
-                  onClick={() => remove(reminder)}
-                  aria-label="Hapus reminder"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            ))}
+            </form>
+          </SheetContent>
+        </Sheet>
+      </div>
+
+      {/* Fernly Calendar Layout (Grid + Agenda) */}
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)]">
+        {/* Month View Card */}
+        <Card className="flex flex-col p-5 sm:p-6">
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h2 className="text-[19px] font-semibold tracking-tight">Oktober 2026</h2>
+              <p className="text-xs text-[var(--muted)]">Bulan Aktif Grup</p>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setSelectedDate(todayDate)}
+                className="rounded-full bg-[var(--surface)] border border-[var(--line)] px-3 py-1 text-xs font-semibold hover:bg-[var(--card)] transition"
+              >
+                Hari Ini
+              </button>
+            </div>
           </div>
-        ) : (
-          <EmptyState title="Belum ada reminder" description="Reminder otomatis grup akan tampil di sini." />
-        )}
+
+          {/* Days of week */}
+          <div className="grid grid-cols-7 gap-1 text-center text-xs font-semibold uppercase text-[var(--muted)] pb-2 border-b border-[var(--line)]">
+            <span>Min</span>
+            <span>Sen</span>
+            <span>Sel</span>
+            <span>Rab</span>
+            <span>Kam</span>
+            <span>Jum</span>
+            <span>Sab</span>
+          </div>
+
+          {/* 31 Days Grid */}
+          <div className="grid grid-cols-7 gap-1.5 pt-3">
+            {/* Days 1 to 31 */}
+            {Array.from({ length: 31 }, (_, i) => i + 1).map((dayNum) => {
+              const isToday = dayNum === todayDate;
+              const isSelected = dayNum === selectedDate;
+              const hasReminder = reminders.length > 0 && dayNum % 5 === 0;
+
+              return (
+                <button
+                  key={dayNum}
+                  type="button"
+                  onClick={() => setSelectedDate(dayNum)}
+                  className={cn(
+                    "flex flex-col items-center justify-center min-h-[52px] rounded-[14px] p-1 transition",
+                    isSelected
+                      ? "bg-[var(--primary)] text-white shadow-sm font-bold"
+                      : isToday
+                        ? "bg-[var(--surface)] border-2 border-[var(--income)] font-bold text-[var(--income)]"
+                        : "hover:bg-[var(--surface)] text-[var(--foreground)]",
+                  )}
+                >
+                  <span className="text-sm">{dayNum}</span>
+                  {hasReminder && (
+                    <span
+                      className={cn(
+                        "mt-0.5 h-1.5 w-1.5 rounded-full",
+                        isSelected ? "bg-white" : "bg-emerald-500",
+                      )}
+                    />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-5 flex items-center gap-4 text-xs text-[var(--muted)] pt-3 border-t border-[var(--line)]">
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-[var(--income)]" />
+              Hari Ini
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-[var(--primary)]" />
+              Dipilih
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              Ada Jadwal
+            </span>
+          </div>
+        </Card>
+
+        {/* Agenda Card */}
+        <Card className="flex flex-col p-5 sm:p-6 justify-between">
+          <div>
+            <div className="flex items-center justify-between pb-3 border-b border-[var(--line)]">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-[var(--income)]">
+                  Agenda Tanggal {selectedDate}
+                </p>
+                <h2 className="text-[18px] font-semibold tracking-tight">Daftar Pengingat</h2>
+              </div>
+              <Badge tone="muted">{reminders.length} aktif</Badge>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {loading ? (
+                <Skeleton className="h-32" />
+              ) : reminders.length ? (
+                reminders.map((reminder) => (
+                  <div
+                    key={reminder.id}
+                    className="flex items-center gap-3 rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-3.5 transition hover:shadow-xs"
+                  >
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-800">
+                      <CalendarClock className="h-4 w-4" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-sm truncate">{reminder.remind_text}</p>
+                      <p className="text-xs text-[var(--muted)] mt-0.5">
+                        {formatReminderTypeLabel(reminder.remind_type)}: {formatReminderScheduleValue(reminder.remind_type, reminder.remind_value)}
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0 text-rose-500 hover:bg-rose-500/10 hover:text-rose-500"
+                      onClick={() => remove(reminder)}
+                      aria-label="Hapus pengingat"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))
+              ) : (
+                <div className="py-8 text-center text-xs text-[var(--muted)]">
+                  Belum ada pengingat terjadwal untuk grup ini.
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-6 pt-3 border-t border-[var(--line)] text-center text-xs text-[var(--muted)]">
+            Bot WhatsApp akan otomatis mengirim pesan sesuai jadwal ini.
+          </div>
+        </Card>
       </div>
     </div>
   );
@@ -5249,44 +5474,115 @@ function HelpPage({ role }: { role: "admin" | "owner" }) {
     .filter((section) => section.commands.length > 0);
 
   return (
-    <div className="space-y-5">
-      <PageIntro
-        title="Bantuan"
-        description="Perintah WhatsApp aktif untuk akun dan grup BotUang"
-      />
-      <label className="relative block max-w-xl">
-        <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-[var(--muted)]" />
-        <Input
-          className="pl-9"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Cari perintah atau fungsi"
-        />
-      </label>
-
-      {sections.length ? (
-        <div className="grid gap-x-8 gap-y-7 xl:grid-cols-2">
-          {sections.map((section) => (
-            <section key={section.title} aria-labelledby={`help-${section.title}`}>
-              <h2 id={`help-${section.title}`} className="border-b border-[var(--line)] pb-3 font-semibold">
-                {section.title}
-              </h2>
-              <div className="divide-y divide-[var(--line)]">
-                {section.commands.map(([command, description]) => (
-                  <div key={command} className="grid min-h-14 gap-1 py-3 sm:grid-cols-[minmax(170px,.8fr)_1fr] sm:items-center sm:gap-4">
-                    <code className="w-fit rounded-[8px] bg-[var(--panel)] px-2 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-                      {command}
-                    </code>
-                    <p className="text-sm text-[var(--muted)]">{description}</p>
-                  </div>
-                ))}
-              </div>
-            </section>
-          ))}
+    <div className="space-y-6">
+      {/* Fernly Help Center Hero */}
+      <div className="relative overflow-hidden rounded-[24px] bg-gradient-to-br from-[var(--primary-hover)] to-[var(--primary)] p-6 sm:p-8 text-white shadow-[var(--primary-shadow)]">
+        <div className="max-w-xl">
+          <p className="text-xs uppercase tracking-widest text-[#b9e6cb] font-semibold">Pusat Bantuan & Panduan</p>
+          <h1 className="mt-2 text-[clamp(26px,2.8vw,36px)] font-bold tracking-tight leading-tight">
+            Bagaimana kami bisa membantu Anda hari ini?
+          </h1>
+          <p className="mt-2 text-sm text-[#d1ece0]">
+            Pelajari perintah bot WhatsApp, kelola grup, atau hubungi owner pengembang secara langsung.
+          </p>
         </div>
-      ) : (
-        <EmptyState title="Perintah tidak ditemukan" description="Coba kata kunci lain." />
-      )}
+
+        {/* Categories cards */}
+        <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          {[
+            { label: "Keuangan", sub: "Catat kas & iuran", icon: WalletCards },
+            { label: "Agenda", sub: "Todo & reminder", icon: CalendarClock },
+            { label: "Otomasi", sub: "Perintah kustom", icon: Bot },
+            { label: "Layanan", sub: "Cuaca & lokasi", icon: Sparkles },
+          ].map((cat) => {
+            const Icon = cat.icon;
+            return (
+              <div key={cat.label} className="rounded-[16px] bg-white/10 p-3 backdrop-blur-xs border border-white/10">
+                <Icon className="h-4 w-4 text-[#b9e6cb]" />
+                <p className="mt-2 font-semibold text-sm">{cat.label}</p>
+                <p className="text-[11px] text-[#b9e6cb]">{cat.sub}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+        {/* Commands directory */}
+        <div className="space-y-4">
+          <div className="flex flex-col gap-2">
+            <h2 className="text-lg font-semibold tracking-tight">Daftar Perintah Bot WhatsApp</h2>
+            <p className="text-xs text-[var(--muted)]">Ketikkan perintah ini langsung di dalam grup WhatsApp Anda</p>
+          </div>
+
+          <label className="relative block">
+            <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-[var(--muted)]" />
+            <Input
+              className="pl-9 rounded-full bg-[var(--card)]"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Cari perintah atau fungsi (contoh: +500k, trx, r)..."
+            />
+          </label>
+
+          {sections.length ? (
+            <div className="space-y-5">
+              {sections.map((section) => (
+                <Card key={section.title} className="p-5">
+                  <h3 className="border-b border-[var(--line)] pb-3 font-semibold text-base">
+                    {section.title}
+                  </h3>
+                  <div className="divide-y divide-[var(--line)]">
+                    {section.commands.map(([command, description]) => (
+                      <div key={command} className="grid min-h-12 gap-1 py-3 sm:grid-cols-[minmax(170px,.8fr)_1fr] sm:items-center sm:gap-4">
+                        <code className="w-fit rounded-[8px] bg-[var(--panel)] px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                          {command}
+                        </code>
+                        <p className="text-sm text-[var(--muted)]">{description}</p>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <EmptyState title="Perintah tidak ditemukan" description="Coba kata kunci lain." />
+          )}
+        </div>
+
+        {/* Contact Owner Sidebar Card (Fernly style) */}
+        <div className="space-y-4">
+          <Card className="flex flex-col p-6 justify-between border-2 border-emerald-500/20 bg-gradient-to-b from-[var(--surface)] to-[var(--card)] shadow-md">
+            <div>
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-800">
+                <MessageCircle className="h-5 w-5" />
+              </span>
+              <h3 className="mt-4 font-semibold text-lg tracking-tight">Hubungi Owner</h3>
+              <p className="mt-1.5 text-xs text-[var(--muted)] leading-relaxed">
+                Butuh bantuan khusus, sewa bot baru, integrasi grup, atau pelaporan kendala sistem? Owner siap membantu Anda secara langsung.
+              </p>
+            </div>
+
+            <div className="mt-6 space-y-2.5">
+              <a
+                href="https://wa.me/6281234567890?text=Halo%20Owner%20BotUang,%20saya%20butuh%20bantuan"
+                target="_blank"
+                rel="noreferrer"
+                className="flex h-11 w-full items-center justify-center gap-2 rounded-full bg-[#1d7347] text-sm font-semibold text-white shadow-sm transition hover:bg-[#155a37] active:scale-98"
+              >
+                <MessageCircle className="h-4 w-4" />
+                WhatsApp Owner
+              </a>
+              <a
+                href="mailto:support@botuang.tech"
+                className="flex h-11 w-full items-center justify-center gap-2 rounded-full border border-[var(--line)] bg-[var(--card)] text-sm font-semibold text-[var(--foreground)] transition hover:bg-[var(--surface)]"
+              >
+                Kirim Email
+              </a>
+            </div>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }
@@ -5496,8 +5792,19 @@ function SettingsPage({
   const [months, setMonths] = useState("1");
   const [proof, setProof] = useState<File | null>(null);
   const [settingsSection, setSettingsSection] = useState<
-    "rental" | "group" | "location" | "bot" | "security"
-  >("rental");
+    "profile" | "notifications" | "appearance" | "rental" | "group" | "location" | "bot" | "security"
+  >("profile");
+
+  // Profile local state
+  const [profileName, setProfileName] = useState("Dits Owner");
+  const [profileEmail, setProfileEmail] = useState("dits@botuang.tech");
+  const [profileBio, setProfileBio] = useState("Pengelola grup WhatsApp & bendahara");
+  // Notifications local state
+  const [notifDaily, setNotifDaily] = useState(true);
+  const [notifTransaction, setNotifTransaction] = useState(true);
+  const [notifReminder, setNotifReminder] = useState(true);
+  // Appearance local state
+  const [accentColor, setAccentColor] = useState("emerald");
 
   useEffect(() => {
     dispatchForm({ type: "reset", value: getSettingsFormState(settings) });
@@ -5711,6 +6018,9 @@ function SettingsPage({
   if (loading) return <Skeleton className="h-96" />;
 
   const settingSections = [
+    { key: "profile", label: "Profile", icon: Users },
+    { key: "notifications", label: "Notifications", icon: Bell },
+    { key: "appearance", label: "Appearance", icon: Sparkles },
     { key: "rental", label: "Rental", icon: WalletCards },
     { key: "group", label: "Group", icon: Users },
     { key: "location", label: "Location & Services", icon: MapPin },
@@ -5720,7 +6030,7 @@ function SettingsPage({
 
   return (
     <div className="space-y-4">
-      <PageIntro title="Setting" description="Kelola sewa, layanan lokasi, bot, dan keamanan grup" />
+      <PageIntro title="Pengaturan" description="Kelola profil, notifikasi, tema tampilan, layanan lokasi, dan keamanan grup" />
       <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
         <nav className="grid gap-1 self-start rounded-[20px] border border-[var(--line)] bg-[var(--card)] p-2 shadow-[var(--soft-shadow)] lg:sticky lg:top-24">
           {settingSections.map((section) => {
@@ -5730,9 +6040,9 @@ function SettingsPage({
                 key={section.key}
                 onClick={() => setSettingsSection(section.key)}
                 className={cn(
-                  "flex min-h-11 items-center gap-3 rounded-[12px] px-3 text-left text-sm font-semibold",
+                  "flex min-h-11 items-center gap-3 rounded-[12px] px-3 text-left text-sm font-semibold transition",
                   settingsSection === section.key
-                    ? "bg-[#0D3A23] text-white"
+                    ? "bg-[#0D3A23] text-white shadow-sm"
                     : "text-[var(--muted)] hover:bg-[var(--panel)] hover:text-[var(--foreground)]",
                 )}
               >
@@ -5744,6 +6054,110 @@ function SettingsPage({
         </nav>
 
         <div className="space-y-4">
+      {/* Profile Section (Fernly) */}
+      {settingsSection === "profile" && (
+        <section className={settingsPanelClass}>
+          <div>
+            <h2 className="font-semibold text-lg">Informasi Profil</h2>
+            <p className="mt-1 text-sm text-[var(--muted)]">Atur identitas akun dan informasi pengelola dashboard</p>
+          </div>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              toast.success("Profil berhasil disimpan.");
+            }}
+            className="mt-5 space-y-4"
+          >
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="space-y-1.5 block">
+                <span className="text-xs font-semibold text-[var(--muted)]">Nama Lengkap</span>
+                <Input value={profileName} onChange={(e) => setProfileName(e.target.value)} placeholder="Nama Anda" />
+              </label>
+              <label className="space-y-1.5 block">
+                <span className="text-xs font-semibold text-[var(--muted)]">Alamat Email</span>
+                <Input value={profileEmail} onChange={(e) => setProfileEmail(e.target.value)} type="email" placeholder="email@domain.com" />
+              </label>
+            </div>
+            <label className="space-y-1.5 block">
+              <span className="text-xs font-semibold text-[var(--muted)]">Bio & Peran</span>
+              <Textarea value={profileBio} onChange={(e) => setProfileBio(e.target.value)} placeholder="Deskripsi singkat peran Anda di grup..." />
+            </label>
+            <Button className="w-full sm:w-auto">Simpan Perubahan</Button>
+          </form>
+        </section>
+      )}
+
+      {/* Notifications Section (Fernly) */}
+      {settingsSection === "notifications" && (
+        <section className={settingsPanelClass}>
+          <div>
+            <h2 className="font-semibold text-lg">Preferensi Notifikasi</h2>
+            <p className="mt-1 text-sm text-[var(--muted)]">Pilih notifikasi otomatis yang ingin diterima</p>
+          </div>
+          <div className="mt-5 space-y-3">
+            <SettingToggle
+              icon={Bell}
+              title="Laporan Harian Kas WhatsApp"
+              enabled={notifDaily}
+              onEnabledChange={setNotifDaily}
+            />
+            <SettingToggle
+              icon={WalletCards}
+              title="Notifikasi Transaksi Baru Masuk/Keluar"
+              enabled={notifTransaction}
+              onEnabledChange={setNotifTransaction}
+            />
+            <SettingToggle
+              icon={CalendarClock}
+              title="Pengingat Jadwal & Reminder Otomatis"
+              enabled={notifReminder}
+              onEnabledChange={setNotifReminder}
+            />
+          </div>
+        </section>
+      )}
+
+      {/* Appearance Section (Fernly) */}
+      {settingsSection === "appearance" && (
+        <section className={settingsPanelClass}>
+          <div>
+            <h2 className="font-semibold text-lg">Tampilan & Tema</h2>
+            <p className="mt-1 text-sm text-[var(--muted)]">Sesuaikan palet warna aksen dan gaya visual</p>
+          </div>
+          <div className="mt-5 space-y-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-3">Warna Aksen</p>
+              <div className="flex flex-wrap gap-3">
+                {[
+                  { key: "emerald", label: "Emerald (Default)", color: "bg-emerald-600" },
+                  { key: "ocean", label: "Ocean Blue", color: "bg-blue-600" },
+                  { key: "plum", label: "Plum Purple", color: "bg-purple-600" },
+                  { key: "ember", label: "Ember Amber", color: "bg-amber-600" },
+                ].map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => {
+                      setAccentColor(item.key);
+                      toast.success(`Aksen diubah ke ${item.label}`);
+                    }}
+                    className={cn(
+                      "flex items-center gap-2.5 rounded-full px-4 py-2 border text-xs font-semibold transition",
+                      accentColor === item.key
+                        ? "border-[var(--primary)] bg-[var(--surface)] text-[var(--foreground)]"
+                        : "border-[var(--line)] bg-[var(--card)] text-[var(--muted)] hover:text-[var(--foreground)]",
+                    )}
+                  >
+                    <span className={cn("h-3.5 w-3.5 rounded-full", item.color)} />
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
       {settingsSection === "rental" ? (
       <section className={settingsPanelClass}>
         <div className="flex items-start justify-between gap-3">

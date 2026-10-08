@@ -21,6 +21,8 @@
   --soft-shadow: 0 1px 2px rgba(19, 26, 21, 0.04), 0 8px 24px -12px rgba(19, 26, 21, 0.1);
   --primary-shadow: 0 14px 30px -16px rgba(13, 58, 35, 0.7);
   --focus-ring: 0 0 0 3px var(--card), 0 0 0 5px #27865a;
+  --r-md: 18px;
+  --r-lg: 26px;
 }
 
 :root[data-theme="dark"] {
@@ -253,6 +255,36 @@ a {
               radial-gradient(60% 50% at 10% 0%, var(--primary), transparent 70%);
   position: absolute;
   inset: -40%;
+}
+
+/* === Fernly Animations & Micro-Interactions === */
+@keyframes fernlyFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fernly-animate-in {
+  animation: fernlyFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.fernly-card-interactive {
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+}
+
+.fernly-card-interactive:hover {
+  transform: translateY(-3px) scale(1.008);
+  box-shadow: 0 12px 28px -10px rgba(19, 26, 21, 0.14);
+}
+
+.fernly-card-interactive:active {
+  transform: translateY(-1px) scale(0.995);
 }
 
 /* === Fernly Bento Grid Layout === */
