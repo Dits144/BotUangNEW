@@ -2286,6 +2286,74 @@ function ReportsPage({
           )}
         </DashboardPanel>
       </section>
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
+        <DashboardPanel>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="font-semibold">Aktivitas</h2>
+              <p className="mt-1 text-sm text-[var(--muted)]">
+                Intensitas transaksi selama 20 minggu terakhir.
+              </p>
+            </div>
+            <div className="flex items-center gap-1 text-[11px] text-[var(--muted)]" aria-hidden="true">
+              Sedikit
+              {[0, 1, 2, 3, 4].map((level) => (
+                <i key={level} className="inline-block h-3 w-3 shrink-0 rounded-[4px]" data-finance-activity={level} />
+              ))}
+              Banyak
+            </div>
+          </div>
+          {loading ? (
+            <Skeleton className="mt-5 h-36" />
+          ) : analytics.activity.some((day) => day.count > 0) ? (
+            <div
+              className="mt-5 grid grid-flow-col grid-rows-7 gap-1"
+              role="img"
+              aria-label={`Aktivitas transaksi 20 minggu: ${analytics.activityHighDays} hari dengan aktivitas tinggi.`}
+            >
+              {analytics.activity.map((day) => (
+                <span
+                  key={day.date}
+                  data-finance-activity={day.level}
+                  className="aspect-square min-w-0 rounded-[4px]"
+                  title={`${formatDate(day.date)}: ${day.count} transaksi`}
+                />
+              ))}
+            </div>
+          ) : (
+            <EmptyState title="Belum ada aktivitas" description="Aktivitas harian akan muncul setelah transaksi pertama tercatat." />
+          )}
+        </DashboardPanel>
+
+        <DashboardPanel>
+          <h2 className="font-semibold">Kontributor Teratas</h2>
+          <p className="mt-1 text-sm text-[var(--muted)]">Pengirim transaksi pada periode terpilih.</p>
+          {loading ? (
+            <Skeleton className="mt-5 h-48" />
+          ) : analytics.contributors.length ? (
+            <ol className="mt-5 grid gap-4">
+              {analytics.contributors.map((contributor) => (
+                <li key={contributor.key} className="grid grid-cols-[38px_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1">
+                  <span className="row-span-2 flex h-[38px] w-[38px] items-center justify-center rounded-full bg-[var(--panel)] text-[11px] font-bold">
+                    {getUserInitials({ name: contributor.name, email: "" })}
+                  </span>
+                  <span className="truncate text-sm font-semibold">{contributor.name}</span>
+                  <span className="font-mono text-xs font-semibold tabular-nums text-[var(--muted)]">{contributor.count}</span>
+                  <span className="col-span-2 col-start-2 h-1.5 overflow-hidden rounded-full bg-[var(--panel)]" aria-hidden="true">
+                    <span
+                      className="block h-full origin-left rounded-full bg-[var(--income)]"
+                      style={{ width: `${contributor.share}%` }}
+                    />
+                  </span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <EmptyState title="Belum ada kontributor" description={`Belum ada pengirim transaksi pada ${rangeDays} hari terakhir.`} />
+          )}
+        </DashboardPanel>
+      </section>
     </div>
   );
 }
@@ -2476,6 +2544,46 @@ function buildFinancialAnalytics(transactions: Transaction[], rangeDays: number)
       share: current.expense ? Math.max(2, (category.amount / current.expense) * 100) : 0,
     }));
 
+  const activityStart = new Date(today);
+  activityStart.setDate(activityStart.getDate() - 139);
+  const activityCounts = new Map<string, number>();
+  liveTransactions.forEach((item) => {
+    const date = new Date(item.created_at);
+    if (date.getTime() < activityStart.getTime() || date.getTime() >= currentEnd.getTime()) return;
+    const key = toLocalDateKey(date);
+    activityCounts.set(key, (activityCounts.get(key) ?? 0) + 1);
+  });
+  const maximumActivity = Math.max(0, ...activityCounts.values());
+  const activity = Array.from({ length: 140 }, (_, index) => {
+    const date = new Date(activityStart);
+    date.setDate(date.getDate() + index);
+    const dateKey = toLocalDateKey(date);
+    const count = activityCounts.get(dateKey) ?? 0;
+    const level = count === 0 || maximumActivity === 0
+      ? 0
+      : Math.min(4, Math.max(1, Math.ceil((count / maximumActivity) * 4)));
+    return { date: dateKey, count, level };
+  });
+  const activityHighDays = activity.filter((day) => day.level >= 3).length;
+
+  const contributorMap = new Map<string, { key: string; name: string; count: number; amount: number }>();
+  currentTransactions.forEach((item) => {
+    const key = item.sender_id || item.sender_name || "dashboard";
+    const name = item.sender_name?.trim() || (item.sender_id ? item.sender_id : "Dashboard BotUang");
+    const contributor = contributorMap.get(key) ?? { key, name, count: 0, amount: 0 };
+    contributor.count += 1;
+    contributor.amount += Number(item.amount || 0);
+    contributorMap.set(key, contributor);
+  });
+  const rankedContributors = Array.from(contributorMap.values())
+    .sort((a, b) => b.count - a.count || b.amount - a.amount)
+    .slice(0, 5);
+  const topContributorCount = rankedContributors[0]?.count ?? 0;
+  const contributors = rankedContributors.map((contributor) => ({
+    ...contributor,
+    share: topContributorCount ? (contributor.count / topContributorCount) * 100 : 0,
+  }));
+
   const busiestCashflowDay = daily.reduce<FinancialDailyPoint | null>(
     (largest, point) =>
       !largest || point.income + point.expense > largest.income + largest.expense
@@ -2490,7 +2598,16 @@ function buildFinancialAnalytics(transactions: Transaction[], rangeDays: number)
     ? `Arus kas ${rangeDays} hari: saldo bersih ${formatRupiah(current.balance)}, periode sebelumnya ${formatRupiah(previous.balance)}. Hari paling aktif ${busiestCashflowDay?.label ?? "-"} dengan pergerakan ${formatRupiah(busiestVolume)}.`
     : `Belum ada aktivitas kas pada ${rangeDays} hari terakhir.`;
 
-  return { current, previous, daily, categories, summary };
+  return {
+    current,
+    previous,
+    daily,
+    categories,
+    activity,
+    activityHighDays,
+    contributors,
+    summary,
+  };
 }
 
 function toLocalDateKey(date: Date) {

@@ -385,6 +385,26 @@ a {
   padding: 14px;
 }
 
+[data-finance-activity="0"] {
+  background: var(--panel);
+}
+
+[data-finance-activity="1"] {
+  background: color-mix(in srgb, var(--income) 28%, var(--panel));
+}
+
+[data-finance-activity="2"] {
+  background: color-mix(in srgb, var(--income) 58%, var(--panel));
+}
+
+[data-finance-activity="3"] {
+  background: var(--income);
+}
+
+[data-finance-activity="4"] {
+  background: color-mix(in srgb, var(--income) 65%, black);
+}
+
 .fernly-col__head {
   display: flex;
   align-items: center;

@@ -207,6 +207,8 @@ test("financial analytics, Kanban, and calendar expose the Fernly structures", a
   }
   await expect(page.getByRole("heading", { name: "Arus Kas", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Pengeluaran per kategori", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Aktivitas", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Kontributor Teratas", exact: true })).toBeVisible();
   await expect(page.getByText("Periode ini", { exact: true })).toBeVisible();
   await expect(page.getByText("Sebelumnya", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Daftar Transaksi", exact: true })).toHaveCount(0);
