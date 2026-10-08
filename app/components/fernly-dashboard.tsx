@@ -1046,47 +1046,49 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
       : navItems.filter((item) => item.key !== "owner");
 
   return (
-    <main className="min-h-screen bg-[var(--background)] p-2.5 text-[var(--foreground)] lg:p-3">
-      <div className="flex min-h-[calc(100vh-20px)] gap-3 lg:min-h-[calc(100vh-24px)]">
-        <aside className="sticky top-3 hidden h-[calc(100vh-24px)] w-[252px] shrink-0 overflow-y-auto rounded-[26px] bg-[var(--sidebar)] px-4 py-5 xl:block">
-          <Brand
-            groupId={groupId}
-            groupName={groupName}
-            groups={groups}
-            botStatus={botStatus}
-            onSelectGroup={selectGroup}
-          />
-          <nav className="mt-6 space-y-5">
-            {navGroups.map((group) => {
-              const items = group.items
-                .map((key) => getNavItem(key))
-                .filter((item): item is (typeof navItems)[number] => Boolean(item))
-                .filter((item) => visibleNavItems.some((visible) => visible.key === item.key));
-              if (!items.length) return null;
-              return (
-                <div key={group.label}>
-                  <p className="px-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">
-                    {group.label}
-                  </p>
-                  <div className="mt-2 grid gap-1">
-                    {items.map((item) => (
-                      <NavLink
-                        key={item.key}
-                        item={item}
-                        active={activeSection === item.key}
-                        href={preview ? `/preview-dashboard#${item.key}` : item.href}
-                        onNavigate={() => navigateDashboardSection(item.key)}
-                      />
-                    ))}
-                  </div>
+    <main className="fernly-app min-h-dvh bg-[var(--background)] text-[var(--foreground)]">
+      {/* Desktop sidebar — hidden on mobile */}
+      <aside className="fernly-sidebar hidden xl:flex">
+        <Brand
+          groupId={groupId}
+          groupName={groupName}
+          groups={groups}
+          botStatus={botStatus}
+          onSelectGroup={selectGroup}
+        />
+        <nav className="fernly-nav mt-7 flex-1">
+          {navGroups.map((group) => {
+            const items = group.items
+              .map((key) => getNavItem(key))
+              .filter((item): item is (typeof navItems)[number] => Boolean(item))
+              .filter((item) => visibleNavItems.some((visible) => visible.key === item.key));
+            if (!items.length) return null;
+            return (
+              <div key={group.label} className="mb-6">
+                <p className="fernly-nav__label">
+                  {group.label}
+                </p>
+                <div>
+                  {items.map((item) => (
+                    <NavLink
+                      key={item.key}
+                      item={item}
+                      active={activeSection === item.key}
+                      href={preview ? `/preview-dashboard#${item.key}` : item.href}
+                      onNavigate={() => navigateDashboardSection(item.key)}
+                    />
+                  ))}
                 </div>
-              );
-            })}
-          </nav>
-        </aside>
+              </div>
+            );
+          })}
+        </nav>
+        <SidebarPromo botStatus={botStatus} />
+      </aside>
 
-        <div className="min-w-0 flex-1 pb-24 xl:pb-0">
-          <header className="sticky top-2 z-30 flex min-h-[68px] items-center rounded-[22px] bg-[var(--surface)]/96 px-3 backdrop-blur-xl md:top-3 md:min-h-[70px] md:rounded-[26px] md:px-4">
+      {/* Shell: topbar + board */}
+      <div className="fernly-shell min-w-0 pb-24 xl:pb-0">
+        <header className="fernly-topbar">
             <div className="flex w-full items-center justify-between gap-2.5 md:gap-3">
               <Button
                 variant="ghost"
@@ -1136,34 +1138,34 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
                   </select>
                 ) : null}
               </div>
-              <div className="hidden min-w-[280px] max-w-[390px] flex-1 items-center rounded-[14px] border border-[var(--line)] bg-[var(--card)] px-3 shadow-[var(--soft-shadow)] xl:flex">
-                <Search className="h-4 w-4 text-[var(--muted)]" />
+              <div className="hidden min-w-[280px] max-w-[380px] flex-1 items-center relative xl:flex">
+                <Search className="pointer-events-none absolute left-[18px] top-1/2 -translate-y-1/2 h-5 w-5 text-[var(--muted)]" />
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Cari transaksi, anggota, catatan..."
-                  className="h-10 min-w-0 flex-1 bg-transparent px-2 text-sm outline-none placeholder:text-[var(--muted)]"
+                  className="h-[50px] w-full rounded-full bg-[var(--card)] pl-[50px] pr-[64px] text-[15px] outline-none shadow-sm transition placeholder:text-[var(--muted-2)] focus-visible:shadow-[var(--focus-ring)]"
                   aria-label="Cari data dashboard"
                 />
-                <kbd className="rounded-[7px] border border-[var(--line)] bg-[var(--surface)] px-2 py-1 text-[10px] font-semibold text-[var(--muted)]">
+                <kbd className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-[7px] bg-[var(--surface)] px-2 py-1 text-[11px] font-semibold text-[var(--muted)]">
                   Ctrl K
                 </kbd>
               </div>
-              <div className="ml-auto flex shrink-0 items-center gap-1.5">
+              <div className="ml-auto flex shrink-0 items-center gap-2.5">
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   size="icon"
                   aria-label="Notifikasi"
-                  className="hidden rounded-full md:inline-flex"
+                  className="hidden h-[48px] w-[48px] rounded-full bg-[var(--card)] shadow-sm hover:-translate-y-0.5 md:inline-flex"
                 >
-                  <Bell className="h-5 w-5" />
+                  <Bell className="h-5 w-5 text-[var(--foreground)]" />
                 </Button>
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   size="icon"
                   onClick={toggleTheme}
                   aria-label="Ganti tema"
-                  className="rounded-full"
+                  className="h-[48px] w-[48px] rounded-full bg-[var(--card)] shadow-sm hover:-translate-y-0.5"
                 >
                   {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                 </Button>
@@ -1175,8 +1177,8 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
                     onSaved={() => loadData()}
                   />
                 ) : null}
-                <div className="flex min-h-11 items-center gap-3 rounded-[14px] bg-[var(--card)] p-1.5 shadow-[var(--soft-shadow)] xl:pr-3">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f5c5ac] text-xs font-bold text-[#4d3124]">
+                <div className="flex h-[48px] items-center gap-3 rounded-full bg-[var(--card)] p-1.5 pr-4 shadow-sm">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#f5c5ac] text-xs font-bold text-[#4d3124]">
                     {getUserInitials(currentUser)}
                   </span>
                   <div className="hidden min-w-0 xl:block">
@@ -1208,7 +1210,7 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
               animate={{ opacity: 1, y: 0 }}
               exit={reduceMotion ? { opacity: 1 } : { opacity: 0, y: -4 }}
               transition={{ duration: reduceMotion ? 0 : 0.16, ease: "easeOut" }}
-              className="mt-3 min-h-[calc(100vh-108px)] w-full rounded-[22px] bg-[var(--surface)] p-3 md:min-h-[calc(100vh-98px)] md:rounded-[26px] md:p-5"
+              className="fernly-board"
             >
               {!loading && !groupId && !["owner", "help"].includes(activeSection) ? (
                 <NoGroupsEmptyState />
@@ -1338,7 +1340,6 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
             </>
           ) : null}
         </div>
-      </div>
 
       <MobileNav
         section={activeSection}
@@ -1403,24 +1404,23 @@ function Brand({
   botStatus: BotStatus | null;
   onSelectGroup: (group: AccessibleGroup) => void;
 }) {
-  const statusDisplay = getBotStatusDisplay(botStatus);
   return (
-    <div>
+    <div className="px-[26px]">
+      {/* Brand mark */}
       <div className="flex items-center gap-3">
-        <span className="flex h-11 w-11 items-center justify-center rounded-[14px] border border-[var(--line)] bg-[var(--card)] shadow-[var(--soft-shadow)]">
-          <Image src="/botuang-mark.svg" alt="" width={32} height={32} className="h-8 w-8" />
+        <span className="flex h-10 w-10 items-center justify-center rounded-[13px] bg-[var(--primary)] shadow-[var(--primary-shadow)]">
+          <Image src="/botuang-mark.svg" alt="" width={24} height={24} className="h-6 w-6 brightness-0 invert" />
         </span>
-        <div className="min-w-0">
-          <p className="font-semibold leading-tight">
-            Bot<span className="text-[var(--income)]">Uang</span>
-          </p>
-          <p className="truncate text-sm text-[var(--muted)]">
-            {displayGroupName(groupName, groupId)}
-          </p>
-        </div>
+        <p
+          style={{ fontSize: "22px", fontWeight: 600, letterSpacing: "-0.03em" }}
+        >
+          Bot<span className="text-[var(--income)]">Uang</span>
+        </p>
       </div>
+
+      {/* Group selector */}
       <div className="mt-5">
-        <label className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+        <label className="text-[11px] font-semibold uppercase tracking-widest text-[var(--muted)]">
           Grup aktif
           <select
             value={groupId}
@@ -1430,7 +1430,7 @@ function Brand({
               );
               if (selected) onSelectGroup(selected);
             }}
-            className="mt-2 min-h-11 w-full rounded-[12px] border border-[var(--line)] bg-[var(--card)] px-3 text-sm font-medium text-[var(--foreground)] outline-none focus-visible:shadow-[var(--focus-ring)]"
+            className="mt-1.5 min-h-10 w-full rounded-[12px] border border-[var(--line)] bg-[var(--card)] px-3 text-sm font-medium text-[var(--foreground)] outline-none focus-visible:shadow-[var(--focus-ring)]"
             disabled={!groups.length}
             aria-label="Pilih grup aktif"
           >
@@ -1445,34 +1445,51 @@ function Brand({
             )}
           </select>
           {groupId ? (
-            <span className="mt-1 block break-all text-[11px] font-medium normal-case tracking-normal text-[var(--muted)]">
-              ID: {groupId}
+            <span className="mt-1 block break-all text-[10px] font-normal normal-case tracking-normal text-[var(--muted-2)]">
+              {groupId}
             </span>
           ) : null}
         </label>
         <Link
           href="/connect"
-          className="mt-2 block text-sm font-semibold text-[var(--income)] hover:text-[var(--primary-hover)]"
+          className="mt-1.5 block text-sm font-semibold text-[var(--income)] hover:text-[var(--primary-hover)]"
         >
           + Hubungkan grup
         </Link>
       </div>
-      <div className="mt-5 rounded-[16px] bg-[var(--card)] p-3 shadow-[var(--soft-shadow)]">
-        <p className="text-xs text-[var(--muted)]">Status Bot</p>
-        <p className="mt-1 flex items-center gap-2 text-sm font-semibold">
-          <span
-            className={cn(
-              "h-2.5 w-2.5 rounded-full",
-              statusDisplay.tone === "checking"
-                ? "bg-amber-400"
-                : statusDisplay.tone === "connected"
-                  ? "bg-emerald-400"
-                  : "bg-rose-400",
-            )}
-          />
-          {statusDisplay.label}
-        </p>
+    </div>
+  );
+}
+
+function SidebarPromo({ botStatus }: { botStatus: BotStatus | null }) {
+  const statusDisplay = getBotStatusDisplay(botStatus);
+  return (
+    <div className="fernly-promo">
+      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#eef6f1] text-[#071a10]">
+        <Bot className="h-4 w-4" />
       </div>
+      <p className="mt-3 font-semibold text-[17px] leading-snug tracking-tight text-white">
+        WhatsApp Bot Connected
+      </p>
+      <div className="mt-1.5 flex items-center gap-2 text-xs text-[#b9d4c3]">
+        <span
+          className={cn(
+            "h-2 w-2 rounded-full",
+            statusDisplay.tone === "checking"
+              ? "bg-amber-400"
+              : statusDisplay.tone === "connected"
+                ? "bg-emerald-400"
+                : "bg-rose-400",
+          )}
+        />
+        <span>{statusDisplay.label}</span>
+      </div>
+      <Link
+        href="/dashboard/#commands"
+        className="mt-5 block w-full rounded-full bg-[var(--income)] py-2 text-center text-xs font-semibold text-white transition hover:brightness-110"
+      >
+        Kelola Otomasi
+      </Link>
     </div>
   );
 }
@@ -1498,15 +1515,11 @@ function NavLink({
         event.preventDefault();
         onNavigate();
       }}
-      className={cn(
-        "relative flex min-h-11 w-full items-center gap-3 rounded-[10px] px-3 text-left text-sm transition-colors duration-200 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]",
-        "before:absolute before:-left-4 before:top-2 before:h-7 before:w-1 before:rounded-r-md before:bg-transparent before:transition-colors",
-        active
-          ? "font-semibold text-[var(--foreground)] before:bg-[var(--income)]"
-          : "font-medium text-[var(--muted)] hover:bg-[var(--panel)] hover:text-[var(--foreground)]",
-      )}
+      aria-current={active ? "page" : undefined}
+      className="fernly-nav__link focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
     >
-      <Icon className="h-4 w-4" />
+      <span className="fernly-nav__rail" />
+      <Icon className="h-[18px] w-[18px] shrink-0" />
       {item.label}
     </Link>
   );
@@ -1709,10 +1722,12 @@ function Overview({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between mb-2">
         <div>
-          <h1 className="text-[28px] font-semibold leading-tight tracking-normal md:text-[34px]">Ringkasan</h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">
+          <h1 className="text-[clamp(30px,3vw,40px)] font-semibold leading-[1.1] tracking-[-0.035em]">
+            Ringkasan
+          </h1>
+          <p className="mt-2 text-[15px] text-[var(--muted)]">
             Ringkasan keuangan {displayGroupName(groupName, groupId)}
           </p>
         </div>
@@ -2181,24 +2196,28 @@ function CountMetricCard({
   loading: boolean;
 }) {
   return (
-    <Card className="min-h-[132px] min-w-0 p-3.5 sm:p-4">
+    <Card className="flex min-h-[178px] min-w-0 flex-col p-5 sm:p-6">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
-            {label}
-          </p>
-          {loading ? (
-            <Skeleton className="mt-3 h-8 w-24" />
-          ) : (
-            <p className="mt-3 font-mono text-2xl font-semibold tabular-nums">
-              {value}
-            </p>
-          )}
-          <p className="mt-1 text-xs text-[var(--muted)]">{description}</p>
-        </div>
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[var(--panel)] text-[var(--muted)]">
+        <p className="text-[15px] font-medium tracking-tight text-[var(--muted)]">
+          {label}
+        </p>
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] transition-transform hover:scale-110">
           <ClipboardCheck className="h-4 w-4" />
         </span>
+      </div>
+
+      <div className="my-auto pt-3">
+        {loading ? (
+          <Skeleton className="h-10 w-24" />
+        ) : (
+          <p className="font-mono text-[clamp(28px,2.8vw,38px)] font-semibold tabular-nums leading-none tracking-tight">
+            {value}
+          </p>
+        )}
+      </div>
+
+      <div className="mt-2 text-xs text-[var(--muted-2)]">
+        {description}
       </div>
     </Card>
   );
@@ -3207,62 +3226,69 @@ function MetricCard({
   primary?: boolean;
   loading: boolean;
 }) {
-  const color =
-    tone === "income"
-      ? "text-emerald-500"
-      : tone === "expense"
-        ? "text-rose-500"
-        : primary
-          ? "text-white"
-          : "text-[var(--foreground)]";
   return (
     <Card
       className={cn(
-        "min-h-[150px] min-w-0 p-3.5 sm:min-h-[156px] sm:p-4",
+        "relative flex min-h-[178px] min-w-0 flex-col p-5 sm:p-6",
         primary
-          ? "border-transparent bg-[var(--primary)] text-white shadow-[var(--primary-shadow)]"
-          : "",
+          ? "bg-gradient-to-br from-[var(--primary-hover)] to-[var(--primary)] text-white shadow-[var(--primary-shadow)] overflow-hidden"
+          : "bg-[var(--card)] text-[var(--foreground)]",
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p
-            className={cn(
-              "text-xs font-semibold uppercase tracking-wide",
-              primary ? "text-emerald-100/75" : "text-[var(--muted)]",
-            )}
-          >
-            {label}
-          </p>
-          {loading ? (
-            <Skeleton className="mt-3 h-8 w-36" />
-          ) : (
-            <p
-              className={cn(
-                "mt-2 font-mono font-semibold tabular-nums",
-                primary ? "text-xl sm:text-2xl xl:text-3xl" : "text-xl sm:text-2xl",
-                color,
-              )}
-            >
-              {formatRupiah(value)}
-            </p>
+      {primary && (
+        <span
+          className="pointer-events-none absolute inset-0 rounded-[inherit] bg-[radial-gradient(90%_80%_at_100%_100%,rgba(93,189,139,0.28),transparent_60%)]"
+          aria-hidden="true"
+        />
+      )}
+      <div className="relative z-10 flex items-start justify-between gap-3">
+        <p
+          className={cn(
+            "text-[15px] font-medium tracking-tight",
+            primary ? "text-[#b9e6cb]" : "text-[var(--muted)]",
           )}
-          {primary ? (
-            <p className="mt-3 hidden text-xs font-medium text-emerald-100/70 sm:block">
-              Total kas dari transaksi grup aktif.
-            </p>
-          ) : null}
-        </div>
+        >
+          {label}
+        </p>
         <span
           className={cn(
-            "flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px]",
+            "flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-transform hover:scale-110",
             primary
-              ? "bg-white/10 text-emerald-100"
-              : "bg-[var(--panel)] text-[var(--muted)]",
+              ? "bg-[#f1f8f3] text-[var(--primary)]"
+              : "border border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)]",
           )}
         >
           <Icon className="h-4 w-4" />
         </span>
+      </div>
+
+      <div className="relative z-10 my-auto pt-3">
+        {loading ? (
+          <Skeleton className={cn("h-10 w-36", primary && "bg-white/20")} />
+        ) : (
+          <p
+            className={cn(
+              "font-mono font-semibold tabular-nums leading-none tracking-tight",
+              primary
+                ? "text-[clamp(32px,3.2vw,44px)] text-white"
+                : tone === "income"
+                  ? "text-[clamp(28px,2.8vw,38px)] text-[var(--income)]"
+                  : tone === "expense"
+                    ? "text-[clamp(28px,2.8vw,38px)] text-[var(--expense)]"
+                    : "text-[clamp(28px,2.8vw,38px)] text-[var(--foreground)]",
+            )}
+          >
+            {formatRupiah(value)}
+          </p>
+        )}
+      </div>
+
+      <div className="relative z-10 mt-2 flex items-center gap-2 text-xs">
+        {primary ? (
+          <span className="text-[#b9e6cb]">Kas aktif saat ini</span>
+        ) : (
+          <span className="text-[var(--muted-2)]">Akumulasi periode</span>
+        )}
       </div>
     </Card>
   );

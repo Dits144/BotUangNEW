@@ -112,14 +112,147 @@ a {
 }
 
 .fernly-surface {
-  border: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
   background: var(--card);
+  border-radius: var(--r-md);
   box-shadow: var(--soft-shadow);
 }
 
 .fernly-control:focus-visible {
   outline: 0;
   box-shadow: var(--focus-ring);
+}
+
+/* === Fernly Core Design System === */
+.fernly-app {
+  display: grid;
+  grid-template-columns: 252px minmax(0, 1fr);
+  gap: 14px;
+  max-width: 1680px;
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: 14px;
+}
+
+@media (max-width: 1279px) {
+  .fernly-app {
+    display: block;
+    padding: 10px;
+  }
+}
+
+.fernly-shell {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 14px;
+  min-width: 0;
+}
+
+.fernly-sidebar {
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  overscroll-behavior: contain;
+  flex-direction: column;
+  height: calc(100dvh - 28px);
+  padding: 26px 0 18px;
+  position: sticky;
+  top: 14px;
+  overflow-y: auto;
+}
+
+.fernly-nav__label {
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-2);
+  padding: 0 28px 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.fernly-nav__link {
+  text-align: left;
+  width: 100%;
+  color: var(--muted);
+  align-items: center;
+  gap: 14px;
+  padding: 11px 28px;
+  font-size: 15px;
+  transition: color 0.2s;
+  display: flex;
+  position: relative;
+}
+
+.fernly-nav__link:hover {
+  color: var(--foreground);
+}
+
+.fernly-nav__link[aria-current="page"] {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.fernly-nav__link[aria-current="page"] svg {
+  color: var(--income);
+}
+
+.fernly-nav__rail {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 0;
+  width: 5px;
+  border-radius: 0 6px 6px 0;
+  background: var(--income);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.fernly-nav__link[aria-current="page"] .fernly-nav__rail {
+  opacity: 1;
+}
+
+.fernly-topbar {
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  align-items: center;
+  gap: 14px;
+  padding: 12px 18px;
+  display: flex;
+  min-height: 68px;
+}
+
+.fernly-board {
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  min-width: 0;
+  padding: 24px 20px;
+}
+
+@media (max-width: 768px) {
+  .fernly-board {
+    border-radius: 20px;
+    padding: 16px 12px;
+  }
+}
+
+.fernly-promo {
+  isolation: isolate;
+  border-radius: var(--r-md);
+  color: #eef6f1;
+  background: color-mix(in srgb, var(--primary) 55%, #000);
+  margin: auto 18px 0;
+  padding: 18px 16px 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.fernly-promo::before {
+  content: "";
+  z-index: -1;
+  background: repeating-radial-gradient(circle at 78% 70%, transparent 0 14px, color-mix(in srgb, var(--income) 22%, transparent) 15px 16px),
+              radial-gradient(70% 60% at 85% 85%, var(--income), transparent 70%),
+              radial-gradient(60% 50% at 10% 0%, var(--primary), transparent 70%);
+  position: absolute;
+  inset: -40%;
 }
 
 .botuang-ai-orb {

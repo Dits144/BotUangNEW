@@ -3,25 +3,25 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/app/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-[12px] px-4 py-2 text-sm font-semibold transition-[background,color,border-color,transform,box-shadow] duration-200 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98]",
+  "inline-flex whitespace-nowrap cursor-pointer rounded-full items-center justify-center gap-2.5 font-medium transition-[background-color,color,box-shadow,transform] duration-200 focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98]",
   {
     variants: {
       variant: {
         default:
-          "bg-[var(--primary)] text-white shadow-[var(--primary-shadow)] hover:bg-[var(--primary-hover)]",
+          "bg-gradient-to-b from-[var(--income)] to-[var(--primary)] text-[#f2f8f4] hover:brightness-110 shadow-sm",
         secondary:
-          "border border-[var(--line)] bg-[var(--panel)] text-[var(--foreground)] hover:border-[var(--muted-2)] hover:bg-[var(--primary-soft)]",
+          "bg-[var(--card)] text-[var(--foreground)] border border-[var(--line)] hover:bg-[var(--panel)]",
         outline:
-          "border border-[var(--line)] bg-[var(--card)] text-[var(--foreground)] hover:border-[var(--muted-2)] hover:bg-[var(--panel)]",
+          "bg-[var(--card)] text-[var(--foreground)] shadow-[inset_0_0_0_1.5px_var(--primary)] hover:bg-[var(--primary-soft)]",
         ghost:
           "bg-transparent text-[var(--muted)] hover:bg-[var(--panel)] hover:text-[var(--foreground)]",
         danger:
-          "bg-rose-500 text-white hover:bg-rose-400 shadow-sm shadow-rose-950/20",
+          "bg-gradient-to-b from-[#d64a4a] to-[#a32727] text-white hover:brightness-110",
       },
       size: {
-        default: "h-11",
-        sm: "h-9 px-3 text-xs",
-        icon: "h-11 w-11 p-0",
+        default: "h-[50px] px-6 text-[15px]",
+        sm: "h-[40px] px-4 text-xs font-semibold",
+        icon: "h-[44px] w-[44px] p-0 rounded-full",
       },
     },
     defaultVariants: {
