@@ -13,6 +13,8 @@ const USER_SECTION = [
   '📋 pt                   - Lihat list peserta',
   '📒 trx                  - Lihat riwayat transaksi',
   '🔍 trx 12               - Detail transaksi #12',
+  '📊 laporan              - Ringkasan kas bulan berjalan',
+  '📅 agenda               - Todo dan reminder aktif',
   '🧮 calc 10 + 5          - Kalkulator cepat',
   '🌤️ wthr                 - Cek cuaca lokasi grup',
   '📝 todo                 - Lihat daftar tugas',
