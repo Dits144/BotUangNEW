@@ -39,3 +39,10 @@ test("numeric bot task ids never reach Supabase UUID filters", () => {
   assert.match(dashboard, /isUuid\(editTodo\.id\)[\s\S]*?\.eq\("id", editTodo\.id\)/);
   assert.match(dashboard, /Task bot belum dapat dipindahkan/);
 });
+
+test("Kanban drag uses optimistic stages and Motion layout feedback", () => {
+  assert.match(dashboard, /optimisticStages/);
+  assert.match(dashboard, /layoutId={`task-\$\{item\.id\}`}/);
+  assert.match(dashboard, /dropTargetStage === col\.stage/);
+  assert.match(dashboard, /type: "spring", stiffness: 430, damping: 34/);
+});

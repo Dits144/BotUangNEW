@@ -13,7 +13,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  AlertCircle,
   ArrowDownRight,
   ArrowUpRight,
   Bell,
@@ -32,6 +31,7 @@ import {
   CloudSun,
   ClipboardCheck,
   Download,
+  Flag,
   Home,
   ListTodo,
   LogOut,
@@ -57,7 +57,7 @@ import {
   Users,
   WalletCards,
 } from "lucide-react";
-import { AnimatePresence } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   Area,
   AreaChart,
@@ -4511,6 +4511,15 @@ function ParticipantsPage({
 
 type TaskStage = "todo" | "in_progress" | "in_review" | "done";
 
+function taskTagClass(tag: string) {
+  const normalized = tag.toLowerCase();
+  if (normalized === "backend") return "bg-blue-500/10 text-blue-600 dark:text-blue-300";
+  if (normalized === "design") return "bg-pink-500/10 text-pink-600 dark:text-pink-300";
+  if (normalized === "marketing") return "bg-amber-500/10 text-amber-700 dark:text-amber-300";
+  if (normalized === "qa") return "bg-violet-500/10 text-violet-600 dark:text-violet-300";
+  return "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
+}
+
 function parseTaskDetails(todo_text: string) {
   let stage: TaskStage = "todo";
   let priority = "normal";
@@ -4617,6 +4626,7 @@ function TodosPage({
   todos: Todo[];
   onChanged: () => void;
 }) {
+  const reduceMotion = useReducedMotion();
   const [text, setText] = useState("");
   const [priority, setPriority] = useState("normal");
   const [tag, setTag] = useState("Frontend");
@@ -4634,6 +4644,9 @@ function TodosPage({
   const [editDueDate, setEditDueDate] = useState("");
   const [editAssignee, setEditAssignee] = useState("");
   const [draggedTodoId, setDraggedTodoId] = useState("");
+  const [dropTargetStage, setDropTargetStage] = useState<TaskStage | "">("");
+  const [openTaskMenuId, setOpenTaskMenuId] = useState("");
+  const [optimisticStages, setOptimisticStages] = useState<Record<string, TaskStage>>({});
   const [saving, setSaving] = useState(false);
 
   // Parse items
@@ -4641,7 +4654,7 @@ function TodosPage({
     return todos.map((t) => {
       const details = parseTaskDetails(t.todo_text);
       // If legacy is_done is true and no stage was encoded, default to "done"
-      const finalStage: TaskStage = t.is_done ? "done" : details.stage;
+      const finalStage: TaskStage = optimisticStages[String(t.id)] ?? (t.is_done ? "done" : details.stage);
       return {
         ...t,
         parsed: {
@@ -4650,7 +4663,7 @@ function TodosPage({
         },
       };
     });
-  }, [todos]);
+  }, [optimisticStages, todos]);
 
   // Apply filters
   const filteredTodos = useMemo(() => {
@@ -4725,8 +4738,12 @@ function TodosPage({
 
   async function updateTaskStage(todo: Todo, nextStage: TaskStage) {
     const details = parseTaskDetails(todo.todo_text);
+    const todoId = String(todo.id);
     const newText = buildTaskText({ ...details, stage: nextStage });
     const nextDone = nextStage === "done";
+
+    setOptimisticStages((current) => ({ ...current, [todoId]: nextStage }));
+    setOpenTaskMenuId("");
 
     let botOk = false;
     let botMessage = "";
@@ -4761,13 +4778,31 @@ function TodosPage({
       : { error: null };
 
     if (!isUuid(todo.id) && !botOk) {
+      setOptimisticStages((current) => {
+        const next = { ...current };
+        delete next[todoId];
+        return next;
+      });
       toast.error(botMessage || "Task bot belum dapat dipindahkan. Periksa koneksi Bot API.");
     } else if (databaseResult.error && !botOk) {
+      setOptimisticStages((current) => {
+        const next = { ...current };
+        delete next[todoId];
+        return next;
+      });
       toast.error(databaseResult.error.message);
     }
     else {
       toast.success(`Task dipindahkan ke ${nextStage.replace("_", " ")}`);
       onChanged();
+      window.setTimeout(() => {
+        setOptimisticStages((current) => {
+          if (current[todoId] !== nextStage) return current;
+          const next = { ...current };
+          delete next[todoId];
+          return next;
+        });
+      }, 5_000);
     }
   }
 
@@ -5022,159 +5057,187 @@ function TodosPage({
             return (
               <div
                 key={col.stage}
-                onDragOver={(event) => event.preventDefault()}
+                data-task-stage={col.stage}
+                onDragEnter={(event) => {
+                  event.preventDefault();
+                  if (draggedTodoId) setDropTargetStage(col.stage);
+                }}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = "move";
+                }}
                 onDrop={(event) => {
                   event.preventDefault();
                   const todoId = event.dataTransfer.getData("text/task-id") || draggedTodoId;
                   const todo = parsedTodos.find((item) => String(item.id) === todoId);
                   setDraggedTodoId("");
+                  setDropTargetStage("");
                   if (todo && todo.parsed.stage !== col.stage) {
                     void updateTaskStage(todo, col.stage);
                   }
                 }}
                 className={cn(
-                  "fernly-col flex flex-col border transition-colors",
-                  draggedTodoId ? "border-[var(--line-strong)]" : "border-[var(--line)]",
+                  "fernly-col flex flex-col border border-[var(--line)] transition-colors",
+                  dropTargetStage === col.stage && draggedTodoId && "is-over",
                 )}
               >
                 {/* Column header */}
-                <div className="mb-3 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="h-2.5 w-2.5 rounded-full"
-                      style={{ backgroundColor: col.dotColor }}
-                    />
-                    <h3 className="text-sm font-semibold text-[var(--foreground)]">{col.label}</h3>
-                  </div>
-                  <span className="rounded-full bg-[var(--surface)] px-2 py-0.5 text-xs font-mono font-medium text-[var(--muted)]">
+                <div className="fernly-col__head">
+                  <span className="fernly-col__dot" style={{ backgroundColor: col.dotColor }} />
+                  <h3 className="text-[15px] font-semibold text-[var(--foreground)]">{col.label}</h3>
+                  <span className="fernly-col__count">
                     {colTasks.length}
                   </span>
                 </div>
 
                 {/* Task card list */}
-                <div className="flex-1 space-y-2.5 overflow-y-auto max-h-[620px] pr-0.5">
+                <div className="grid max-h-[620px] flex-1 content-start gap-3 overflow-y-auto pr-0.5">
                   {colTasks.length ? (
                     colTasks.map((item) => {
                       const isHigh = item.parsed.priority === "tinggi" || item.parsed.priority === "high";
                       const isLow = item.parsed.priority === "rendah" || item.parsed.priority === "low";
 
                       return (
-                        <div
+                        <motion.article
                           key={item.id}
+                          layout
+                          layoutId={`task-${item.id}`}
                           draggable
-                          onDragStart={(event) => {
+                          tabIndex={0}
+                          aria-label={`${item.parsed.title}. ${col.label}. ${item.parsed.tag}, ${isHigh ? "high" : isLow ? "low" : "medium"} priority.`}
+                          onDragStartCapture={(event) => {
                             const todoId = String(item.id);
                             setDraggedTodoId(todoId);
+                            setDropTargetStage(item.parsed.stage);
+                            setOpenTaskMenuId("");
                             event.dataTransfer.effectAllowed = "move";
                             event.dataTransfer.setData("text/task-id", todoId);
                           }}
-                          onDragEnd={() => setDraggedTodoId("")}
+                          onDragEndCapture={() => {
+                            setDraggedTodoId("");
+                            setDropTargetStage("");
+                          }}
+                          animate={
+                            draggedTodoId === String(item.id)
+                              ? { opacity: 0.35, scale: 0.97 }
+                              : { opacity: 1, scale: 1 }
+                          }
+                          transition={{
+                            layout: reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 430, damping: 34 },
+                            opacity: { duration: reduceMotion ? 0 : 0.16 },
+                            scale: { duration: reduceMotion ? 0 : 0.16 },
+                          }}
                           className={cn(
-                            "group relative cursor-grab rounded-[12px] border border-[var(--line)] bg-[var(--surface)] p-3 transition hover:border-[var(--line-strong)] hover:shadow-xs active:cursor-grabbing",
-                            draggedTodoId === String(item.id) && "opacity-50",
+                            "fernly-task group cursor-grab select-none active:cursor-grabbing",
+                            item.parsed.stage === "done" && "is-done",
+                            draggedTodoId === String(item.id) && "is-dragging",
                           )}
                         >
                           {/* Tags & Priority row */}
-                          <div className="mb-2 flex items-center justify-between gap-2">
-                            <span className="rounded-[6px] border border-[var(--line)] bg-[var(--panel)] px-2 py-0.5 text-[10px] font-semibold text-[var(--foreground)] uppercase tracking-wide">
+                          <div className="flex items-center gap-2">
+                            <span className={cn("rounded-full px-2.5 py-1 text-[11px] font-semibold", taskTagClass(item.parsed.tag))}>
                               {item.parsed.tag}
                             </span>
-                            <div className="flex items-center gap-1">
-                              {isHigh ? (
-                                <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-rose-500">
-                                  <AlertCircle className="h-3 w-3" />
-                                  High
-                                </span>
-                              ) : isLow ? (
-                                <span className="text-[10px] text-[var(--muted)]">Low</span>
-                              ) : (
-                                <span className="text-[10px] text-[var(--muted)]">Normal</span>
-                              )}
-
-                              {/* Dropdown / stage changer */}
-                              <select
-                                value={item.parsed.stage}
-                                onChange={(e) => updateTaskStage(item, e.target.value as TaskStage)}
-                                className="ml-1 cursor-pointer rounded-[4px] border border-transparent bg-transparent text-[10px] font-medium text-[var(--muted)] hover:border-[var(--line)]"
-                                title="Pindah stage"
+                            <span className={cn("inline-flex items-center gap-1 text-[11px] font-semibold", isHigh ? "text-rose-500" : isLow ? "text-[var(--muted)]" : "text-amber-600 dark:text-amber-400")}>
+                              <Flag className="h-3.5 w-3.5" />
+                              {isHigh ? "High" : isLow ? "Low" : "Medium"}
+                            </span>
+                            <div
+                              className="relative ml-auto"
+                              onBlur={(event) => {
+                                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                                  setOpenTaskMenuId("");
+                                }
+                              }}
+                            >
+                              <button
+                                type="button"
+                                className="flex h-[30px] w-[30px] items-center justify-center rounded-[8px] text-[var(--muted)] transition hover:bg-[var(--panel)] hover:text-[var(--foreground)]"
+                                aria-label={`Menu task ${item.parsed.title}`}
+                                aria-haspopup="menu"
+                                aria-expanded={openTaskMenuId === String(item.id)}
+                                onClick={() => setOpenTaskMenuId((current) => current === String(item.id) ? "" : String(item.id))}
                               >
-                                <option value="todo">To do</option>
-                                <option value="in_progress">In progress</option>
-                                <option value="in_review">In review</option>
-                                <option value="done">Done</option>
-                              </select>
+                                <MoreHorizontal className="h-[18px] w-[18px]" />
+                              </button>
+                              <AnimatePresence>
+                                {openTaskMenuId === String(item.id) ? (
+                                  <motion.div
+                                    role="menu"
+                                    initial={{ opacity: 0, y: -6, scale: 0.96 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                                    transition={{ duration: 0.16 }}
+                                    className="absolute right-0 top-8 z-30 w-44 rounded-[12px] border border-[var(--line)] bg-[var(--card)] p-1.5 shadow-xl"
+                                  >
+                                    {columns.map((target) => (
+                                      <button
+                                        key={target.stage}
+                                        type="button"
+                                        role="menuitem"
+                                        disabled={target.stage === item.parsed.stage}
+                                        onClick={() => void updateTaskStage(item, target.stage)}
+                                        className="flex min-h-9 w-full items-center gap-2 rounded-[8px] px-2.5 text-left text-xs font-medium transition hover:bg-[var(--panel)] disabled:opacity-40"
+                                      >
+                                        <i className="h-2 w-2 rounded-full" style={{ backgroundColor: target.dotColor }} />
+                                        Pindah ke {target.label}
+                                      </button>
+                                    ))}
+                                    <div className="my-1 border-t border-[var(--line)]" />
+                                    <button type="button" role="menuitem" onClick={() => openEdit(item)} className="flex min-h-9 w-full items-center gap-2 rounded-[8px] px-2.5 text-left text-xs font-medium transition hover:bg-[var(--panel)]">
+                                      <Pencil className="h-3.5 w-3.5" /> Edit task
+                                    </button>
+                                    <button type="button" role="menuitem" onClick={() => void remove(item)} className="flex min-h-9 w-full items-center gap-2 rounded-[8px] px-2.5 text-left text-xs font-medium text-rose-500 transition hover:bg-rose-500/10">
+                                      <Trash2 className="h-3.5 w-3.5" /> Hapus task
+                                    </button>
+                                  </motion.div>
+                                ) : null}
+                              </AnimatePresence>
                             </div>
                           </div>
 
                           {/* Title */}
                           <p className={cn(
-                            "text-xs font-semibold leading-snug text-[var(--foreground)]",
+                            "my-2.5 text-[14.5px] font-semibold leading-[1.35] text-[var(--foreground)]",
                             item.parsed.stage === "done" ? "line-through opacity-70" : ""
                           )}>
                             {item.parsed.title}
                           </p>
 
                           {/* Meter bar matching Fernly */}
-                          <div className="mt-2.5 h-1 w-full overflow-hidden rounded-full bg-[var(--line)]">
-                            <div
-                              className="h-full rounded-full transition-all"
-                              style={{
-                                width: item.parsed.stage === "done" ? "100%" : item.parsed.stage === "in_review" ? "75%" : item.parsed.stage === "in_progress" ? "45%" : "15%",
-                                backgroundColor: col.dotColor,
+                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--panel)]">
+                            <motion.div
+                              className="h-full origin-left rounded-full bg-[var(--income)]"
+                              initial={false}
+                              animate={{
+                                width: item.parsed.stage === "done" ? "100%" : item.parsed.stage === "in_review" ? "75%" : item.parsed.stage === "in_progress" ? "45%" : "0%",
                               }}
+                              transition={{ type: "spring", stiffness: 320, damping: 30 }}
                             />
                           </div>
 
                           {/* Footer with due info & actions */}
-                          <div className="mt-3 flex items-center justify-between border-t border-[var(--line)]/60 pt-2 text-[10px] text-[var(--muted)]">
-                            <div className="min-w-0">
-                              <span className={cn(
-                                "flex items-center gap-1 font-mono",
-                                item.parsed.due && new Date(item.parsed.due + "T23:59:59").getTime() < Date.now() && item.parsed.stage !== "done"
-                                  ? "text-rose-500"
-                                  : "",
-                              )}>
-                                <Clock className="h-3 w-3" />
-                                {item.parsed.stage === "done" ? "Selesai" : formatTaskDue(item.parsed.due)}
+                          <div className="mt-3 flex items-center gap-2.5 text-xs text-[var(--muted)]">
+                            <span className={cn(
+                              "inline-flex min-w-0 items-center gap-1",
+                              item.parsed.due && new Date(item.parsed.due + "T23:59:59").getTime() < Date.now() && item.parsed.stage !== "done"
+                                ? "font-semibold text-rose-500"
+                                : "",
+                            )}>
+                              <Clock className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate">{item.parsed.stage === "done" ? "Selesai" : formatTaskDue(item.parsed.due)}</span>
+                            </span>
+                            {item.parsed.owner ? (
+                              <span
+                                className="ml-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--panel)] text-[9px] font-bold text-[var(--foreground)] ring-2 ring-[var(--card)]"
+                                title={item.parsed.owner}
+                                aria-label={"Ditugaskan kepada " + item.parsed.owner}
+                              >
+                                {getUserInitials({ name: item.parsed.owner, email: "" })}
                               </span>
-                              {item.parsed.owner ? (
-                                <span className="mt-1 block max-w-28 truncate" title={item.parsed.owner}>
-                                  {item.parsed.owner}
-                                </span>
-                              ) : null}
-                            </div>
-
-                            <div className="flex items-center gap-1">
-                              {item.parsed.owner ? (
-                                <span
-                                  className="mr-1 flex h-6 w-6 items-center justify-center rounded-full bg-[var(--panel)] text-[9px] font-bold text-[var(--foreground)]"
-                                  title={item.parsed.owner}
-                                  aria-label={"Ditugaskan kepada " + item.parsed.owner}
-                                >
-                                  {getUserInitials({ name: item.parsed.owner, email: "" })}
-                                </span>
-                              ) : null}
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 text-[var(--muted)] hover:text-[var(--foreground)]"
-                                onClick={() => openEdit(item)}
-                                aria-label="Edit task"
-                              >
-                                <Pencil className="h-3 w-3" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 text-rose-500 hover:bg-rose-500/10 hover:text-rose-500"
-                                onClick={() => remove(item)}
-                                aria-label="Hapus task"
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            </div>
+                            ) : null}
                           </div>
-                        </div>
+                        </motion.article>
                       );
                     })
                   ) : (

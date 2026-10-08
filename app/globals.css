@@ -377,12 +377,17 @@ a {
 
 .fernly-col {
   border-radius: var(--r-md);
-  min-height: 440px;
-  background: color-mix(in srgb, var(--card) 60%, transparent);
+  min-height: 420px;
+  background: color-mix(in srgb, var(--card) 55%, transparent);
   box-shadow: inset 0 0 0 1px var(--line);
   display: flex;
   flex-direction: column;
   padding: 14px;
+}
+
+.fernly-col.is-over {
+  background: color-mix(in srgb, var(--income) 10%, var(--card));
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--income) 65%, transparent);
 }
 
 [data-finance-activity="0"] {
@@ -434,15 +439,24 @@ a {
   background: var(--card);
   box-shadow: var(--soft-shadow);
   border-radius: 16px;
-  padding: 14px;
+  padding: 14px 14px 12px;
   position: relative;
-  transition: transform 0.2s, box-shadow 0.2s;
-  cursor: pointer;
+  touch-action: pan-y;
+  user-select: none;
+  transition: box-shadow 180ms ease, background-color 180ms ease;
 }
 
 .fernly-task:hover {
-  transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(19, 26, 21, 0.08);
+}
+
+.fernly-task:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.fernly-task.is-dragging {
+  box-shadow: 0 16px 36px -16px rgba(13, 58, 35, 0.45);
 }
 
 .botuang-ai-orb {
