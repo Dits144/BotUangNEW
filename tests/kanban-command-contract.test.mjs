@@ -32,3 +32,10 @@ test("dashboard task metadata supports stage, due date, owner, and drag", () => 
   assert.match(dashboard, /onDragStart/);
   assert.match(dashboard, /onDrop/);
 });
+
+test("numeric bot task ids never reach Supabase UUID filters", () => {
+  assert.match(dashboard, /function isUuid/);
+  assert.match(dashboard, /isUuid\(todo\.id\)[\s\S]*?\.eq\("id", todo\.id\)/);
+  assert.match(dashboard, /isUuid\(editTodo\.id\)[\s\S]*?\.eq\("id", editTodo\.id\)/);
+  assert.match(dashboard, /Task bot belum dapat dipindahkan/);
+});

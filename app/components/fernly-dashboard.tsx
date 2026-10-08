@@ -40,7 +40,9 @@ import {
   MessageCircle,
   Moon,
   MoreHorizontal,
+  Pause,
   Pencil,
+  Play,
   Plus,
   QrCode,
   Search,
@@ -48,6 +50,7 @@ import {
   ShieldCheck,
   Siren,
   Sparkles,
+  Square,
   Sun,
   Trash2,
   UserPlus,
@@ -58,8 +61,6 @@ import { AnimatePresence } from "motion/react";
 import {
   Area,
   AreaChart,
-  Bar,
-  BarChart,
   Cell,
   CartesianGrid,
   Pie,
@@ -297,10 +298,10 @@ const DASHBOARD_SYNCED_SENDER_ID = "dashboard_synced";
 const navItems = [
   { key: "overview", label: "Ringkasan", href: "/dashboard/#overview", icon: Home },
   { key: "transactions", label: "Transaksi", href: "/dashboard/#transactions", icon: WalletCards },
-  { key: "reports", label: "Laporan", href: "/dashboard/#reports", icon: ChartNoAxesCombined },
+  { key: "reports", label: "Analytics", href: "/dashboard/#reports", icon: ChartNoAxesCombined },
   { key: "todos", label: "Tasks", href: "/dashboard/#todos", icon: ListTodo },
   { key: "reminders", label: "Kalender", href: "/dashboard/#reminders", icon: CalendarClock },
-  { key: "participants", label: "Anggota", href: "/dashboard/#participants", icon: Users },
+  { key: "participants", label: "Team", href: "/dashboard/#participants", icon: Users },
   { key: "commands", label: "Otomasi", href: "/dashboard/#commands", icon: Bot },
   { key: "settings", label: "Pengaturan", href: "/dashboard/#settings", icon: Settings },
   { key: "help", label: "Bantuan", href: "/dashboard/#help", icon: BookOpen },
@@ -514,6 +515,12 @@ const USE_CANONICAL_SUPABASE_DATA =
 
 function shouldWriteLegacyBot(botApiUrl: string) {
   return !USE_CANONICAL_SUPABASE_DATA && Boolean(botApiUrl);
+}
+
+function isUuid(value: string | number) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    String(value),
+  );
 }
 
 function resolveDataList<T>(botItems: T[] | null, supabaseItems: T[]): T[] {
@@ -1026,11 +1033,6 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
     () => buildCashflow(transactions, "month"),
     [transactions],
   );
-  const weeklyChart = useMemo(
-    () => buildCashflow(transactions, "week"),
-    [transactions],
-  );
-
   function exportTransactions() {
     const rows = [
       ["Tanggal", "Jenis", "Nominal", "Catatan", "Pengirim"],
@@ -1058,6 +1060,7 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
   }
 
   const days = daysLeft(rental?.expire_at);
+  const botStatusDisplay = getBotStatusDisplay(botStatus);
   const visibleNavItems =
     role === "owner"
       ? navItems
@@ -1168,11 +1171,30 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
                 </kbd>
               </div>
               <div className="ml-auto flex shrink-0 items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => toast.info(botStatusDisplay.label)}
+                  className="hidden min-h-11 items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--card)] px-3 text-xs font-semibold transition hover:bg-[var(--panel)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--income)] lg:flex"
+                  aria-label={`Status bot: ${botStatusDisplay.label}`}
+                >
+                  <span
+                    className={cn(
+                      "h-2.5 w-2.5 rounded-full",
+                      botStatusDisplay.tone === "connected"
+                        ? "bg-emerald-500"
+                        : botStatusDisplay.tone === "unreachable" || botStatusDisplay.tone === "disconnected"
+                          ? "bg-rose-500"
+                          : "bg-amber-400",
+                    )}
+                  />
+                  {botStatusDisplay.label}
+                </button>
                 <Button
                   variant="outline"
                   size="icon"
                   aria-label="Notifikasi"
                   className="hidden rounded-full md:inline-flex"
+                  onClick={() => toast.info("Tidak ada notifikasi baru.")}
                 >
                   <Bell className="h-5 w-5" />
                 </Button>
@@ -1193,7 +1215,12 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
                     onSaved={() => loadData()}
                   />
                 ) : null}
-                <div className="flex min-h-11 items-center gap-3 rounded-[14px] bg-[var(--card)] p-1.5 shadow-[var(--soft-shadow)] xl:pr-3">
+                <button
+                  type="button"
+                  onClick={() => navigateDashboardSection("settings")}
+                  className="flex min-h-11 items-center gap-3 rounded-[14px] bg-[var(--card)] p-1.5 text-left shadow-[var(--soft-shadow)] transition hover:bg-[var(--panel)] xl:pr-3"
+                  aria-label="Buka profil dan pengaturan"
+                >
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f5c5ac] text-xs font-bold text-[#4d3124]">
                     {getUserInitials(currentUser)}
                   </span>
@@ -1205,7 +1232,7 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
                       {currentUser.email || role}
                     </p>
                   </div>
-                </div>
+                </button>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -1236,19 +1263,11 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
                   loading={loading}
                   summary={summary}
                   monthlyChart={monthlyChart}
-                  weeklyChart={weeklyChart}
                   transactions={filteredTransactions}
                   todos={todos}
                   reminders={reminders}
-                  query={query}
-                  setQuery={setQuery}
-                  fromDate={fromDate}
-                  setFromDate={setFromDate}
-                  toDate={toDate}
-                  setToDate={setToDate}
-                  transactionTypeFilter={transactionTypeFilter}
-                  setTransactionTypeFilter={setTransactionTypeFilter}
-                  onExport={exportTransactions}
+                  participants={participants}
+                  onNavigate={navigateDashboardSection}
                   onSaved={() => loadData()}
                 />
               ) : null}
@@ -1675,19 +1694,11 @@ function Overview({
   loading,
   summary,
   monthlyChart,
-  weeklyChart,
   transactions,
   todos,
   reminders,
-  query,
-  setQuery,
-  fromDate,
-  setFromDate,
-  toDate,
-  setToDate,
-  transactionTypeFilter,
-  setTransactionTypeFilter,
-  onExport,
+  participants,
+  onNavigate,
   onSaved,
 }: {
   groupId: string;
@@ -1697,28 +1708,38 @@ function Overview({
   loading: boolean;
   summary: { income: number; expense: number; balance: number };
   monthlyChart: ChartPoint[];
-  weeklyChart: ChartPoint[];
   transactions: Transaction[];
   todos: Todo[];
   reminders: Reminder[];
-  query: string;
-  setQuery: (value: string) => void;
-  fromDate: string;
-  setFromDate: (value: string) => void;
-  toDate: string;
-  setToDate: (value: string) => void;
-  transactionTypeFilter: "all" | "income" | "expense";
-  setTransactionTypeFilter: (value: "all" | "income" | "expense") => void;
-  onExport: () => void;
+  participants: Participant[];
+  onNavigate: (section: DashboardSection) => void;
   onSaved: () => void;
 }) {
-  const openTodos = todos.filter((todo) => !todo.is_done).slice(0, 3);
+  const openTodos = todos.filter((todo) => !todo.is_done).slice(0, 5);
   const openTodoCount = todos.filter((todo) => !todo.is_done).length;
+  const doneTodoCount = todos.filter((todo) => todo.is_done).length;
+  const todoProgress = todos.length
+    ? Math.round((doneTodoCount / todos.length) * 100)
+    : 0;
   const nextReminders = reminders.slice(0, 3);
-  const expenseRatio = summary.income
-    ? `${Math.round((summary.expense / summary.income) * 100)}%`
-    : "-";
-  const recentTransactions = transactions.slice(0, 5);
+  const [trackerSeconds, setTrackerSeconds] = useState(0);
+  const [trackerRunning, setTrackerRunning] = useState(false);
+
+  useEffect(() => {
+    if (!trackerRunning) return;
+    const interval = window.setInterval(() => {
+      setTrackerSeconds((seconds) => seconds + 1);
+    }, 1_000);
+    return () => window.clearInterval(interval);
+  }, [trackerRunning]);
+
+  const trackerTime = [
+    Math.floor(trackerSeconds / 3_600),
+    Math.floor((trackerSeconds % 3_600) / 60),
+    trackerSeconds % 60,
+  ]
+    .map((value) => String(value).padStart(2, "0"))
+    .join(":");
 
   return (
     <div className="space-y-4">
@@ -1747,28 +1768,28 @@ function Overview({
 
       <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <FadeUp className="col-span-2 sm:col-span-1" variant="card" delay={0.1}>
-          <MetricCard label="Saldo Kas" value={summary.balance} icon={WalletCards} tone="neutral" primary loading={loading} />
+          <MetricCard label="Saldo Kas" value={summary.balance} icon={WalletCards} tone="neutral" primary loading={loading} onClick={() => onNavigate("transactions")} />
         </FadeUp>
         <FadeUp variant="card" delay={0.17}>
-          <MetricCard label="Pemasukan" value={summary.income} icon={CircleDollarSign} tone="income" loading={loading} />
+          <MetricCard label="Pemasukan" value={summary.income} icon={CircleDollarSign} tone="income" loading={loading} onClick={() => onNavigate("transactions")} />
         </FadeUp>
         <FadeUp variant="card" delay={0.24}>
-          <MetricCard label="Pengeluaran" value={summary.expense} icon={WalletCards} tone="expense" loading={loading} />
+          <MetricCard label="Pengeluaran" value={summary.expense} icon={WalletCards} tone="expense" loading={loading} onClick={() => onNavigate("transactions")} />
         </FadeUp>
         <FadeUp className="col-span-2 sm:col-span-1" variant="card" delay={0.31}>
-          <CountMetricCard label="Transaksi" value={transactions.length} description="pada filter aktif" loading={loading} />
+          <CountMetricCard label="Transaksi" value={transactions.length} description="pada grup aktif" loading={loading} onClick={() => onNavigate("transactions")} />
         </FadeUp>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_360px]">
-        <DashboardPanel className="self-start">
+      <section className="grid gap-4 xl:grid-cols-12">
+        <DashboardPanel className="self-start xl:col-span-6">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-sm font-semibold uppercase tracking-wide">Arus Kas</h2>
-              <p className="text-sm text-[var(--muted)]">Pemasukan dan pengeluaran per bulan.</p>
+              <h2 className="text-[17px] font-semibold">Arus Kas Bulanan</h2>
+              <p className="text-xs text-[var(--muted)]">Pergerakan kas masuk dan keluar grup</p>
             </div>
             <span className="hidden text-xs font-medium text-[var(--muted)] sm:inline">
-              8 periode terakhir
+              8 periode
             </span>
           </div>
           {loading ? (
@@ -1787,94 +1808,126 @@ function Overview({
               </ResponsiveContainer>
             </div>
           ) : (
-            <EmptyState title="Belum ada cash flow" description="Transaksi yang masuk dari WhatsApp akan muncul di grafik ini." />
+            <EmptyState title="Belum ada arus kas" description="Transaksi kas yang tercatat akan tampil di sini." />
           )}
         </DashboardPanel>
 
-        <div className="grid gap-4">
+        <DashboardPanel className="flex min-h-[300px] flex-col xl:col-span-3">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-[17px] font-semibold">Pengingat</h2>
+            <Badge tone="muted">{reminders.length} aktif</Badge>
+          </div>
+          {nextReminders.length ? (
+            <div className="mt-5">
+              <p className="text-lg font-semibold leading-snug">{nextReminders[0].remind_text}</p>
+              <p className="mt-2 flex items-center gap-1.5 text-xs text-[var(--muted)]">
+                <CalendarClock className="h-3.5 w-3.5" />
+                {nextReminders[0].remind_type}: {nextReminders[0].remind_value}
+              </p>
+            </div>
+          ) : (
+            <p className="mt-6 text-sm text-[var(--muted)]">Belum ada pengingat terjadwal.</p>
+          )}
+          <Button className="mt-auto w-full" variant="outline" onClick={() => onNavigate("reminders")}>
+            Buka Kalender
+          </Button>
+        </DashboardPanel>
+
+        <div className="grid gap-4 xl:col-span-3">
           <DashboardPanel>
-            <h2 className="text-sm font-semibold uppercase tracking-wide">Ringkasan Bulan Ini</h2>
-            <div className="mt-4 grid gap-3">
-              <InfoPill label="Rasio keluar" value={expenseRatio} />
-              <InfoPill label="Transaksi" value={`${transactions.length} tercatat`} />
-              <InfoPill label="Todo aktif" value={`${openTodoCount} belum selesai`} />
-              <InfoPill label="Reminder" value={`${reminders.length} aktif`} />
+            <div className="flex items-center justify-between gap-3 border-b border-[var(--line)] pb-3">
+              <h2 className="text-base font-semibold">Proyek</h2>
+              <button type="button" onClick={() => onNavigate("todos")} className="text-xs font-semibold text-[var(--income)] hover:underline">
+                Buka Board
+              </button>
+            </div>
+            <div className="mt-3 space-y-2.5">
+              {openTodos.length ? openTodos.map((todo) => (
+                <button key={todo.id} type="button" onClick={() => onNavigate("todos")} className="flex min-h-9 w-full items-center gap-2.5 text-left text-sm">
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-[var(--income)]" />
+                  <span className="min-w-0 flex-1 truncate font-medium">{parseTaskDetails(todo.todo_text).title}</span>
+                </button>
+              )) : (
+                <p className="py-4 text-center text-xs text-[var(--muted)]">Belum ada proyek aktif</p>
+              )}
             </div>
           </DashboardPanel>
+
+          <FadeUp variant="card" delay={0.2}>
+            <div className="fernly-tracker">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-base font-semibold text-white">Time Tracker</h2>
+                <Clock className="h-4 w-4 text-white/70" />
+              </div>
+              <p className="my-auto py-4 text-center text-[clamp(30px,3vw,40px)] font-bold tabular-nums text-white">
+                {trackerTime}
+              </p>
+              <div className="flex items-center justify-center gap-2">
+                <button type="button" onClick={() => setTrackerRunning((value) => !value)} className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-[var(--primary)] transition hover:scale-105 active:scale-95" aria-label={trackerRunning ? "Jeda tracker" : "Mulai tracker"}>
+                  {trackerRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                </button>
+                <button type="button" onClick={() => { setTrackerRunning(false); setTrackerSeconds(0); }} className="flex h-11 w-11 items-center justify-center rounded-full bg-rose-500 text-white transition hover:scale-105 active:scale-95" aria-label="Reset tracker">
+                  <Square className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          </FadeUp>
         </div>
       </section>
 
-      <section className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.45fr)_360px]">
-        <DashboardPanel className="self-start">
-          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+      <section className="grid items-stretch gap-4 lg:grid-cols-2">
+        <DashboardPanel>
+          <div className="flex items-center justify-between gap-3 border-b border-[var(--line)] pb-3">
             <div>
-              <h2 className="text-sm font-semibold uppercase tracking-wide">Transaksi Terbaru</h2>
-              <p className="text-sm text-[var(--muted)]">Cari, filter tanggal, lalu ekspor data kas.</p>
+              <h2 className="text-[17px] font-semibold">Anggota Grup</h2>
+              <p className="text-xs text-[var(--muted)]">Anggota yang tersinkron dari grup aktif</p>
             </div>
-            <Button variant="outline" onClick={onExport} disabled={!transactions.length}>
-              <Download className="h-4 w-4" />
-              Export CSV
-            </Button>
+            <button type="button" onClick={() => onNavigate("participants")} className="text-xs font-semibold text-[var(--income)] hover:underline">
+              Kelola Semua
+            </button>
           </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_150px_150px]">
-            <label className="relative">
-              <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-[var(--muted)]" />
-              <Input
-                className="pl-9"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Cari catatan atau pengirim"
-              />
-            </label>
-            <TransactionTypeSegment
-              value={transactionTypeFilter}
-              onChange={setTransactionTypeFilter}
-            />
-            <Input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} />
-            <Input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} />
-          </div>
-          <TransactionsView
-            groupId={groupId}
-            sessionToken={sessionToken}
-            botApiUrl={botApiUrl}
-            loading={loading}
-            transactions={recentTransactions}
-            onSaved={onSaved}
-          />
+          {loading ? (
+            <div className="mt-4 space-y-2"><Skeleton className="h-12" /><Skeleton className="h-12" /></div>
+          ) : participants.length ? (
+            <div className="mt-3 divide-y divide-[var(--line)]">
+              {participants.slice(0, 5).map((participant) => {
+                const roleValue = String(participant.data?.role ?? "user").toLowerCase();
+                const roleLabel = roleValue === "owner" ? "Owner" : roleValue === "admin" ? "Admin" : "User";
+                const initials = participant.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
+                return (
+                  <div key={participant.id} className="flex min-h-14 items-center gap-3 py-2.5">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--panel)] text-xs font-bold">{initials || "U"}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold">{participant.name}</p>
+                      <p className="text-xs text-[var(--muted)]">{roleLabel}</p>
+                    </div>
+                    <Badge tone={roleValue === "owner" || roleValue === "admin" ? "income" : "muted"}>{roleLabel}</Badge>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="py-8 text-center text-sm text-[var(--muted)]">Belum ada anggota yang tersinkron.</p>
+          )}
         </DashboardPanel>
 
-        <div className="grid gap-4">
-          <DashboardPanel>
-            <h2 className="text-sm font-semibold uppercase tracking-wide">Breakdown Mingguan</h2>
-            {loading ? (
-              <Skeleton className="mt-4 h-40" />
-            ) : weeklyChart.length ? (
-              <div className="mt-4 h-40">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={weeklyChart}>
-                    <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
-                    <XAxis dataKey="label" stroke="var(--muted)" fontSize={12} />
-                    <Tooltip content={<ChartTooltip />} />
-                    <Bar dataKey="income" fill="#10B981" radius={[6, 6, 0, 0]} />
-                    <Bar dataKey="expense" fill="#F43F5E" radius={[6, 6, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <EmptyState title="Data mingguan kosong" description="Tambahkan transaksi untuk melihat pola mingguan." />
-            )}
-          </DashboardPanel>
-          <OverviewAiPanel
-            groupId={groupId}
-            groupName={groupName}
-            summary={summary}
-            transactions={transactions}
-            sessionToken={sessionToken}
-            botApiUrl={botApiUrl}
-            onSaved={onSaved}
-          />
-          <UpcomingPanel todos={openTodos} reminders={nextReminders} />
-        </div>
+        <DashboardPanel className="flex min-h-[240px] flex-col">
+          <div>
+            <h2 className="text-[17px] font-semibold">Progres Proyek</h2>
+            <p className="text-xs text-[var(--muted)]">Perbandingan task selesai dan task aktif</p>
+          </div>
+          <div className="my-auto py-5 text-center">
+            <p className="text-[clamp(36px,4vw,52px)] font-bold leading-none text-[var(--income)] tabular-nums">{todoProgress}%</p>
+            <p className="mt-2 text-xs text-[var(--muted)]">{doneTodoCount} dari {todos.length} task selesai</p>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-[var(--panel)]">
+            <div className="h-full rounded-full bg-[var(--income)] transition-[width] duration-500" style={{ width: `${todoProgress}%` }} />
+          </div>
+          <div className="mt-3 flex items-center justify-center gap-5 text-xs text-[var(--muted)]">
+            <span>Selesai ({doneTodoCount})</span>
+            <span>Aktif ({openTodoCount})</span>
+          </div>
+        </DashboardPanel>
       </section>
     </div>
   );
@@ -2032,7 +2085,7 @@ function ReportsPage({
   return (
     <div className="space-y-4">
       <PageIntro
-        title="Laporan"
+        title="Analytics"
         description="Performa kas grup dan pola pengeluaran berdasarkan transaksi nyata"
         action={
           <div className="flex flex-wrap items-center gap-2">
@@ -2518,14 +2571,28 @@ function CountMetricCard({
   value,
   description,
   loading,
+  onClick,
 }: {
   label: string;
   value: number;
   description: string;
   loading: boolean;
+  onClick?: () => void;
 }) {
   return (
-    <Card className="min-h-[132px] min-w-0 p-3.5 sm:p-4">
+    <Card
+      className={cn("min-h-[132px] min-w-0 p-3.5 sm:p-4", onClick && "fernly-card-interactive")}
+      onClick={onClick}
+      onKeyDown={(event) => {
+        if (onClick && (event.key === "Enter" || event.key === " ")) {
+          event.preventDefault();
+          onClick();
+        }
+      }}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      aria-label={onClick ? `Buka transaksi dari ${label}` : undefined}
+    >
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
@@ -2545,82 +2612,6 @@ function CountMetricCard({
         </span>
       </div>
     </Card>
-  );
-}
-
-function OverviewAiPanel({
-  groupId,
-  groupName,
-  summary,
-  transactions,
-  sessionToken = "",
-  botApiUrl = "",
-  onSaved,
-}: {
-  groupId: string;
-  groupName: string;
-  summary: { income: number; expense: number; balance: number };
-  transactions: Transaction[];
-  sessionToken?: string;
-  botApiUrl?: string;
-  onSaved: () => void;
-}) {
-  if (!groupId) return null;
-
-  return (
-    <DashboardPanel>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold uppercase tracking-wide">BotUang AI</h2>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            Catat data cepat dari bahasa sehari-hari.
-          </p>
-        </div>
-        <span className="botuang-ai-orb botuang-ai-orb-sm" aria-hidden="true" />
-      </div>
-      <div className="mt-4 grid gap-2">
-        {["Pengeluaran 5k beli Pop Ice", "Reminder besok 08:00 rapat", "Todo beli konsumsi"].map(
-          (item) => (
-            <AiAssistantSheet
-              key={item}
-              groupId={groupId}
-              groupName={groupName}
-              sessionToken={sessionToken}
-              botApiUrl={botApiUrl}
-              summary={summary}
-              transactions={transactions}
-              onSaved={onSaved}
-              trigger={
-                <button
-                  type="button"
-                  className="min-h-10 rounded-[11px] border border-[var(--line)] px-3 text-left text-sm text-[var(--muted)] transition hover:border-emerald-300/40 hover:bg-emerald-500/5 hover:text-[var(--foreground)]"
-                >
-                  {item}
-                </button>
-              }
-            />
-          ),
-        )}
-      </div>
-      <AiAssistantSheet
-        groupId={groupId}
-        groupName={groupName}
-        sessionToken={sessionToken}
-        botApiUrl={botApiUrl}
-        summary={summary}
-        transactions={transactions}
-        onSaved={onSaved}
-        trigger={
-          <button
-            type="button"
-            className="mt-3 flex min-h-11 w-full items-center justify-between rounded-[12px] border border-[var(--line)] bg-[var(--background)] px-3 text-sm text-[var(--muted)] transition hover:border-emerald-300/40 hover:text-[var(--foreground)]"
-          >
-            <span>Tanyakan tentang keuangan...</span>
-            <Sparkles className="h-4 w-4 text-emerald-500" />
-          </button>
-        }
-      />
-    </DashboardPanel>
   );
 }
 
@@ -2656,40 +2647,6 @@ function CompactMoneyStat({
         </p>
       )}
     </FadeUp>
-  );
-}
-
-function UpcomingPanel({
-  todos,
-  reminders,
-}: {
-  todos: Todo[];
-  reminders: Reminder[];
-}) {
-  return (
-    <div className="rounded-[18px] border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--soft-shadow)]">
-      <h2 className="font-semibold">Agenda Terdekat</h2>
-      <div className="mt-3 space-y-3">
-        {reminders.map((reminder) => (
-          <div key={reminder.id} className="flex items-start gap-3">
-            <CalendarClock className="mt-0.5 h-4 w-4 text-emerald-500" />
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{reminder.remind_text}</p>
-              <p className="text-xs text-[var(--muted)]">{reminder.remind_value}</p>
-            </div>
-          </div>
-        ))}
-        {todos.map((todo) => (
-          <div key={todo.id} className="flex items-start gap-3">
-            <ClipboardCheck className="mt-0.5 h-4 w-4 text-[var(--muted)]" />
-            <p className="min-w-0 truncate text-sm font-medium">{parseTodo(todo.todo_text).text}</p>
-          </div>
-        ))}
-        {!reminders.length && !todos.length ? (
-          <p className="text-sm text-[var(--muted)]">Belum ada todo atau reminder aktif.</p>
-        ) : null}
-      </div>
-    </div>
   );
 }
 
@@ -3527,15 +3484,6 @@ function FinanceCalculator() {
   );
 }
 
-function InfoPill({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex min-h-14 items-center justify-between gap-4 border-b border-[var(--line)] py-3 last:border-b-0">
-      <p className="text-sm text-[var(--muted)]">{label}</p>
-      <p className="text-right font-semibold tabular-nums">{value}</p>
-    </div>
-  );
-}
-
 function MetricCard({
   label,
   value,
@@ -3543,6 +3491,7 @@ function MetricCard({
   tone,
   primary,
   loading,
+  onClick,
 }: {
   label: string;
   value: number;
@@ -3550,6 +3499,7 @@ function MetricCard({
   tone: "neutral" | "income" | "expense";
   primary?: boolean;
   loading: boolean;
+  onClick?: () => void;
 }) {
   const color =
     tone === "income"
@@ -3563,10 +3513,21 @@ function MetricCard({
     <Card
       className={cn(
         "min-h-[150px] min-w-0 p-3.5 sm:min-h-[156px] sm:p-4",
+        onClick && "fernly-card-interactive",
         primary
           ? "border-transparent bg-[var(--primary)] text-white shadow-[var(--primary-shadow)]"
           : "",
       )}
+      onClick={onClick}
+      onKeyDown={(event) => {
+        if (onClick && (event.key === "Enter" || event.key === " ")) {
+          event.preventDefault();
+          onClick();
+        }
+      }}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      aria-label={onClick ? `Buka transaksi dari ${label}` : undefined}
     >
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -4623,6 +4584,7 @@ function TodosPage({
     const nextDone = nextStage === "done";
 
     let botOk = false;
+    let botMessage = "";
     const targetGroupId = todo.group_id || groupId;
 
     if (shouldWriteLegacyBot(botApiUrl) && targetGroupId) {
@@ -4639,18 +4601,25 @@ function TodosPage({
         },
       });
       botOk = Boolean(res.ok);
+      botMessage = res.message ?? "";
     }
 
-    const { error } = await supabase
-      .from("todos")
-      .update({
-        todo_text: newText,
-        is_done: nextDone,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", todo.id);
+    const databaseResult = isUuid(todo.id)
+      ? await supabase
+          .from("todos")
+          .update({
+            todo_text: newText,
+            is_done: nextDone,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", todo.id)
+      : { error: null };
 
-    if (error && !botOk) toast.error(error.message);
+    if (!isUuid(todo.id) && !botOk) {
+      toast.error(botMessage || "Task bot belum dapat dipindahkan. Periksa koneksi Bot API.");
+    } else if (databaseResult.error && !botOk) {
+      toast.error(databaseResult.error.message);
+    }
     else {
       toast.success(`Task dipindahkan ke ${nextStage.replace("_", " ")}`);
       onChanged();
@@ -4683,6 +4652,7 @@ function TodosPage({
     const nextDone = editStage === "done";
 
     let botOk = false;
+    let botMessage = "";
     const targetGroupId = editTodo.group_id || groupId;
 
     if (shouldWriteLegacyBot(botApiUrl) && targetGroupId) {
@@ -4699,20 +4669,27 @@ function TodosPage({
         },
       });
       botOk = Boolean(res.ok);
+      botMessage = res.message ?? "";
     }
 
-    const { error } = await supabase
-      .from("todos")
-      .update({
-        todo_text,
-        is_done: nextDone,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", editTodo.id);
+    const databaseResult = isUuid(editTodo.id)
+      ? await supabase
+          .from("todos")
+          .update({
+            todo_text,
+            is_done: nextDone,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", editTodo.id)
+      : { error: null };
 
     setSaving(false);
-    if (error && !botOk) {
-      toast.error(error.message);
+    if (!isUuid(editTodo.id) && !botOk) {
+      toast.error(botMessage || "Task bot belum dapat diperbarui. Periksa koneksi Bot API.");
+      return;
+    }
+    if (databaseResult.error && !botOk) {
+      toast.error(databaseResult.error.message);
       return;
     }
     toast.success("Task diperbarui.");
@@ -4722,6 +4699,7 @@ function TodosPage({
 
   async function remove(todo: Todo) {
     let botOk = false;
+    let botMessage = "";
     const targetGroupId = todo.group_id || groupId;
 
     if (shouldWriteLegacyBot(botApiUrl) && targetGroupId) {
@@ -4734,13 +4712,18 @@ function TodosPage({
         method: "DELETE",
       });
       botOk = Boolean(res.ok);
+      botMessage = res.message ?? "";
     }
 
-    const { error } = await supabase
-      .from("todos")
-      .update({ deleted_at: new Date().toISOString() })
-      .eq("id", todo.id);
-    if (error && !botOk) toast.error(error.message);
+    const databaseResult = isUuid(todo.id)
+      ? await supabase
+          .from("todos")
+          .update({ deleted_at: new Date().toISOString() })
+          .eq("id", todo.id)
+      : { error: null };
+    if (!isUuid(todo.id) && !botOk) {
+      toast.error(botMessage || "Task bot belum dapat dihapus. Periksa koneksi Bot API.");
+    } else if (databaseResult.error && !botOk) toast.error(databaseResult.error.message);
     else {
       toast.success("Task dihapus.");
       onChanged();
@@ -4849,7 +4832,8 @@ function TodosPage({
 
       {/* Segment filters bar matching Fernly */}
       <FadeUp className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] pb-3" variant="compact" delay={0.18}>
-        <div className="inline-flex items-center gap-1 rounded-[10px] border border-[var(--line)] bg-[var(--surface)] p-1 text-xs">
+        <div className="max-w-full overflow-x-auto rounded-[10px] border border-[var(--line)] bg-[var(--surface)] p-1">
+          <div className="inline-flex min-w-max items-center gap-1 text-xs">
           {[
             { id: "all", label: "All" },
             { id: "mine", label: "My tasks" },
@@ -4870,6 +4854,7 @@ function TodosPage({
               {seg.label}
             </button>
           ))}
+          </div>
         </div>
 
         <span className="text-xs font-medium text-[var(--muted)]">
@@ -4879,14 +4864,14 @@ function TodosPage({
 
       {/* 4 Kanban Columns */}
       {loading ? (
-        <StaggerContainer className="grid gap-4 md:grid-cols-2 xl:grid-cols-4" delay={0.1} stagger={0.08} variant="task">
+        <StaggerContainer className="fernly-kanban" delay={0.1} stagger={0.08} variant="task">
           <Skeleton className="h-64 rounded-[16px]" />
           <Skeleton className="h-64 rounded-[16px]" />
           <Skeleton className="h-64 rounded-[16px]" />
           <Skeleton className="h-64 rounded-[16px]" />
         </StaggerContainer>
       ) : (
-        <StaggerContainer className="grid gap-4 md:grid-cols-2 xl:grid-cols-4" delay={0.1} stagger={0.08} variant="task">
+        <StaggerContainer className="fernly-kanban" delay={0.1} stagger={0.08} variant="task">
           {columns.map((col) => {
             const colTasks = filteredTodos.filter((t) => t.parsed.stage === col.stage);
             return (
@@ -4903,7 +4888,7 @@ function TodosPage({
                   }
                 }}
                 className={cn(
-                  "flex flex-col rounded-[16px] border bg-[var(--card)] p-3.5 shadow-[var(--soft-shadow)] transition-colors",
+                  "fernly-col flex flex-col border transition-colors",
                   draggedTodoId ? "border-[var(--line-strong)]" : "border-[var(--line)]",
                 )}
               >
@@ -5141,11 +5126,6 @@ function TodosPage({
   );
 }
 
-function parseTodo(value: string) {
-  const details = parseTaskDetails(value);
-  return { priority: details.priority, text: details.title };
-}
-
 type ReminderScheduleType = "time" | "date" | "datetime";
 
 function isReminderScheduleType(value: string): value is ReminderScheduleType {
@@ -5201,6 +5181,15 @@ function formatReminderScheduleValue(type: string, value: string) {
   const date = toDateInputValue(value);
   const time = toTimeInputValue(value);
   return [date ? toReminderDateValue(date) : "", time].filter(Boolean).join(" · ") || value;
+}
+
+function getReminderDateKey(reminder: Reminder) {
+  const explicitDate = toDateInputValue(reminder.remind_value ?? "");
+  if (explicitDate) return explicitDate;
+  if (reminder.remind_type === "time") {
+    return toLocalDateKey(new Date(reminder.created_at));
+  }
+  return "";
 }
 
 function ReminderScheduleFields({
@@ -5399,6 +5388,7 @@ function RemindersPage({
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"reminders" | "holidays" | "tasks">("reminders");
   const [selectedMonth, setSelectedMonth] = useState(() => new Date());
+  const [selectedDateKey, setSelectedDateKey] = useState(() => toLocalDateKey(new Date()));
 
   const currentYear = selectedMonth.getFullYear();
   const currentMonthIdx = selectedMonth.getMonth();
@@ -5422,6 +5412,15 @@ function RemindersPage({
         .filter((item) => !item.todo.is_done && Boolean(item.details.due))
         .sort((a, b) => a.details.due.localeCompare(b.details.due)),
     [todos],
+  );
+  const selectedAgenda = useMemo(
+    () => ({
+      holiday: INDONESIAN_HOLIDAYS.find((holiday) => holiday.date === selectedDateKey),
+      isSunday: new Date(`${selectedDateKey}T12:00:00`).getDay() === 0,
+      reminders: reminders.filter((reminder) => getReminderDateKey(reminder) === selectedDateKey),
+      tasks: dueTasks.filter((item) => item.details.due === selectedDateKey),
+    }),
+    [dueTasks, reminders, selectedDateKey],
   );
 
   async function add(event: FormEvent) {
@@ -5573,7 +5572,7 @@ function RemindersPage({
 
           <div className="grid grid-cols-7 gap-1.5">
             {Array.from({ length: daysInMonth.firstDayIndex }).map((_, i) => (
-              <div key={`empty-${i}`} className="h-16 rounded-[12px] bg-transparent" />
+              <div key={`empty-${i}`} className="h-20 rounded-[12px] bg-transparent sm:h-24" />
             ))}
             {Array.from({ length: daysInMonth.totalDays }).map((_, i) => {
               const day = i + 1;
@@ -5587,17 +5586,23 @@ function RemindersPage({
                 new Date().getFullYear() === currentYear;
 
               const holiday = INDONESIAN_HOLIDAYS.find((h) => h.date === fullDateStr);
-              const dayReminders = reminders.filter((r) => r.remind_value && r.remind_value.includes(fullDateStr));
+              const dayReminders = reminders.filter((reminder) => getReminderDateKey(reminder) === fullDateStr);
               const dayTasks = dueTasks.filter((item) => item.details.due === fullDateStr);
               const isSunday = (daysInMonth.firstDayIndex + i) % 7 === 0;
+              const isSelected = selectedDateKey === fullDateStr;
 
               return (
-                <div
+                <button
+                  type="button"
                   key={`day-${day}`}
+                  onClick={() => setSelectedDateKey(fullDateStr)}
+                  aria-label={`${day} ${monthNames[currentMonthIdx]} ${currentYear}`}
+                  aria-pressed={isSelected}
                   className={cn(
-                    "group relative flex h-16 flex-col justify-between rounded-[12px] border p-1.5 text-left transition hover:border-[var(--line-strong)]",
+                    "group relative flex h-20 min-w-0 flex-col rounded-[12px] border p-1.5 text-left transition hover:border-[var(--line-strong)] sm:h-24",
                     isToday ? "border-emerald-500 bg-emerald-500/5 font-semibold" : "border-[var(--line)] bg-[var(--surface)]",
-                    holiday || isSunday ? "bg-rose-500/[0.03]" : ""
+                    holiday || isSunday ? "bg-rose-500/[0.03]" : "",
+                    isSelected ? "ring-2 ring-[var(--income)] ring-offset-1 ring-offset-[var(--card)]" : "",
                   )}
                 >
                   <div className="flex items-center justify-between">
@@ -5610,25 +5615,18 @@ function RemindersPage({
                       {day}
                     </span>
                     <span className="flex items-center gap-1">
-                      {holiday ? <i className="h-1.5 w-1.5 rounded-full bg-rose-500" title={holiday.name} /> : null}
+                      {holiday || isSunday ? <i className="h-1.5 w-1.5 rounded-full bg-rose-500" title={holiday?.name ?? "Tanggal merah"} /> : null}
                       {dayReminders.length ? <i className="h-1.5 w-1.5 rounded-full bg-emerald-500" title="Reminder" /> : null}
                       {dayTasks.length ? <i className="h-1.5 w-1.5 rounded-full bg-blue-500" title="Due task" /> : null}
                     </span>
                   </div>
-                  {holiday ? (
-                    <p className="line-clamp-2 text-[10px] leading-tight text-rose-500 font-medium" title={holiday.name}>
-                      {holiday.name}
-                    </p>
-                  ) : dayTasks.length > 0 ? (
-                    <p className="line-clamp-1 text-[10px] font-medium text-blue-500">
-                      {dayTasks.length} due task
-                    </p>
-                  ) : dayReminders.length > 0 ? (
-                    <p className="line-clamp-1 text-[10px] text-emerald-600 font-medium">
-                      {dayReminders.length} reminder
-                    </p>
-                  ) : null}
-                </div>
+                  <span className="mt-1 grid min-w-0 gap-0.5 overflow-hidden">
+                    {holiday ? <span className="truncate rounded-[4px] bg-rose-500/10 px-1 text-[9px] font-semibold leading-4 text-rose-500">{holiday.name}</span> : null}
+                    {!holiday && isSunday ? <span className="truncate rounded-[4px] bg-rose-500/10 px-1 text-[9px] font-semibold leading-4 text-rose-500">Tanggal merah</span> : null}
+                    {dayReminders.slice(0, 1).map((reminder) => <span key={reminder.id} className="truncate rounded-[4px] bg-emerald-500/10 px-1 text-[9px] font-semibold leading-4 text-emerald-600">{reminder.remind_text}</span>)}
+                    {dayTasks.slice(0, 1).map(({ todo, details }) => <span key={todo.id} className="truncate rounded-[4px] bg-blue-500/10 px-1 text-[9px] font-semibold leading-4 text-blue-500">{details.title}</span>)}
+                  </span>
+                </button>
               );
             })}
           </div>
@@ -5648,6 +5646,19 @@ function RemindersPage({
 
         {/* 3 Sidebar Tabs: Reminder, Hari Libur, Task */}
         <div className="flex flex-col rounded-[20px] border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--soft-shadow)]">
+          <div className="mb-4 border-b border-[var(--line)] pb-4">
+            <p className="text-[11px] font-semibold uppercase text-[var(--muted)]">Agenda Terpilih</p>
+            <h2 className="mt-1 text-lg font-semibold">
+              {new Date(`${selectedDateKey}T12:00:00`).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}
+            </h2>
+            <div className="mt-3 grid gap-2">
+              {selectedAgenda.holiday ? <p className="rounded-[9px] bg-rose-500/10 px-2.5 py-2 text-xs font-semibold text-rose-500">{selectedAgenda.holiday.name}</p> : null}
+              {!selectedAgenda.holiday && selectedAgenda.isSunday ? <p className="rounded-[9px] bg-rose-500/10 px-2.5 py-2 text-xs font-semibold text-rose-500">Hari Minggu / Tanggal Merah</p> : null}
+              {selectedAgenda.reminders.map((reminder) => <p key={reminder.id} className="rounded-[9px] bg-emerald-500/10 px-2.5 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300">{reminder.remind_text}</p>)}
+              {selectedAgenda.tasks.map(({ todo, details }) => <p key={todo.id} className="rounded-[9px] bg-blue-500/10 px-2.5 py-2 text-xs font-semibold text-blue-600 dark:text-blue-300">{details.title}</p>)}
+              {!selectedAgenda.holiday && !selectedAgenda.isSunday && !selectedAgenda.reminders.length && !selectedAgenda.tasks.length ? <p className="text-sm text-[var(--muted)]">Tidak ada agenda pada tanggal ini.</p> : null}
+            </div>
+          </div>
           {/* Segmented Control */}
           <div className="grid grid-cols-3 rounded-[12px] border border-[var(--line)] bg-[var(--surface)] p-1 text-xs font-semibold mb-4">
             <button

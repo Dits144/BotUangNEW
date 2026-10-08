@@ -266,8 +266,18 @@ export function FernlyPage({
   }, [isPresent, reduceMotion, safeToRemove]);
 
   return (
-    <div ref={rootRef} className={className}>
+    <motion.div
+      ref={rootRef}
+      className={className}
+      data-fernly-reveal="page"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{
+        duration: reduceMotion ? 0 : 0.45,
+        ease: power3Out,
+      }}
+    >
       {children}
-    </div>
+    </motion.div>
   );
 }

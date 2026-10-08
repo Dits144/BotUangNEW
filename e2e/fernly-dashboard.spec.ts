@@ -71,14 +71,14 @@ test("Fernly shell navigates without reload and renders real empty states", asyn
   expect(consoleErrors).toEqual([]);
   await expect(page.getByRole("heading", { name: "Ringkasan", exact: true })).toBeVisible();
   await expect(page.getByText("Rp 0", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Belum ada cash flow", { exact: true })).toBeVisible();
+  await expect(page.getByText("Belum ada arus kas", { exact: true })).toBeVisible();
 
   const navigationEntries = [
     ["Transaksi", "Transaksi"],
-    ["Laporan", "Laporan"],
+    ["Analytics", "Analytics"],
     ["Tasks", "Tasks"],
     ["Kalender", "Kalender"],
-    ["Anggota", "Anggota"],
+    ["Team", "Anggota"],
     ["Otomasi", "Command"],
     ["Pengaturan", "Setting"],
     ["Bantuan", "Bantuan"],
@@ -201,12 +201,13 @@ test("Fernly motion respects reduced motion", async ({ page }) => {
 
 test("financial analytics, Kanban, and calendar expose the Fernly structures", async ({ page }, testInfo) => {
   await page.goto("/preview-dashboard#reports");
-  await expect(page.getByRole("heading", { name: "Laporan", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Analytics", exact: true })).toBeVisible();
   for (const label of ["Total pemasukan", "Total pengeluaran", "Saldo periode", "Jumlah transaksi"]) {
     await expect(page.getByText(label, { exact: true })).toBeVisible();
   }
   await expect(page.getByRole("heading", { name: "Arus Kas", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Pengeluaran per kategori", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Daftar Transaksi", exact: true })).toHaveCount(0);
   await page.waitForTimeout(1_100);
   await page.screenshot({ path: `test-results/analytics-${testInfo.project.name}.png`, fullPage: true });
 
@@ -215,6 +216,7 @@ test("financial analytics, Kanban, and calendar expose the Fernly structures", a
   for (const label of ["To do", "In progress", "In review", "Done"]) {
     await expect(page.getByRole("heading", { name: label, exact: true })).toBeVisible();
   }
+  await expect(page.locator(".fernly-col")).toHaveCount(4);
   await expect(page.getByRole("button", { name: "New Task", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Due this week", exact: true })).toBeVisible();
   await page.waitForTimeout(1_100);
@@ -225,6 +227,7 @@ test("financial analytics, Kanban, and calendar expose the Fernly structures", a
   await expect(page.getByRole("button", { name: /^Reminder \(/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /^Hari Libur \(/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /^Task \(/ })).toBeVisible();
+  await expect(page.getByText("Tanggal merah", { exact: true }).first()).toBeVisible();
   await page.waitForTimeout(1_100);
   await page.screenshot({ path: `test-results/calendar-${testInfo.project.name}.png`, fullPage: true });
 });

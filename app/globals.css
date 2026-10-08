@@ -77,6 +77,10 @@ body {
   letter-spacing: 0;
 }
 
+.font-mono {
+  font-family: inherit !important;
+}
+
 button,
 input,
 textarea,
@@ -354,7 +358,7 @@ a {
 /* === Fernly Kanban Board === */
 .fernly-kanban {
   display: grid;
-  grid-template-columns: repeat(3, minmax(280px, 1fr));
+  grid-template-columns: repeat(4, minmax(220px, 1fr));
   gap: 16px;
   align-items: start;
   overflow-x: auto;
@@ -363,7 +367,7 @@ a {
 
 @media (max-width: 900px) {
   .fernly-kanban {
-    grid-template-columns: repeat(3, 85vw);
+    grid-template-columns: repeat(4, minmax(280px, 82vw));
     scroll-snap-type: x mandatory;
   }
   .fernly-col {
