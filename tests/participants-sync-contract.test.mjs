@@ -11,6 +11,7 @@ test("participants endpoint merges live WhatsApp members with tracked records", 
   assert.match(apiRoutes, /metadata\.participants/);
   assert.match(apiRoutes, /source: 'whatsapp'/);
   assert.match(apiRoutes, /trackedByNumber/);
+  assert.match(apiRoutes, /sock\.user && sock\.user\.lid/);
 });
 
 test("bot remembers push names for participant display", () => {

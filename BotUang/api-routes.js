@@ -766,7 +766,10 @@ router.get('/groups/:groupId/participants', async (req, res) => {
       if (number) trackedByNumber.set(number, participant);
     }
 
-    const botNumber = getWhatsAppNumber(sock.user && sock.user.id);
+    const botNumbers = new Set([
+      getWhatsAppNumber(sock.user && sock.user.id),
+      getWhatsAppNumber(sock.user && sock.user.lid)
+    ].filter(Boolean));
     const usedTrackedIds = new Set();
     const whatsappParticipants = (metadata.participants || []).map(member => {
       const jid = member.id || member.phoneNumber || '';
@@ -782,7 +785,7 @@ router.get('/groups/:groupId/participants', async (req, res) => {
       if (tracked) usedTrackedIds.add(tracked.id);
 
       const observedName = cachedProfile?.display_name || namesByNumber.get(phone) || namesByNumber.get(jidNumber);
-      const isBot = Boolean(botNumber && (phone === botNumber || jidNumber === botNumber));
+      const isBot = botNumbers.has(phone) || botNumbers.has(jidNumber);
       const fallbackName = phone
         ? phoneIsLid
           ? `Anggota ${phone.slice(-4)}`

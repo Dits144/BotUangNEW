@@ -1,7 +1,7 @@
 "use client";
 
 import type { FormEvent, InputHTMLAttributes, ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -26,6 +26,13 @@ import { Button } from "./ui/button";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 
 const ownerEmails = new Set(["dits144@gmail.com"]);
+const publicAppUrl = (
+  process.env.NEXT_PUBLIC_APP_URL || "https://www.dashboardits.tech"
+).replace(/\/$/, "");
+
+function getEmailConfirmationRedirect() {
+  return `${publicAppUrl}/login?email_confirmed=1`;
+}
 
 export function LoginPage() {
   const router = useRouter();
@@ -36,8 +43,68 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [verificationEmail, setVerificationEmail] = useState("");
+  const [confirmationStatus, setConfirmationStatus] = useState<
+    { tone: "success" | "error"; message: string } | null
+  >(null);
+  const [resendingVerification, setResendingVerification] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const code = url.searchParams.get("code");
+    const confirmationRequested =
+      url.searchParams.get("email_confirmed") === "1" ||
+      Boolean(code) ||
+      window.location.hash.includes("type=signup") ||
+      window.location.hash.includes("access_token=");
+    const errorDescription =
+      url.searchParams.get("error_description") ||
+      new URLSearchParams(window.location.hash.replace(/^#/, "")).get(
+        "error_description",
+      );
+
+    if (!confirmationRequested) return;
+
+    let active = true;
+    async function confirmSession() {
+      if (errorDescription) {
+        setConfirmationStatus({
+          tone: "error",
+          message: decodeURIComponent(errorDescription.replaceAll("+", " ")),
+        });
+        return;
+      }
+      if (code) {
+        const exchange = await supabase.auth.exchangeCodeForSession(code);
+        if (exchange.error && active) {
+          setConfirmationStatus({ tone: "error", message: exchange.error.message });
+          return;
+        }
+      }
+
+      const session = await supabase.auth.getSession();
+      if (!active) return;
+      const confirmedEmail = session.data.session?.user.email ?? "";
+      if (confirmedEmail) {
+        setEmail(confirmedEmail);
+        setVerificationEmail("");
+      }
+      setMode("login");
+      setConfirmationStatus({
+        tone: "success",
+        message: confirmedEmail
+          ? `Email ${confirmedEmail} sudah dikonfirmasi. Akun aktif dan siap digunakan.`
+          : "Email berhasil dikonfirmasi. Akun aktif dan sekarang dapat digunakan untuk login.",
+      });
+      window.history.replaceState(null, "", "/login?email_confirmed=1");
+    }
+
+    void confirmSession();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function routeToDashboard(
     userGroupId?: string,
@@ -154,7 +221,7 @@ export function LoginPage() {
             email,
             password,
             options: {
-              emailRedirectTo: `${window.location.origin}/login`,
+              emailRedirectTo: getEmailConfirmationRedirect(),
               data: {
                 full_name: fullName.trim() || undefined,
                 name: fullName.trim() || undefined,
@@ -164,12 +231,24 @@ export function LoginPage() {
 
     if (auth.error) {
       setLoading(false);
-      toast.error(auth.error.message);
+      toast.error(
+        auth.error.message.toLowerCase().includes("email not confirmed")
+          ? "Email belum dikonfirmasi. Buka email verifikasi atau kirim ulang link."
+          : auth.error.message,
+      );
       return;
     }
 
     if (mode === "register") {
       setLoading(false);
+      if (auth.data.session) {
+        setConfirmationStatus({
+          tone: "success",
+          message: "Akun berhasil dibuat dan sudah aktif. Silakan masuk ke dashboard.",
+        });
+        setMode("login");
+        return;
+      }
       setVerificationEmail(email.trim());
       toast.success("Periksa email kamu.");
       setMode("login");
@@ -188,6 +267,27 @@ export function LoginPage() {
         : "admin";
     toast.success(mode === "login" ? "Login berhasil." : "Akun admin dibuat.");
     await routeToDashboard(userGroupId, userRole, userName);
+  }
+
+  async function resendVerification() {
+    const targetEmail = (verificationEmail || email).trim().toLowerCase();
+    if (!targetEmail) {
+      toast.error("Masukkan email yang akan diverifikasi.");
+      return;
+    }
+    setResendingVerification(true);
+    const result = await supabase.auth.resend({
+      type: "signup",
+      email: targetEmail,
+      options: { emailRedirectTo: getEmailConfirmationRedirect() },
+    });
+    setResendingVerification(false);
+    if (result.error) {
+      toast.error(result.error.message);
+      return;
+    }
+    setVerificationEmail(targetEmail);
+    toast.success("Email verifikasi baru dikirim dengan link dashboard produksi.");
   }
 
   return (
@@ -269,6 +369,42 @@ export function LoginPage() {
                 <p className="font-semibold text-emerald-500">Periksa email kamu</p>
                 <p className="mt-1 text-[var(--muted)]">
                   Kami mengirim link verifikasi ke {verificationEmail}.
+                </p>
+                <button
+                  type="button"
+                  onClick={resendVerification}
+                  disabled={resendingVerification}
+                  className="mt-3 min-h-11 font-semibold text-emerald-500 underline-offset-4 hover:underline disabled:opacity-50"
+                >
+                  {resendingVerification ? "Mengirim ulang..." : "Kirim ulang email verifikasi"}
+                </button>
+              </div>
+            ) : null}
+
+            {confirmationStatus ? (
+              <div
+                className={cn(
+                  "mt-5 rounded-[14px] border p-4 text-sm",
+                  confirmationStatus.tone === "success"
+                    ? "border-emerald-300/20 bg-emerald-400/8"
+                    : "border-rose-400/20 bg-rose-500/8",
+                )}
+                role="status"
+              >
+                <p
+                  className={cn(
+                    "font-semibold",
+                    confirmationStatus.tone === "success"
+                      ? "text-emerald-500"
+                      : "text-rose-500",
+                  )}
+                >
+                  {confirmationStatus.tone === "success"
+                    ? "Akun sudah aktif"
+                    : "Konfirmasi email gagal"}
+                </p>
+                <p className="mt-1 leading-6 text-[var(--muted)]">
+                  {confirmationStatus.message}
                 </p>
               </div>
             ) : null}

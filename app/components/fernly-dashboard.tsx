@@ -656,6 +656,9 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
   >("all");
   const [theme, setTheme] = useState<"dark" | "light">("light");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [dashboardNotificationPreferences, setDashboardNotificationPreferences] =
+    useState<NotificationPreferences>(defaultNotificationPreferences);
   const loggingOutRef = useRef(false);
 
   function navigateDashboardSection(section: DashboardSection) {
@@ -1021,6 +1024,19 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
   }, [theme]);
 
   useEffect(() => {
+    const syncPreferences = () => {
+      setDashboardNotificationPreferences(
+        getStoredNotificationPreferences(currentUser.email),
+      );
+    };
+    syncPreferences();
+    window.addEventListener("botuang:notification-preferences", syncPreferences);
+    return () => {
+      window.removeEventListener("botuang:notification-preferences", syncPreferences);
+    };
+  }, [currentUser.email]);
+
+  useEffect(() => {
     if (!loading && activeSection === "owner" && role !== "owner") {
       const frame = window.requestAnimationFrame(() => {
         navigateDashboardSection("overview");
@@ -1109,11 +1125,50 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
   }
 
   const days = daysLeft(rental?.expire_at);
+  const rentalExpiryAlert = useMemo(() => {
+    if (
+      !dashboardNotificationPreferences.rentalUpdates ||
+      !rental?.expire_at ||
+      days === null ||
+      days > 3
+    ) {
+      return null;
+    }
+    return {
+      id: `rental-expiry-${groupId}-${rental.expire_at}`,
+      title:
+        days <= 0
+          ? "Masa aktif sewa telah berakhir"
+          : `Masa aktif sewa tinggal ${days} hari`,
+      description:
+        days <= 0
+          ? "Ajukan perpanjangan agar layanan BotUang dapat kembali digunakan."
+          : `Sewa grup berakhir pada ${formatDate(rental.expire_at)}. Segera ajukan perpanjangan agar bot tetap aktif.`,
+    };
+  }, [dashboardNotificationPreferences.rentalUpdates, days, groupId, rental?.expire_at]);
+  const notificationCount = rentalExpiryAlert ? 1 : 0;
   const botStatusDisplay = getBotStatusDisplay(botStatus);
   const visibleNavItems =
     role === "owner"
       ? navItems
       : navItems.filter((item) => item.key !== "owner");
+
+  useEffect(() => {
+    if (!rentalExpiryAlert || !groupId) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const storageKey = `botuang.notification.seen.${rentalExpiryAlert.id}.${today}`;
+    if (window.localStorage.getItem(storageKey)) return;
+    window.localStorage.setItem(storageKey, "true");
+    toast.warning(rentalExpiryAlert.title, {
+      description: rentalExpiryAlert.description,
+    });
+    if ("Notification" in window && Notification.permission === "granted") {
+      new Notification(rentalExpiryAlert.title, {
+        body: rentalExpiryAlert.description,
+        icon: "/favicon.svg",
+      });
+    }
+  }, [groupId, rentalExpiryAlert]);
 
   return (
     <main className="min-h-screen bg-[var(--background)] p-2.5 text-[var(--foreground)] lg:p-3">
@@ -1238,15 +1293,64 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
                   />
                   {botStatusDisplay.label}
                 </button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  aria-label="Notifikasi"
-                  className="hidden rounded-full md:inline-flex"
-                  onClick={() => toast.info("Tidak ada notifikasi baru.")}
-                >
-                  <Bell className="h-5 w-5" />
-                </Button>
+                <Sheet open={notificationsOpen} onOpenChange={setNotificationsOpen}>
+                  <SheetTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      aria-label={`Notifikasi${notificationCount ? `, ${notificationCount} baru` : ""}`}
+                      className="relative inline-flex rounded-full"
+                    >
+                      <Bell className="h-5 w-5" />
+                      {notificationCount ? (
+                        <span className="absolute right-0 top-0 flex h-4 min-w-4 -translate-y-1/4 translate-x-1/4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white">
+                          {notificationCount}
+                        </span>
+                      ) : null}
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent>
+                    <SheetTitle>Notifikasi</SheetTitle>
+                    <SheetDescription className="mt-1">
+                      Pembaruan penting untuk grup aktif.
+                    </SheetDescription>
+                    <div className="mt-5">
+                      {rentalExpiryAlert ? (
+                        <div className="border-l-2 border-amber-500 py-1 pl-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="font-semibold">{rentalExpiryAlert.title}</p>
+                              <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
+                                {rentalExpiryAlert.description}
+                              </p>
+                            </div>
+                            <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-amber-500" />
+                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="mt-4"
+                            onClick={() => {
+                              setNotificationsOpen(false);
+                              navigateDashboardSection("settings");
+                            }}
+                          >
+                            Lihat Status Sewa
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="py-12 text-center">
+                          <Bell className="mx-auto h-7 w-7 text-[var(--muted)]" />
+                          <p className="mt-3 text-sm font-semibold">Belum ada notifikasi baru</p>
+                          <p className="mt-1 text-xs text-[var(--muted)]">
+                            Peringatan sewa dan pembaruan grup akan muncul di sini.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </SheetContent>
+                </Sheet>
                 <Button
                   variant="outline"
                   size="icon"
@@ -1769,12 +1873,26 @@ function Overview({
   onNavigate: (section: DashboardSection) => void;
   onSaved: () => void;
 }) {
+  const reduceMotion = useReducedMotion();
   const openTodos = todos.filter((todo) => !todo.is_done).slice(0, 5);
-  const openTodoCount = todos.filter((todo) => !todo.is_done).length;
-  const doneTodoCount = todos.filter((todo) => todo.is_done).length;
+  const taskStages = todos.map((todo) =>
+    todo.is_done ? "done" : parseTaskDetails(todo.todo_text).stage,
+  );
+  const doneTodoCount = taskStages.filter((stage) => stage === "done").length;
+  const inProgressTodoCount = taskStages.filter(
+    (stage) => stage === "in_progress" || stage === "in_review",
+  ).length;
+  const pendingTodoCount = taskStages.filter((stage) => stage === "todo").length;
   const todoProgress = todos.length
     ? Math.round((doneTodoCount / todos.length) * 100)
     : 0;
+  const progressGaugeData = todos.length
+    ? [
+        { key: "completed", value: doneTodoCount, fill: "#218352" },
+        { key: "in-progress", value: inProgressTodoCount, fill: "#073F28" },
+        { key: "pending", value: pendingTodoCount, fill: "url(#project-pending-pattern)" },
+      ].filter((item) => item.value > 0)
+    : [{ key: "empty", value: 1, fill: "var(--line)" }];
   const nextReminders = reminders.slice(0, 3);
   const [trackerSeconds, setTrackerSeconds] = useState(0);
   const [trackerRunning, setTrackerRunning] = useState(false);
@@ -1965,21 +2083,68 @@ function Overview({
           )}
         </DashboardPanel>
 
-        <DashboardPanel className="flex min-h-[240px] flex-col">
+        <DashboardPanel className="flex min-h-[320px] flex-col p-4 sm:p-5">
           <div>
-            <h2 className="text-[17px] font-semibold">Progres Proyek</h2>
-            <p className="text-xs text-[var(--muted)]">Perbandingan task selesai dan task aktif</p>
+            <h2 className="text-[20px] font-semibold">Progres Proyek</h2>
+            <p className="mt-1 text-xs text-[var(--muted)]">Status penyelesaian task grup</p>
           </div>
-          <div className="my-auto py-5 text-center">
-            <p className="text-[clamp(36px,4vw,52px)] font-bold leading-none text-[var(--income)] tabular-nums">{todoProgress}%</p>
-            <p className="mt-2 text-xs text-[var(--muted)]">{doneTodoCount} dari {todos.length} task selesai</p>
+          <div className="relative mx-auto mt-2 h-[190px] w-full max-w-[340px]" aria-label={`${todoProgress}% proyek selesai`}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <defs>
+                  <pattern
+                    id="project-pending-pattern"
+                    width="8"
+                    height="8"
+                    patternUnits="userSpaceOnUse"
+                    patternTransform="rotate(45)"
+                  >
+                    <rect width="8" height="8" fill="var(--surface)" />
+                    <rect width="3" height="8" fill="#9AA69F" />
+                  </pattern>
+                </defs>
+                <Pie
+                  data={progressGaugeData}
+                  dataKey="value"
+                  nameKey="key"
+                  cx="50%"
+                  cy="62%"
+                  startAngle={205}
+                  endAngle={-25}
+                  innerRadius="63%"
+                  outerRadius="92%"
+                  paddingAngle={todos.length ? 2 : 0}
+                  cornerRadius={10}
+                  stroke="none"
+                  isAnimationActive={!reduceMotion}
+                  animationDuration={650}
+                >
+                  {progressGaugeData.map((entry) => (
+                    <Cell key={entry.key} fill={entry.fill} />
+                  ))}
+                </Pie>
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="pointer-events-none absolute inset-x-0 top-[48%] text-center">
+              <p className="text-[clamp(42px,6vw,64px)] font-semibold leading-none tabular-nums">{todoProgress}%</p>
+              <p className="mt-2 text-sm text-[var(--muted)]">
+                {todos.length ? `${doneTodoCount} dari ${todos.length} task selesai` : "Belum ada task"}
+              </p>
+            </div>
           </div>
-          <div className="h-2 overflow-hidden rounded-full bg-[var(--panel)]">
-            <div className="h-full rounded-full bg-[var(--income)] transition-[width] duration-500" style={{ width: `${todoProgress}%` }} />
-          </div>
-          <div className="mt-3 flex items-center justify-center gap-5 text-xs text-[var(--muted)]">
-            <span>Selesai ({doneTodoCount})</span>
-            <span>Aktif ({openTodoCount})</span>
+          <div className="mt-auto flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-[var(--muted)]">
+            <span className="inline-flex items-center gap-2">
+              <span className="h-3 w-3 rounded-full bg-[#218352]" />
+              Selesai ({doneTodoCount})
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <span className="h-3 w-3 rounded-full bg-[#073F28]" />
+              Berjalan ({inProgressTodoCount})
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <span className="h-3 w-3 rounded-full border border-[var(--line)] bg-[repeating-linear-gradient(45deg,#9AA69F_0_2px,transparent_2px_5px)]" />
+              Pending ({pendingTodoCount})
+            </span>
           </div>
         </DashboardPanel>
       </section>
@@ -7029,6 +7194,7 @@ function SettingsPage({
         `botuang.notifications.${currentUser.email || "local"}`,
         JSON.stringify(next),
       );
+      window.dispatchEvent(new Event("botuang:notification-preferences"));
       return next;
     });
     toast.success("Preferensi notifikasi disimpan.");
