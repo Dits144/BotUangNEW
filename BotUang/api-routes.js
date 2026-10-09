@@ -659,19 +659,139 @@ router.put('/groups/:groupId/transactions/:id', (req, res) => {
   res.json({ success: true, message: 'Transaction updated' });
 });
 
-router.get('/groups/:groupId/participants', (req, res) => {
-  const rows = db.prepare('SELECT * FROM participants WHERE group_id=? AND deleted_at IS NULL ORDER BY created_at ASC').all(req.params.groupId);
-  const participants = rows.map(r => {
-    let parsedData = {};
-    try { parsedData = JSON.parse(r.data); } catch(e){}
+function parseParticipantData(rawData) {
+  if (rawData && typeof rawData === 'object') return rawData;
+  if (!rawData || typeof rawData !== 'string') return {};
+
+  try {
+    const parsed = JSON.parse(rawData);
+    if (parsed && typeof parsed === 'object') {
+      if (typeof parsed.note === 'string') {
+        try {
+          const noteData = JSON.parse(parsed.note);
+          if (noteData && typeof noteData === 'object') return { ...parsed, ...noteData };
+        } catch (error) {}
+      }
+      return parsed;
+    }
+  } catch (error) {}
+
+  return { note: rawData };
+}
+
+function getWhatsAppNumber(value) {
+  const user = String(value || '').split('@')[0].split(':')[0];
+  return user.replace(/\D/g, '');
+}
+
+function getMemberRole(member) {
+  if (member.admin === 'superadmin') return 'owner';
+  if (member.admin === 'admin') return 'admin';
+  return 'member';
+}
+
+router.get('/groups/:groupId/participants', async (req, res) => {
+  const groupId = req.params.groupId;
+  const rows = db.prepare('SELECT * FROM participants WHERE group_id=? AND deleted_at IS NULL ORDER BY created_at ASC').all(groupId);
+  const trackedParticipants = rows.map(row => {
+    const data = parseParticipantData(row.data);
     return {
-      id: String(r.id),
-      name: r.name,
-      phone: parsedData.phone || '',
-      note: parsedData.note || ''
+      id: String(row.id),
+      group_id: groupId,
+      name: row.name,
+      phone: data.phone || '',
+      note: data.note || '',
+      data: { ...data, tracked: true },
+      created_at: row.created_at,
+      updated_at: row.updated_at
     };
   });
-  res.json(participants);
+
+  const sock = req.app.get('sock');
+  if (!sock) return res.json(trackedParticipants);
+
+  try {
+    const metadata = await sock.groupMetadata(groupId);
+    const recentSenders = db.prepare(`
+      SELECT sender_id, sender_name
+      FROM transactions
+      WHERE group_id = ? AND deleted_at IS NULL
+      ORDER BY created_at DESC
+    `).all(groupId);
+    const namesByNumber = new Map();
+    if (sock.botuangContactNames instanceof Map) {
+      for (const [jid, name] of sock.botuangContactNames.entries()) {
+        const number = getWhatsAppNumber(jid);
+        if (number && name) namesByNumber.set(number, name);
+      }
+    }
+    for (const sender of recentSenders) {
+      const number = getWhatsAppNumber(sender.sender_id);
+      if (number && sender.sender_name && !namesByNumber.has(number)) {
+        namesByNumber.set(number, sender.sender_name);
+      }
+    }
+
+    const trackedByNumber = new Map();
+    for (const participant of trackedParticipants) {
+      const number = getWhatsAppNumber(participant.phone);
+      if (number) trackedByNumber.set(number, participant);
+    }
+
+    const botNumber = getWhatsAppNumber(sock.user && sock.user.id);
+    const usedTrackedIds = new Set();
+    const whatsappParticipants = (metadata.participants || []).map(member => {
+      const jid = member.id || member.phoneNumber || '';
+      const mappedPhoneJid = sock.botuangPhoneNumbers instanceof Map
+        ? sock.botuangPhoneNumbers.get(jid)
+        : '';
+      const phoneSource = member.phoneNumber || mappedPhoneJid || member.id;
+      const phone = getWhatsAppNumber(phoneSource);
+      const phoneIsLid = !member.phoneNumber && !mappedPhoneJid && String(jid).endsWith('@lid');
+      const jidNumber = getWhatsAppNumber(jid);
+      const tracked = trackedByNumber.get(phone) || trackedByNumber.get(jidNumber);
+      if (tracked) usedTrackedIds.add(tracked.id);
+
+      const observedName = namesByNumber.get(phone) || namesByNumber.get(jidNumber);
+      const isBot = Boolean(botNumber && (phone === botNumber || jidNumber === botNumber));
+      const fallbackName = phone
+        ? phoneIsLid
+          ? `Anggota ${phone.slice(-4)}`
+          : `+${phone}`
+        : 'Anggota WhatsApp';
+      const name = tracked?.name || member.notify || member.name || observedName || (isBot ? 'BotUang' : fallbackName);
+      const role = getMemberRole(member);
+      const data = {
+        ...(tracked?.data || {}),
+        phone,
+        jid,
+        role,
+        source: 'whatsapp',
+        tracked: Boolean(tracked),
+        is_bot: isBot,
+        phone_is_lid: phoneIsLid
+      };
+
+      return {
+        id: tracked?.id || `wa:${jid}`,
+        group_id: groupId,
+        name,
+        phone,
+        note: data.note || '',
+        role,
+        source: 'whatsapp',
+        data,
+        created_at: tracked?.created_at || null,
+        updated_at: tracked?.updated_at || null
+      };
+    });
+
+    const manualOnly = trackedParticipants.filter(participant => !usedTrackedIds.has(participant.id));
+    res.json([...whatsappParticipants, ...manualOnly]);
+  } catch (error) {
+    console.error(`[API] Failed to sync WhatsApp participants for ${groupId}:`, error.message);
+    res.json(trackedParticipants);
+  }
 });
 
 router.get('/groups/:groupId/commands', (req, res) => {
@@ -1056,11 +1176,16 @@ async function resolveInviteJidAndNotify(sock, months, groupId, isProof) {
 // 1. PARTICIPANTS CRUD
 router.post('/groups/:groupId/participants', (req, res) => {
   try {
-    const { name, phone, note } = req.body;
+    const { name, phone, note, data } = req.body;
     const groupId = req.params.groupId;
     if (!name) return res.status(400).json({ error: 'Name is required' });
 
-    const dataStr = JSON.stringify({ phone: phone || '', note: note || '' });
+    const participantData = data && typeof data === 'object' ? data : {};
+    const dataStr = JSON.stringify({
+      ...participantData,
+      phone: phone || participantData.phone || '',
+      note: note !== undefined ? note : participantData.note || ''
+    });
     const now = nowIso();
     const info = db.prepare('INSERT INTO participants (group_id, name, data, created_at, updated_at) VALUES (?, ?, ?, ?, ?)').run(groupId, name, dataStr, now, now);
     
@@ -1069,7 +1194,8 @@ router.post('/groups/:groupId/participants', (req, res) => {
       id: String(info.lastInsertRowid),
       name,
       phone: phone || '',
-      note: note || ''
+      note: note || '',
+      data: parseParticipantData(dataStr)
     });
   } catch (error) {
     console.error('[API] Error in POST /participants:', error);
@@ -1079,12 +1205,17 @@ router.post('/groups/:groupId/participants', (req, res) => {
 
 router.put('/groups/:groupId/participants/:id', (req, res) => {
   try {
-    const { name, phone, note } = req.body;
+    const { name, phone, note, data } = req.body;
     const groupId = req.params.groupId;
     const id = req.params.id;
     if (!name) return res.status(400).json({ error: 'Name is required' });
 
-    const dataStr = JSON.stringify({ phone: phone || '', note: note || '' });
+    const participantData = data && typeof data === 'object' ? data : {};
+    const dataStr = JSON.stringify({
+      ...participantData,
+      phone: phone || participantData.phone || '',
+      note: note !== undefined ? note : participantData.note || ''
+    });
     const now = nowIso();
     const result = db.prepare('UPDATE participants SET name = ?, data = ?, updated_at = ? WHERE id = ? AND group_id = ? AND deleted_at IS NULL').run(name, dataStr, now, id, groupId);
 
@@ -1097,7 +1228,8 @@ router.put('/groups/:groupId/participants/:id', (req, res) => {
       id: String(id),
       name,
       phone: phone || '',
-      note: note || ''
+      note: note || '',
+      data: parseParticipantData(dataStr)
     });
   } catch (error) {
     console.error('[API] Error in PUT /participants/:id:', error);

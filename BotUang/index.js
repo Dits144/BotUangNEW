@@ -208,11 +208,24 @@ async function start() {
     if (!isGroup) return;
 
     const senderId   = normalizeJid(getSenderJid(msg));
+    const altSenderId = normalizeJid(msg.key?.participantAlt || msg.key?.remoteJidAlt || '');
     const senderName = msg.pushName || 'Tanpa Nama';
+    if (senderName !== 'Tanpa Nama') {
+      if (!sock.botuangContactNames) sock.botuangContactNames = new Map();
+      sock.botuangContactNames.set(senderId, senderName);
+      if (altSenderId) sock.botuangContactNames.set(altSenderId, senderName);
+    }
+    if (altSenderId) {
+      if (!sock.botuangPhoneNumbers) sock.botuangPhoneNumbers = new Map();
+      if (senderId.endsWith('@lid') && !altSenderId.endsWith('@lid')) {
+        sock.botuangPhoneNumbers.set(senderId, altSenderId);
+      } else if (altSenderId.endsWith('@lid') && !senderId.endsWith('@lid')) {
+        sock.botuangPhoneNumbers.set(altSenderId, senderId);
+      }
+    }
 
     try {
       /* ── Determine roles ── */
-      const altSenderId  = msg.key?.participantAlt || msg.key?.remoteJidAlt || '';
       const senderIsOwner = isSenderOwner(senderId, altSenderId);
 
       const meta          = await sock.groupMetadata(groupId);

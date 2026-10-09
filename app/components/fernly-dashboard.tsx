@@ -273,6 +273,8 @@ type BotParticipantPayload = {
   phone?: string;
   note?: string;
   data?: Record<string, unknown> | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 type BotTodoPayload = {
@@ -454,8 +456,8 @@ function normalizeBotParticipants(data: unknown, groupId: string): Participant[]
           note: participant.note ?? "",
           status: "unpaid",
         } satisfies Record<string, unknown>),
-      created_at: new Date().toISOString(),
-      updated_at: null,
+      created_at: participant.created_at ?? new Date().toISOString(),
+      updated_at: participant.updated_at ?? null,
       deleted_at: null,
     };
   });
@@ -4298,6 +4300,10 @@ function ParticipantsPage({
   const [editDues, setEditDues] = useState("");
   const [saving, setSaving] = useState(false);
 
+  function isWhatsappOnly(participant: Participant) {
+    return participant.data?.source === "whatsapp" && participant.data?.tracked !== true;
+  }
+
   const summary = useMemo(() => {
     const paid = participants.filter((participant) => participant.data?.status === "paid");
     const total = paid.reduce(
@@ -4316,9 +4322,10 @@ function ParticipantsPage({
     return participants.filter((participant) => {
       const status = participant.data?.status === "paid" ? "paid" : "unpaid";
       const matchesFilter = filter === "all" || filter === status;
-      const matchesQuery = participant.name
-        .toLowerCase()
-        .includes(query.toLowerCase());
+      const normalizedQuery = query.toLowerCase();
+      const matchesQuery =
+        participant.name.toLowerCase().includes(normalizedQuery) ||
+        String(participant.data?.phone ?? "").includes(normalizedQuery);
       return matchesFilter && matchesQuery;
     });
   }, [filter, participants, query]);
@@ -4333,7 +4340,12 @@ function ParticipantsPage({
         apiUrl: botApiUrl,
         token: sessionToken,
         method: "POST",
-        body: { name, phone: "", note: String(dues || 0) },
+        body: {
+          name,
+          phone: "",
+          note: "",
+          data: { dues_amount: Number(dues || 0), status: "unpaid" },
+        },
       });
       botOk = Boolean(res.ok);
     }
@@ -4357,6 +4369,36 @@ function ParticipantsPage({
     event.preventDefault();
     if (!editParticipant) return;
     setSaving(true);
+    const nextData = {
+      ...(editParticipant.data ?? {}),
+      dues_amount: Number(editDues || 0),
+    };
+
+    if (isWhatsappOnly(editParticipant)) {
+      const result = await fetchBotGroupData({
+        resource: "participants",
+        groupId,
+        apiUrl: botApiUrl,
+        token: sessionToken,
+        method: "POST",
+        body: {
+          name: editName,
+          phone: String(editParticipant.data?.phone ?? ""),
+          note: String(editParticipant.data?.note ?? ""),
+          data: nextData,
+        },
+      });
+      setSaving(false);
+      if (!result.ok) {
+        toast.error(result.message ?? "Profil kontribusi anggota gagal dibuat.");
+        return;
+      }
+      toast.success("Profil kontribusi anggota disimpan.");
+      setEditParticipant(null);
+      onChanged();
+      return;
+    }
+
     let botOk = false;
     if (shouldWriteLegacyBot()) {
       const res = await fetchBotGroupData({
@@ -4366,19 +4408,26 @@ function ParticipantsPage({
         apiUrl: botApiUrl,
         token: sessionToken,
         method: "PUT",
-        body: { name: editName, phone: "", note: String(editDues || 0) },
+        body: {
+          name: editName,
+          phone: String(editParticipant.data?.phone ?? ""),
+          note: String(editParticipant.data?.note ?? ""),
+          data: nextData,
+        },
       });
       botOk = Boolean(res.ok);
     }
 
-    const { error } = await supabase
-      .from("participants")
-      .update({
-        name: editName,
-        data: { ...(editParticipant.data ?? {}), dues_amount: Number(editDues || 0) },
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", editParticipant.id);
+    const { error } = isUuid(editParticipant.id)
+      ? await supabase
+          .from("participants")
+          .update({
+            name: editName,
+            data: nextData,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", editParticipant.id)
+      : { error: null };
     setSaving(false);
     if (error && !botOk) { toast.error(error.message); return; }
     toast.success("Anggota diperbarui.");
@@ -4387,6 +4436,30 @@ function ParticipantsPage({
   }
 
   async function mark(participant: Participant, status: "paid" | "unpaid") {
+    const nextData = { ...(participant.data ?? {}), status };
+    if (isWhatsappOnly(participant)) {
+      const result = await fetchBotGroupData({
+        resource: "participants",
+        groupId,
+        apiUrl: botApiUrl,
+        token: sessionToken,
+        method: "POST",
+        body: {
+          name: participant.name,
+          phone: String(participant.data?.phone ?? ""),
+          note: String(participant.data?.note ?? ""),
+          data: nextData,
+        },
+      });
+      if (!result.ok) {
+        toast.error(result.message ?? "Status kontribusi gagal disimpan.");
+        return;
+      }
+      toast.success("Status kontribusi disimpan.");
+      onChanged();
+      return;
+    }
+
     let botOk = false;
     if (shouldWriteLegacyBot()) {
       const res = await fetchBotGroupData({
@@ -4398,25 +4471,32 @@ function ParticipantsPage({
         method: "PUT",
         body: {
           name: participant.name,
-          phone: "",
-          note: JSON.stringify({ ...(participant.data ?? {}), status }),
+          phone: String(participant.data?.phone ?? ""),
+          note: String(participant.data?.note ?? ""),
+          data: nextData,
         },
       });
       botOk = Boolean(res.ok);
     }
 
-    const { error } = await supabase
-      .from("participants")
-      .update({
-        data: { ...(participant.data ?? {}), status },
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", participant.id);
+    const { error } = isUuid(participant.id)
+      ? await supabase
+          .from("participants")
+          .update({
+            data: nextData,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", participant.id)
+      : { error: null };
     if (error && !botOk) toast.error(error.message);
     else onChanged();
   }
 
   async function remove(participant: Participant) {
+    if (isWhatsappOnly(participant)) {
+      toast.error("Anggota WhatsApp tidak dapat dihapus dari halaman kontribusi.");
+      return;
+    }
     let botOk = false;
     if (shouldWriteLegacyBot()) {
       const res = await fetchBotGroupData({
@@ -4430,10 +4510,12 @@ function ParticipantsPage({
       botOk = Boolean(res.ok);
     }
 
-    const { error } = await supabase
-      .from("participants")
-      .update({ deleted_at: new Date().toISOString() })
-      .eq("id", participant.id);
+    const { error } = isUuid(participant.id)
+      ? await supabase
+          .from("participants")
+          .update({ deleted_at: new Date().toISOString() })
+          .eq("id", participant.id)
+      : { error: null };
     if (error && !botOk) toast.error(error.message);
     else { toast.success("Anggota dihapus."); onChanged(); }
   }
@@ -4504,6 +4586,16 @@ function ParticipantsPage({
             {visibleParticipants.map((participant) => {
               const status = participant.data?.status === "paid" ? "paid" : "unpaid";
               const due = Number(participant.data?.dues_amount ?? 0);
+              const phone = String(participant.data?.phone ?? "");
+              const phoneIsLid = participant.data?.phone_is_lid === true;
+              const memberRole = String(participant.data?.role ?? "member");
+              const roleLabel =
+                memberRole === "owner"
+                  ? "Owner"
+                  : memberRole === "admin"
+                    ? "Admin"
+                    : "Anggota";
+              const whatsappOnly = isWhatsappOnly(participant);
               const initials = participant.name
                 .split(/\s+/)
                 .slice(0, 2)
@@ -4517,12 +4609,16 @@ function ParticipantsPage({
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-semibold">{participant.name}</p>
-                    <p className="font-mono text-xs text-[var(--muted)] tabular-nums">Iuran {formatRupiah(due)}</p>
+                    <p className="truncate text-xs text-[var(--muted)]">
+                      {phone && !phoneIsLid ? `+${phone} · ` : ""}Iuran{" "}
+                      <span className="font-mono tabular-nums">{formatRupiah(due)}</span>
+                    </p>
                   </div>
                   <div className="ml-auto flex w-full flex-wrap items-center gap-1.5 sm:w-auto sm:shrink-0 sm:justify-end">
                     <Badge tone={status === "paid" ? "income" : "warning"}>
                       {status === "paid" ? "Lunas" : "Belum bayar"}
                     </Badge>
+                    <Badge tone="muted">{roleLabel}</Badge>
                     <Button variant="outline" size="sm" onClick={() => mark(participant, status === "paid" ? "unpaid" : "paid")}>
                       {status === "paid" ? "Reset" : "Lunas"}
                     </Button>
@@ -4539,15 +4635,17 @@ function ParticipantsPage({
                     >
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-rose-500 hover:bg-rose-500/10 hover:text-rose-500"
-                      onClick={() => remove(participant)}
-                      aria-label="Hapus anggota"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    {!whatsappOnly ? (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-rose-500 hover:bg-rose-500/10 hover:text-rose-500"
+                        onClick={() => remove(participant)}
+                        aria-label="Hapus anggota"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    ) : null}
                   </div>
                 </div>
               );
