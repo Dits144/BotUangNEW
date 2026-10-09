@@ -5980,11 +5980,33 @@ function RemindersPage({
     return { totalDays, firstDayIndex };
   }, [currentYear, currentMonthIdx, weekStartsOn]);
 
+  const calendarDays = useMemo(() => {
+    const cellCount = Math.ceil((daysInMonth.firstDayIndex + daysInMonth.totalDays) / 7) * 7;
+    const previousMonthDays = new Date(currentYear, currentMonthIdx, 0).getDate();
+
+    return Array.from({ length: cellCount }, (_, index) => {
+      const relativeDay = index - daysInMonth.firstDayIndex + 1;
+      const date =
+        relativeDay < 1
+          ? new Date(currentYear, currentMonthIdx - 1, previousMonthDays + relativeDay)
+          : relativeDay > daysInMonth.totalDays
+            ? new Date(currentYear, currentMonthIdx + 1, relativeDay - daysInMonth.totalDays)
+            : new Date(currentYear, currentMonthIdx, relativeDay);
+
+      return {
+        date,
+        dateKey: toLocalDateKey(date),
+        day: date.getDate(),
+        inCurrentMonth: date.getMonth() === currentMonthIdx,
+      };
+    });
+  }, [currentMonthIdx, currentYear, daysInMonth]);
   const monthHolidays = useMemo(() => {
     const monthStr = String(currentMonthIdx + 1).padStart(2, "0");
-    const prefix = `${currentYear}-${monthStr}`;
-    return INDONESIAN_HOLIDAYS.filter((h) => h.date.startsWith(prefix));
-  }, [currentYear, currentMonthIdx]);
+    return INDONESIAN_HOLIDAYS.filter((holiday) =>
+      holiday.date.startsWith(`${currentYear}-${monthStr}`),
+    );
+  }, [currentMonthIdx, currentYear]);
 
   const dueTasks = useMemo(
     () =>
@@ -6003,6 +6025,10 @@ function RemindersPage({
     }),
     [dueTasks, reminders, selectedDateKey],
   );
+  const upcomingHolidays = useMemo(() => {
+    const todayKey = toLocalDateKey(new Date());
+    return INDONESIAN_HOLIDAYS.filter((holiday) => holiday.date >= todayKey).slice(0, 5);
+  }, []);
 
   async function add(event: FormEvent) {
     event.preventDefault();
@@ -6121,27 +6147,24 @@ function RemindersPage({
         }
       />
 
-      <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+      <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
         {/* Kalender Grid */}
-        <div className="rounded-[20px] border border-[var(--line)] bg-[var(--card)] p-5 shadow-[var(--soft-shadow)]">
-          <div className="mb-5 flex items-center justify-between">
-            <h3 className="text-base font-semibold text-[var(--foreground)]">
+        <div className="min-w-0 rounded-[18px] border border-[var(--line)] bg-[var(--card)] p-3 shadow-[var(--soft-shadow)] sm:p-4">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h3 className="text-lg font-semibold text-[var(--foreground)]">
               {monthNames[currentMonthIdx]} {currentYear}
             </h3>
-            <div className="flex items-center gap-1.5">
-              <Button variant="outline" size="icon" className="h-8 w-8" onClick={prevMonth} aria-label="Bulan sebelumnya">
+            <div className="flex items-center gap-2">
+              <Button variant="secondary" size="icon" className="h-9 w-9" onClick={prevMonth} aria-label="Bulan sebelumnya">
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs" onClick={() => setSelectedMonth(new Date())}>
-                Bulan Ini
-              </Button>
-              <Button variant="outline" size="icon" className="h-8 w-8" onClick={nextMonth} aria-label="Bulan berikutnya">
+              <Button variant="secondary" size="icon" className="h-9 w-9" onClick={nextMonth} aria-label="Bulan berikutnya">
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
           </div>
 
-          <div className="mb-2 grid grid-cols-7 gap-1 text-center text-xs font-semibold text-[var(--muted)]">
+          <div className="mb-2 grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase text-[var(--muted)] sm:text-[11px]">
             {(weekStartsOn === "monday"
               ? ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"]
               : ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"]
@@ -6152,61 +6175,48 @@ function RemindersPage({
             ))}
           </div>
 
-          <div className="grid grid-cols-7 gap-1.5">
-            {Array.from({ length: daysInMonth.firstDayIndex }).map((_, i) => (
-              <div key={`empty-${i}`} className="h-20 rounded-[12px] bg-transparent sm:h-24" />
-            ))}
-            {Array.from({ length: daysInMonth.totalDays }).map((_, i) => {
-              const day = i + 1;
-              const dayStr = String(day).padStart(2, "0");
-              const monthStr = String(currentMonthIdx + 1).padStart(2, "0");
-              const fullDateStr = `${currentYear}-${monthStr}-${dayStr}`;
-              
-              const isToday =
-                new Date().getDate() === day &&
-                new Date().getMonth() === currentMonthIdx &&
-                new Date().getFullYear() === currentYear;
-
-              const holiday = INDONESIAN_HOLIDAYS.find((h) => h.date === fullDateStr);
-              const dayReminders = reminders.filter((reminder) => getReminderDateKey(reminder) === fullDateStr);
-              const dayTasks = dueTasks.filter((item) => item.details.due === fullDateStr);
-              const isSunday = new Date(currentYear, currentMonthIdx, day).getDay() === 0;
-              const isSelected = selectedDateKey === fullDateStr;
+          <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
+            {calendarDays.map(({ date, dateKey, day, inCurrentMonth }) => {
+              const isToday = dateKey === toLocalDateKey(new Date());
+              const holiday = INDONESIAN_HOLIDAYS.find((item) => item.date === dateKey);
+              const dayReminders = reminders.filter((reminder) => getReminderDateKey(reminder) === dateKey);
+              const dayTasks = dueTasks.filter((item) => item.details.due === dateKey);
+              const isSunday = date.getDay() === 0;
+              const isSelected = selectedDateKey === dateKey;
+              const visibleEventCount = Number(Boolean(holiday)) + dayReminders.length + dayTasks.length;
 
               return (
                 <button
                   type="button"
-                  key={`day-${day}`}
-                  onClick={() => setSelectedDateKey(fullDateStr)}
-                  aria-label={`${day} ${monthNames[currentMonthIdx]} ${currentYear}`}
+                  key={dateKey}
+                  onClick={() => {
+                    setSelectedDateKey(dateKey);
+                    if (!inCurrentMonth) setSelectedMonth(new Date(date.getFullYear(), date.getMonth(), 1));
+                  }}
+                  aria-label={date.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}
                   aria-pressed={isSelected}
                   className={cn(
-                    "group relative flex h-20 min-w-0 flex-col rounded-[12px] border p-1.5 text-left transition hover:border-[var(--line-strong)] sm:h-24",
-                    isToday ? "border-emerald-500 bg-emerald-500/5 font-semibold" : "border-[var(--line)] bg-[var(--surface)]",
-                    holiday || isSunday ? "bg-rose-500/[0.03]" : "",
-                    isSelected ? "ring-2 ring-[var(--income)] ring-offset-1 ring-offset-[var(--card)]" : "",
+                    "group relative flex min-h-[68px] min-w-0 flex-col overflow-hidden rounded-[11px] p-1.5 text-left transition-[background-color,box-shadow,transform] hover:bg-[var(--surface)] active:scale-[0.98] sm:min-h-[88px] sm:p-2",
+                    inCurrentMonth ? "bg-[var(--panel)]" : "bg-transparent opacity-45",
+                    isSelected && "shadow-[inset_0_0_0_1.5px_var(--income)] opacity-100",
                   )}
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-1">
                     <span
                       className={cn(
-                        "flex h-5 w-5 items-center justify-center rounded-full text-xs",
-                        isToday ? "bg-emerald-600 text-white" : holiday || isSunday ? "text-rose-500 font-bold" : "text-[var(--foreground)]"
+                        "flex h-5 min-w-5 items-center justify-center rounded-full text-[11px] font-semibold",
+                        isToday ? "bg-emerald-600 text-white" : holiday || isSunday ? "text-rose-500" : "text-[var(--foreground)]",
                       )}
                     >
                       {day}
                     </span>
-                    <span className="flex items-center gap-1">
-                      {holiday || isSunday ? <i className="h-1.5 w-1.5 rounded-full bg-rose-500" title={holiday?.name ?? "Tanggal merah"} /> : null}
-                      {dayReminders.length ? <i className="h-1.5 w-1.5 rounded-full bg-emerald-500" title="Reminder" /> : null}
-                      {dayTasks.length ? <i className="h-1.5 w-1.5 rounded-full bg-blue-500" title="Due task" /> : null}
-                    </span>
+                    {visibleEventCount > 2 ? <span className="text-[9px] text-[var(--muted)]">+{visibleEventCount - 2}</span> : null}
                   </div>
-                  <span className="mt-1 grid min-w-0 gap-0.5 overflow-hidden">
-                    {holiday ? <span className="truncate rounded-[4px] bg-rose-500/10 px-1 text-[9px] font-semibold leading-4 text-rose-500">{holiday.name}</span> : null}
-                    {!holiday && isSunday ? <span className="truncate rounded-[4px] bg-rose-500/10 px-1 text-[9px] font-semibold leading-4 text-rose-500">Tanggal merah</span> : null}
-                    {dayReminders.slice(0, 1).map((reminder) => <span key={reminder.id} className="truncate rounded-[4px] bg-emerald-500/10 px-1 text-[9px] font-semibold leading-4 text-emerald-600">{reminder.remind_text}</span>)}
-                    {dayTasks.slice(0, 1).map(({ todo, details }) => <span key={todo.id} className="truncate rounded-[4px] bg-blue-500/10 px-1 text-[9px] font-semibold leading-4 text-blue-500">{details.title}</span>)}
+                  <span className="mt-1 grid min-w-0 gap-0.5 overflow-hidden sm:mt-2">
+                    {holiday ? <span className="truncate rounded-[4px] bg-rose-500/10 px-1 text-[8px] font-semibold leading-4 text-rose-500 sm:text-[9px]">{holiday.name}</span> : null}
+                    {!holiday && isSunday ? <span className="truncate rounded-[4px] bg-rose-500/10 px-1 text-[8px] font-semibold leading-4 text-rose-500 sm:text-[9px]">Tanggal merah</span> : null}
+                    {!holiday ? dayReminders.slice(0, 1).map((reminder) => <span key={reminder.id} className="truncate rounded-[4px] bg-emerald-500/10 px-1 text-[8px] font-semibold leading-4 text-emerald-700 dark:text-emerald-300 sm:text-[9px]">{reminder.remind_text}</span>) : null}
+                    {!holiday && !dayReminders.length ? dayTasks.slice(0, 1).map(({ todo, details }) => <span key={todo.id} className="truncate rounded-[4px] bg-blue-500/10 px-1 text-[8px] font-semibold leading-4 text-blue-600 dark:text-blue-300 sm:text-[9px]">{details.title}</span>) : null}
                   </span>
                 </button>
               );
@@ -6226,21 +6236,78 @@ function RemindersPage({
           </div>
         </div>
 
-        {/* 3 Sidebar Tabs: Reminder, Hari Libur, Task */}
-        <div className="flex flex-col rounded-[20px] border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--soft-shadow)]">
-          <div className="mb-4 border-b border-[var(--line)] pb-4">
-            <p className="text-[11px] font-semibold uppercase text-[var(--muted)]">Agenda Terpilih</p>
-            <h2 className="mt-1 text-lg font-semibold">
-              {new Date(`${selectedDateKey}T12:00:00`).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}
+        <div className="grid gap-3">
+          <div className="rounded-[18px] border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--soft-shadow)]">
+            <p className="text-[10px] font-semibold uppercase text-[var(--income)]">
+              {selectedDateKey === toLocalDateKey(new Date()) ? "Hari ini" : "Tanggal terpilih"} · {new Date(`${selectedDateKey}T12:00:00`).toLocaleDateString("id-ID", { weekday: "long" })}
+            </p>
+            <h2 className="mt-1 text-[22px] font-semibold leading-tight">
+              {new Date(`${selectedDateKey}T12:00:00`).toLocaleDateString("id-ID", { day: "numeric", month: "long" })}
             </h2>
-            <div className="mt-3 grid gap-2">
-              {selectedAgenda.holiday ? <p className="rounded-[9px] bg-rose-500/10 px-2.5 py-2 text-xs font-semibold text-rose-500">{selectedAgenda.holiday.name}</p> : null}
-              {!selectedAgenda.holiday && selectedAgenda.isSunday ? <p className="rounded-[9px] bg-rose-500/10 px-2.5 py-2 text-xs font-semibold text-rose-500">Hari Minggu / Tanggal Merah</p> : null}
-              {selectedAgenda.reminders.map((reminder) => <p key={reminder.id} className="rounded-[9px] bg-emerald-500/10 px-2.5 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300">{reminder.remind_text}</p>)}
-              {selectedAgenda.tasks.map(({ todo, details }) => <p key={todo.id} className="rounded-[9px] bg-blue-500/10 px-2.5 py-2 text-xs font-semibold text-blue-600 dark:text-blue-300">{details.title}</p>)}
-              {!selectedAgenda.holiday && !selectedAgenda.isSunday && !selectedAgenda.reminders.length && !selectedAgenda.tasks.length ? <p className="text-sm text-[var(--muted)]">Tidak ada agenda pada tanggal ini.</p> : null}
+
+            <div className="mt-4 grid max-h-[300px] gap-2 overflow-y-auto pr-1">
+              {loading ? <Skeleton className="h-24" /> : null}
+              {!loading && selectedAgenda.holiday ? (
+                <div className="rounded-[12px] border-l-[3px] border-rose-500 bg-[var(--panel)] px-3 py-3">
+                  <p className="text-sm font-semibold">{selectedAgenda.holiday.name}</p>
+                  <p className="mt-1 text-xs text-[var(--muted)]">Hari libur nasional</p>
+                </div>
+              ) : null}
+              {!loading && !selectedAgenda.holiday && selectedAgenda.isSunday ? (
+                <div className="rounded-[12px] border-l-[3px] border-rose-500 bg-[var(--panel)] px-3 py-3">
+                  <p className="text-sm font-semibold">Hari Minggu</p>
+                  <p className="mt-1 text-xs text-[var(--muted)]">Tanggal merah</p>
+                </div>
+              ) : null}
+              {!loading && selectedAgenda.reminders.map((reminder) => (
+                <div key={reminder.id} className="flex items-start gap-3 rounded-[12px] border-l-[3px] border-emerald-600 bg-[var(--panel)] px-3 py-3">
+                  <div className="w-14 shrink-0 text-[10px] leading-4 text-[var(--muted)] tabular-nums">
+                    <p className="font-semibold text-[var(--foreground)]">{toTimeInputValue(reminder.remind_value) || formatReminderTypeLabel(reminder.remind_type)}</p>
+                    <p>Reminder</p>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold">{reminder.remind_text}</p>
+                    <p className="mt-1 text-xs text-[var(--muted)]">Oleh {reminder.created_by ?? "Dashboard"}</p>
+                  </div>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-rose-500" onClick={() => remove(reminder)} aria-label="Hapus reminder">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ))}
+              {!loading && selectedAgenda.tasks.map(({ todo, details }) => (
+                <div key={todo.id} className="rounded-[12px] border-l-[3px] border-blue-500 bg-[var(--panel)] px-3 py-3">
+                  <p className="text-sm font-semibold">{details.title}</p>
+                  <p className="mt-1 text-xs text-[var(--muted)]">Task jatuh tempo · {formatTaskDue(details.due)}</p>
+                </div>
+              ))}
+              {!loading && !selectedAgenda.holiday && !selectedAgenda.isSunday && !selectedAgenda.reminders.length && !selectedAgenda.tasks.length ? (
+                <p className="py-8 text-center text-sm text-[var(--muted)]">Tidak ada agenda pada tanggal ini.</p>
+              ) : null}
             </div>
           </div>
+
+          <div className="rounded-[18px] border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--soft-shadow)]">
+            <h3 className="text-base font-semibold">Hari Libur Mendatang</h3>
+            <div className="mt-4 grid gap-3">
+              {upcomingHolidays.map((holiday) => {
+                const holidayDate = new Date(`${holiday.date}T12:00:00`);
+                return (
+                  <div key={holiday.date} className="flex items-center gap-3">
+                    <span className="flex h-10 w-10 shrink-0 flex-col items-center justify-center rounded-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+                      <span className="text-[8px] font-semibold uppercase leading-none">{holidayDate.toLocaleDateString("id-ID", { month: "short" })}</span>
+                      <span className="mt-1 text-xs font-bold leading-none tabular-nums">{holidayDate.getDate()}</span>
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold leading-5">{holiday.name}</p>
+                      <p className="mt-0.5 font-mono text-[11px] text-[var(--muted)] tabular-nums">{holiday.date}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="hidden" aria-hidden="true">
           {/* Segmented Control */}
           <div className="grid grid-cols-3 rounded-[12px] border border-[var(--line)] bg-[var(--surface)] p-1 text-xs font-semibold mb-4">
             <button
@@ -6393,6 +6460,7 @@ function RemindersPage({
           </div>
         </div>
       </div>
+    </div>
     </div>
   );
 }

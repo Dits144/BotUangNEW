@@ -51,7 +51,7 @@ export function LandingPage() {
             </p>
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
               <Button asChildLike="true" className="w-full sm:w-auto">
-                <Link href="/dashboard">
+                <Link href="/connect">
                   Hubungkan Grup <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
