@@ -988,6 +988,10 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
 
   function toggleTheme() {
     const next = theme === "dark" ? "light" : "dark";
+    applyTheme(next);
+  }
+
+  function applyTheme(next: "dark" | "light") {
     setTheme(next);
     document.documentElement.dataset.theme = next;
     window.localStorage.setItem("botuang.theme", next);
@@ -1349,6 +1353,11 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
                   rental={rental}
                   settings={settings}
                   days={days}
+                  currentUser={currentUser}
+                  role={role}
+                  theme={theme}
+                  onThemeChange={applyTheme}
+                  onCurrentUserChange={setCurrentUser}
                   onChanged={() => loadData()}
                 />
               ) : null}
@@ -5599,15 +5608,37 @@ function RemindersPage({
   const [activeTab, setActiveTab] = useState<"reminders" | "holidays" | "tasks">("reminders");
   const [selectedMonth, setSelectedMonth] = useState(() => new Date());
   const [selectedDateKey, setSelectedDateKey] = useState(() => toLocalDateKey(new Date()));
+  const [weekStartsOn, setWeekStartsOn] = useState<"sunday" | "monday">("sunday");
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      setWeekStartsOn(
+        window.localStorage.getItem("botuang.week-start") === "monday"
+          ? "monday"
+          : "sunday",
+      );
+    });
+    const handleWeekStart = (event: Event) => {
+      const value = (event as CustomEvent<"sunday" | "monday">).detail;
+      setWeekStartsOn(value === "monday" ? "monday" : "sunday");
+    };
+    window.addEventListener("botuang:week-start", handleWeekStart);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("botuang:week-start", handleWeekStart);
+    };
+  }, []);
 
   const currentYear = selectedMonth.getFullYear();
   const currentMonthIdx = selectedMonth.getMonth();
 
   const daysInMonth = useMemo(() => {
     const totalDays = new Date(currentYear, currentMonthIdx + 1, 0).getDate();
-    const firstDayIndex = new Date(currentYear, currentMonthIdx, 1).getDay(); // 0 is Sun
+    const firstWeekday = new Date(currentYear, currentMonthIdx, 1).getDay();
+    const firstDayIndex =
+      weekStartsOn === "monday" ? (firstWeekday + 6) % 7 : firstWeekday;
     return { totalDays, firstDayIndex };
-  }, [currentYear, currentMonthIdx]);
+  }, [currentYear, currentMonthIdx, weekStartsOn]);
 
   const monthHolidays = useMemo(() => {
     const monthStr = String(currentMonthIdx + 1).padStart(2, "0");
@@ -5770,14 +5801,15 @@ function RemindersPage({
             </div>
           </div>
 
-          <div className="grid grid-cols-7 gap-1 text-center text-xs font-semibold text-[var(--muted)] mb-2">
-            <span className="text-rose-500">Min</span>
-            <span>Sen</span>
-            <span>Sel</span>
-            <span>Rab</span>
-            <span>Kam</span>
-            <span>Jum</span>
-            <span>Sab</span>
+          <div className="mb-2 grid grid-cols-7 gap-1 text-center text-xs font-semibold text-[var(--muted)]">
+            {(weekStartsOn === "monday"
+              ? ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"]
+              : ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"]
+            ).map((label) => (
+              <span key={label} className={label === "Min" ? "text-rose-500" : undefined}>
+                {label}
+              </span>
+            ))}
           </div>
 
           <div className="grid grid-cols-7 gap-1.5">
@@ -5798,7 +5830,7 @@ function RemindersPage({
               const holiday = INDONESIAN_HOLIDAYS.find((h) => h.date === fullDateStr);
               const dayReminders = reminders.filter((reminder) => getReminderDateKey(reminder) === fullDateStr);
               const dayTasks = dueTasks.filter((item) => item.details.due === fullDateStr);
-              const isSunday = (daysInMonth.firstDayIndex + i) % 7 === 0;
+              const isSunday = new Date(currentYear, currentMonthIdx, day).getDay() === 0;
               const isSelected = selectedDateKey === fullDateStr;
 
               return (
@@ -6423,6 +6455,101 @@ function SettingToggle({
   );
 }
 
+type NotificationPreferenceKey =
+  | "taskAssigned"
+  | "reminderDue"
+  | "rentalUpdates"
+  | "weeklySummary"
+  | "productUpdates";
+
+type NotificationPreferences = Record<NotificationPreferenceKey, boolean>;
+
+const defaultNotificationPreferences: NotificationPreferences = {
+  taskAssigned: true,
+  reminderDue: true,
+  rentalUpdates: true,
+  weeklySummary: false,
+  productUpdates: false,
+};
+
+function getStoredProfilePreferences(email: string) {
+  if (typeof window === "undefined") {
+    return { timezone: "Asia/Jakarta", bio: "" };
+  }
+  try {
+    const saved = JSON.parse(
+      window.localStorage.getItem(
+        `botuang.profile.preferences.${email || "local"}`,
+      ) ?? "null",
+    ) as { timezone?: string; bio?: string } | null;
+    return {
+      timezone: saved?.timezone ?? "Asia/Jakarta",
+      bio: saved?.bio ?? "",
+    };
+  } catch {
+    return { timezone: "Asia/Jakarta", bio: "" };
+  }
+}
+
+function getStoredNotificationPreferences(email: string) {
+  if (typeof window === "undefined") return defaultNotificationPreferences;
+  try {
+    const saved = JSON.parse(
+      window.localStorage.getItem(
+        `botuang.notifications.${email || "local"}`,
+      ) ?? "null",
+    ) as Partial<NotificationPreferences> | null;
+    return { ...defaultNotificationPreferences, ...(saved ?? {}) };
+  } catch {
+    return defaultNotificationPreferences;
+  }
+}
+
+function PreferenceSwitch({
+  title,
+  description,
+  checked,
+  onCheckedChange,
+}: {
+  title: string;
+  description: string;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+}) {
+  const reduceMotion = useReducedMotion();
+
+  return (
+    <li className="flex min-h-[76px] items-center justify-between gap-4 border-b border-[var(--line)] py-4 last:border-b-0">
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-[var(--foreground)]">{title}</p>
+        <p className="mt-1 text-xs leading-5 text-[var(--muted)] sm:text-[13px]">{description}</p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-label={title}
+        onClick={() => onCheckedChange(!checked)}
+        className={cn(
+          "relative h-[30px] w-[52px] shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]",
+          checked ? "bg-[var(--primary)]" : "bg-[var(--line)]",
+        )}
+      >
+        <motion.span
+          aria-hidden="true"
+          className="absolute left-[3px] top-[3px] h-6 w-6 rounded-full bg-white shadow-[0_2px_6px_rgba(19,26,21,0.25)]"
+          animate={{ x: checked ? 22 : 0 }}
+          transition={
+            reduceMotion
+              ? { duration: 0 }
+              : { type: "spring", stiffness: 520, damping: 30 }
+          }
+        />
+      </button>
+    </li>
+  );
+}
+
 function LocationInput({
   value,
   onChange,
@@ -6545,6 +6672,11 @@ function SettingsPage({
   rental,
   settings,
   days,
+  currentUser,
+  role,
+  theme,
+  onThemeChange,
+  onCurrentUserChange,
   onChanged,
 }: {
   loading: boolean;
@@ -6554,6 +6686,11 @@ function SettingsPage({
   rental: Rental | null;
   settings: GroupSettings | null;
   days: number | null;
+  currentUser: DashboardUser;
+  role: "admin" | "owner";
+  theme: "dark" | "light";
+  onThemeChange: (theme: "dark" | "light") => void;
+  onCurrentUserChange: (user: DashboardUser) => void;
   onChanged: () => void;
 }) {
   const [form, dispatchForm] = useReducer(
@@ -6586,13 +6723,49 @@ function SettingsPage({
   const [newPin, setNewPin] = useState("");
   const [months, setMonths] = useState("1");
   const [proof, setProof] = useState<File | null>(null);
+  const [profileName, setProfileName] = useState(
+    currentUser.name || currentUser.email.split("@")[0] || "",
+  );
+  const [profileEmail, setProfileEmail] = useState(currentUser.email);
+  const [profileTimezone, setProfileTimezone] = useState("Asia/Jakarta");
+  const [profileBio, setProfileBio] = useState("");
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [weekStartsOn, setWeekStartsOn] = useState<"sunday" | "monday">("sunday");
+  const [notificationPreferences, setNotificationPreferences] =
+    useState<NotificationPreferences>(defaultNotificationPreferences);
   const [settingsSection, setSettingsSection] = useState<
-    "rental" | "group" | "location" | "bot" | "security"
-  >("rental");
+    | "profile"
+    | "notifications"
+    | "appearance"
+    | "rental"
+    | "group"
+    | "location"
+    | "bot"
+    | "security"
+  >("profile");
 
   useEffect(() => {
     dispatchForm({ type: "reset", value: getSettingsFormState(settings) });
   }, [settings]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const savedProfile = getStoredProfilePreferences(currentUser.email);
+      setProfileName(currentUser.name || currentUser.email.split("@")[0] || "");
+      setProfileEmail(currentUser.email);
+      setProfileTimezone(savedProfile.timezone);
+      setProfileBio(savedProfile.bio);
+      setNotificationPreferences(
+        getStoredNotificationPreferences(currentUser.email),
+      );
+      setWeekStartsOn(
+        window.localStorage.getItem("botuang.week-start") === "monday"
+          ? "monday"
+          : "sunday",
+      );
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [currentUser.email, currentUser.name]);
 
   function setFormField<K extends keyof SettingsFormState>(
     field: K,
@@ -6603,6 +6776,105 @@ function SettingsPage({
 
   function setEnabledPrayer(prayer: keyof EnabledPrayers, value: boolean) {
     dispatchForm({ type: "set-prayer", prayer, value });
+  }
+
+  async function saveProfile(event: FormEvent) {
+    event.preventDefault();
+    const name = profileName.trim();
+    const email = profileEmail.trim().toLowerCase();
+    if (!name) {
+      toast.error("Nama lengkap wajib diisi.");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error("Alamat email tidak valid.");
+      return;
+    }
+
+    setSavingProfile(true);
+    const attributes = {
+      ...(email !== currentUser.email.toLowerCase() ? { email } : {}),
+      data: {
+        full_name: name,
+        timezone: profileTimezone,
+        bio: profileBio.trim(),
+      },
+    };
+    const { data, error } = await supabase.auth.updateUser(attributes);
+    setSavingProfile(false);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    const resolvedEmail = data.user?.email ?? currentUser.email;
+    const preferenceKey = `botuang.profile.preferences.${resolvedEmail || "local"}`;
+    window.localStorage.setItem(
+      preferenceKey,
+      JSON.stringify({ timezone: profileTimezone, bio: profileBio.trim() }),
+    );
+
+    try {
+      const stored = window.localStorage.getItem(DASHBOARD_SESSION_KEY);
+      const session = stored ? JSON.parse(stored) : {};
+      window.localStorage.setItem(
+        DASHBOARD_SESSION_KEY,
+        JSON.stringify({ ...session, userName: name, userEmail: resolvedEmail }),
+      );
+    } catch {
+      // The authenticated Supabase profile remains the source of truth.
+    }
+
+    onCurrentUserChange({ name, email: resolvedEmail });
+    toast.success(
+      email !== currentUser.email.toLowerCase()
+        ? "Profil disimpan. Periksa email untuk konfirmasi alamat baru."
+        : "Profil berhasil disimpan.",
+    );
+  }
+
+  function resetProfile() {
+    setProfileName(currentUser.name || currentUser.email.split("@")[0] || "");
+    setProfileEmail(currentUser.email);
+    try {
+      const saved = JSON.parse(
+        window.localStorage.getItem(
+          `botuang.profile.preferences.${currentUser.email || "local"}`,
+        ) ?? "null",
+      ) as { timezone?: string; bio?: string } | null;
+      setProfileTimezone(saved?.timezone ?? "Asia/Jakarta");
+      setProfileBio(saved?.bio ?? "");
+    } catch {
+      setProfileTimezone("Asia/Jakarta");
+      setProfileBio("");
+    }
+  }
+
+  function updateNotificationPreference(
+    key: NotificationPreferenceKey,
+    value: boolean,
+  ) {
+    setNotificationPreferences((current) => {
+      const next = { ...current, [key]: value };
+      window.localStorage.setItem(
+        `botuang.notifications.${currentUser.email || "local"}`,
+        JSON.stringify(next),
+      );
+      return next;
+    });
+    toast.success("Preferensi notifikasi disimpan.");
+  }
+
+  function updateWeekStart(value: "sunday" | "monday") {
+    setWeekStartsOn(value);
+    window.localStorage.setItem("botuang.week-start", value);
+    window.dispatchEvent(
+      new CustomEvent("botuang:week-start", { detail: value }),
+    );
+    toast.success(
+      value === "monday" ? "Kalender dimulai hari Senin." : "Kalender dimulai hari Minggu.",
+    );
   }
 
   useEffect(() => {
@@ -6802,39 +7074,275 @@ function SettingsPage({
   if (loading) return <Skeleton className="h-96" />;
 
   const settingSections = [
+    { key: "profile", label: "Profile", icon: Users },
+    { key: "notifications", label: "Notifications", icon: Bell },
+    { key: "appearance", label: "Appearance", icon: Sun },
     { key: "rental", label: "Rental", icon: WalletCards },
     { key: "group", label: "Group", icon: Users },
     { key: "location", label: "Location & Services", icon: MapPin },
     { key: "bot", label: "Bot", icon: Bot },
     { key: "security", label: "Security", icon: ShieldCheck },
   ] as const;
+  const profileInitials = (profileName || profileEmail || "BU")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
 
   return (
     <div className="space-y-4">
-      <PageIntro title="Setting" description="Kelola sewa, layanan lokasi, bot, dan keamanan grup" />
-      <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
-        <nav className="grid gap-1 self-start rounded-[20px] border border-[var(--line)] bg-[var(--card)] p-2 shadow-[var(--soft-shadow)] lg:sticky lg:top-24">
+      <PageIntro
+        title="Settings"
+        description="Your profile, notifications and how BotUang looks."
+      />
+      <div className="grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
+        <nav
+          className="flex gap-1 overflow-x-auto rounded-[20px] border border-[var(--line)] bg-[var(--card)] p-2 shadow-[var(--soft-shadow)] lg:sticky lg:top-24 lg:grid lg:self-start lg:overflow-visible"
+          aria-label="Settings sections"
+        >
           {settingSections.map((section) => {
             const Icon = section.icon;
             return (
               <button
                 key={section.key}
+                type="button"
+                role="tab"
+                aria-selected={settingsSection === section.key}
                 onClick={() => setSettingsSection(section.key)}
                 className={cn(
-                  "flex min-h-11 items-center gap-3 rounded-[12px] px-3 text-left text-sm font-semibold",
+                  "relative flex min-h-12 shrink-0 items-center gap-3 rounded-[14px] px-3 text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] lg:w-full",
                   settingsSection === section.key
-                    ? "bg-[#0D3A23] text-white"
+                    ? "text-[var(--income)]"
                     : "text-[var(--muted)] hover:bg-[var(--panel)] hover:text-[var(--foreground)]",
                 )}
               >
-                <Icon className="h-4 w-4" />
-                {section.label}
+                {settingsSection === section.key ? (
+                  <motion.span
+                    layoutId="settings-active-tab"
+                    className="absolute inset-0 rounded-[14px] bg-[var(--primary-soft)]"
+                    transition={{ type: "spring", stiffness: 430, damping: 34 }}
+                    aria-hidden="true"
+                  />
+                ) : null}
+                <Icon className="relative h-4 w-4" />
+                <span className="relative whitespace-nowrap">{section.label}</span>
               </button>
             );
           })}
         </nav>
 
-        <div className="space-y-4">
+        <div className="min-w-0">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={settingsSection}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+            >
+      {settingsSection === "profile" ? (
+        <section className={cn(settingsPanelClass, "p-5 sm:p-7")}>
+          <form onSubmit={saveProfile} noValidate>
+            <div className="flex items-center gap-4 sm:gap-[18px]">
+              <span
+                className="grid h-[72px] w-[72px] shrink-0 place-items-center rounded-full bg-[var(--primary-soft)] text-xl font-semibold text-[var(--income)]"
+                aria-hidden="true"
+              >
+                {profileInitials || "BU"}
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-xl font-semibold tracking-tight">Profile</h2>
+                <p className="mt-1 text-sm text-[var(--muted)]">
+                  This is how your identity appears across the BotUang workspace.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-4 sm:grid-cols-2">
+              <label className="grid gap-2 text-sm font-medium">
+                Full name
+                <Input
+                  value={profileName}
+                  onChange={(event) => setProfileName(event.target.value)}
+                  autoComplete="name"
+                  maxLength={40}
+                  required
+                />
+              </label>
+              <label className="grid gap-2 text-sm font-medium">
+                Email
+                <Input
+                  value={profileEmail}
+                  onChange={(event) => setProfileEmail(event.target.value)}
+                  type="email"
+                  autoComplete="email"
+                  required
+                />
+              </label>
+              <label className="grid gap-2 text-sm font-medium">
+                Role
+                <Input value={role === "owner" ? "Owner" : "Admin"} readOnly disabled />
+              </label>
+              <label className="grid gap-2 text-sm font-medium">
+                Time zone
+                <select
+                  value={profileTimezone}
+                  onChange={(event) => setProfileTimezone(event.target.value)}
+                  className="min-h-11 rounded-[12px] border border-[var(--line)] bg-[var(--card)] px-3 text-sm text-[var(--foreground)] focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
+                >
+                  <option value="Asia/Jakarta">GMT+7 - Jakarta</option>
+                  <option value="Asia/Makassar">GMT+8 - Makassar</option>
+                  <option value="Asia/Jayapura">GMT+9 - Jayapura</option>
+                </select>
+              </label>
+              <label className="grid gap-2 text-sm font-medium sm:col-span-2">
+                Bio
+                <Textarea
+                  value={profileBio}
+                  onChange={(event) => setProfileBio(event.target.value)}
+                  rows={3}
+                  maxLength={200}
+                  placeholder="Tell your team a little about yourself."
+                />
+              </label>
+            </div>
+
+            <div className="mt-6 flex flex-col-reverse gap-2 border-t border-[var(--line)] pt-5 sm:flex-row sm:justify-end">
+              <Button type="button" variant="outline" onClick={resetProfile}>
+                Discard
+              </Button>
+              <Button type="submit" disabled={savingProfile}>
+                {savingProfile ? "Saving..." : "Save changes"}
+              </Button>
+            </div>
+          </form>
+        </section>
+      ) : null}
+
+      {settingsSection === "notifications" ? (
+        <section className={cn(settingsPanelClass, "p-5 sm:p-7")}>
+          <h2 className="text-xl font-semibold tracking-tight">Notifications</h2>
+          <p className="mt-1 text-sm text-[var(--muted)]">
+            Choose which dashboard updates should reach you.
+          </p>
+          <ul className="mt-4">
+            {[
+              {
+                key: "taskAssigned" as const,
+                title: "Task assigned to me",
+                description: "When a group task is assigned to your profile.",
+              },
+              {
+                key: "reminderDue" as const,
+                title: "Reminder schedule",
+                description: "Upcoming reminders and due tasks from the active group.",
+              },
+              {
+                key: "rentalUpdates" as const,
+                title: "Rental updates",
+                description: "Payment request decisions and rental expiry warnings.",
+              },
+              {
+                key: "weeklySummary" as const,
+                title: "Weekly financial summary",
+                description: "A weekly digest of group income, expenses, and balance.",
+              },
+              {
+                key: "productUpdates" as const,
+                title: "Product updates",
+                description: "Important changes to BotUang features and integrations.",
+              },
+            ].map((item) => (
+              <PreferenceSwitch
+                key={item.key}
+                title={item.title}
+                description={item.description}
+                checked={notificationPreferences[item.key]}
+                onCheckedChange={(value) =>
+                  updateNotificationPreference(item.key, value)
+                }
+              />
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {settingsSection === "appearance" ? (
+        <section className={cn(settingsPanelClass, "p-5 sm:p-7")}>
+          <h2 className="text-xl font-semibold tracking-tight">Appearance</h2>
+          <p className="mt-1 text-sm text-[var(--muted)]">
+            Choose how BotUang looks on this device.
+          </p>
+
+          <fieldset className="mt-7">
+            <legend className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--muted)]">
+              Theme
+            </legend>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              {[
+                { value: "light" as const, label: "Light", icon: Sun },
+                { value: "dark" as const, label: "Dark", icon: Moon },
+              ].map((option) => {
+                const Icon = option.icon;
+                const selected = theme === option.value;
+                return (
+                  <label
+                    key={option.value}
+                    className={cn(
+                      "flex min-h-16 cursor-pointer items-center gap-3 rounded-[14px] border bg-[var(--surface)] px-4 transition-colors",
+                      selected
+                        ? "border-[var(--income)] shadow-[inset_0_0_0_1px_var(--income)]"
+                        : "border-[var(--line)] hover:border-[var(--muted-2)]",
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="dashboard-theme"
+                      value={option.value}
+                      checked={selected}
+                      onChange={() => onThemeChange(option.value)}
+                      className="sr-only"
+                    />
+                    <span className="grid h-9 w-9 place-items-center rounded-[10px] bg-[var(--card)]">
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <span className="text-sm font-semibold">{option.label}</span>
+                    {selected ? <Check className="ml-auto h-4 w-4 text-[var(--income)]" /> : null}
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+
+          <fieldset className="mt-7 border-t border-[var(--line)] pt-6">
+            <legend className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--muted)]">
+              Week starts on
+            </legend>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {[
+                { value: "sunday" as const, label: "Sunday" },
+                { value: "monday" as const, label: "Monday" },
+              ].map((option) => (
+                <label key={option.value} className="cursor-pointer">
+                  <input
+                    type="radio"
+                    name="week-start"
+                    value={option.value}
+                    checked={weekStartsOn === option.value}
+                    onChange={() => updateWeekStart(option.value)}
+                    className="peer sr-only"
+                  />
+                  <span className="inline-flex min-h-11 items-center rounded-full bg-[var(--surface)] px-5 text-sm font-medium transition-colors peer-checked:bg-[var(--primary)] peer-checked:text-white peer-focus-visible:shadow-[var(--focus-ring)]">
+                    {option.label}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        </section>
+      ) : null}
+
       {settingsSection === "rental" ? (
       <section className={settingsPanelClass}>
         <div className="flex items-start justify-between gap-3">
@@ -7118,6 +7626,8 @@ function SettingsPage({
           </form>
         </section>
       ) : null}
+            </motion.div>
+          </AnimatePresence>
         </div>
       </div>
     </div>

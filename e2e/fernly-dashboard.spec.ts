@@ -80,7 +80,7 @@ test("Fernly shell navigates without reload and renders real empty states", asyn
     ["Kalender", "Kalender"],
     ["Team", "Anggota"],
     ["Otomasi", "Command"],
-    ["Pengaturan", "Setting"],
+    ["Pengaturan", "Settings"],
     ["Bantuan", "Bantuan"],
   ] as const;
 
@@ -94,6 +94,53 @@ test("Fernly shell navigates without reload and renders real empty states", asyn
     await (testInfo.project.name === "mobile-390" ? links.last() : links.first()).click();
     await expect(page.getByRole("heading", { name: headingName, exact: true }).first()).toBeVisible();
     expect(new URL(page.url()).hash).not.toBe("");
+  }
+});
+
+test("Settings matches the Fernly tab structure on desktop and mobile", async ({ page }) => {
+  for (const viewport of [
+    { width: 390, height: 844 },
+    { width: 1366, height: 900 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto("/preview-dashboard#overview");
+    await page.getByRole("button", { name: "Buka profil dan pengaturan" }).click();
+    await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
+    await page.getByRole("tab", { name: "Profile", exact: true }).click();
+    await expect(page.getByRole("tab", { name: "Profile", exact: true })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    await page.getByRole("tab", { name: "Notifications", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: "Notifications", exact: true }),
+    ).toBeVisible();
+    const taskSwitch = page.getByRole("switch", { name: "Task assigned to me" });
+    const previousSwitchState = await taskSwitch.getAttribute("aria-checked");
+    await taskSwitch.click();
+    await expect(taskSwitch).toHaveAttribute(
+      "aria-checked",
+      previousSwitchState === "true" ? "false" : "true",
+    );
+
+    await page.getByRole("tab", { name: "Appearance", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Appearance", exact: true })).toBeVisible();
+    await page.getByText("Dark", { exact: true }).click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+    await page.getByText("Monday", { exact: true }).click();
+    await expect
+      .poll(() => page.evaluate(() => localStorage.getItem("botuang.week-start")))
+      .toBe("monday");
+
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow, `${viewport.width}px Settings overflow`).toBeLessThanOrEqual(1);
+    await page.screenshot({
+      path: `test-results/settings-${viewport.width}.png`,
+      fullPage: true,
+    });
   }
 });
 
