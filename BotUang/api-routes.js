@@ -111,8 +111,8 @@ function parseSchedule(scheduleStr) {
   return { type: 'time', value: str };
 }
 
-// Fetch merged group details from group_rentals and Baileys
-async function fetchMergedGroups(sock) {
+// Fetch rental records enriched with live WhatsApp group metadata.
+async function fetchMergedGroups(sock, { includeUnrented = false } = {}) {
   const rentals = db.prepare('SELECT * FROM group_rentals').all();
   let allGroups = {};
   if (sock) {
@@ -153,6 +153,7 @@ async function fetchMergedGroups(sock) {
     if (botStoreJids.has(jid)) continue; // Exclude active BotStore group!
     const meta = allGroups[jid];
     const r = rentalMap.get(jid);
+    if (!r && !includeUnrented) continue;
     
     let is_active = false;
     let start_at = null;
@@ -394,7 +395,7 @@ router.post('/groups/:groupId/connect/pin', async (req, res) => {
 router.get('/groups', async (req, res) => {
   try {
     const sock = req.app.get('sock');
-    const groups = await fetchMergedGroups(sock);
+    const groups = await fetchMergedGroups(sock, { includeUnrented: true });
     res.json(groups);
   } catch (error) {
     console.error('[API] Error in GET /groups:', error);
@@ -1096,16 +1097,12 @@ router.post('/owner/rentals/remove', (req, res) => {
   const { group_id } = req.body;
   if (!group_id) return res.status(400).json({ error: 'group_id is required' });
 
-  const result = db.prepare(`
-    UPDATE group_rentals
-    SET is_active = 0, start_at = NULL, expire_at = NULL, updated_at = ?
-    WHERE group_id = ?
-  `).run(nowIso(), group_id);
+  const result = db.prepare('DELETE FROM group_rentals WHERE group_id = ?').run(group_id);
 
   if (!result.changes) {
     return res.status(404).json({ error: 'Rental not found' });
   }
-  res.json({ success: true, message: 'Masa sewa grup berhasil dihapus' });
+  res.json({ success: true, message: 'Grup berhasil dihapus dari daftar sewa' });
 });
 
 router.post('/owner/broadcast', async (req, res) => {

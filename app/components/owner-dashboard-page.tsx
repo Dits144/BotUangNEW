@@ -332,7 +332,7 @@ export function OwnerDashboardPage({
     const groupId = group.group_id ?? group.id ?? "";
     const groupName = group.group_name ?? group.name ?? groupId;
     if (!groupId) return;
-    if (!window.confirm(`Hapus masa sewa untuk ${groupName}? Bot tetap berada di grup, tetapi akses sewanya dinonaktifkan.`)) return;
+    if (!window.confirm(`Hapus ${groupName} dari daftar sewa? Bot tetap berada di grup WhatsApp dan grup akan muncul lagi saat sewa baru diaktifkan.`)) return;
 
     void runOwnerAction(`remove-rental:${groupId}`, {
       action: "remove-rental",

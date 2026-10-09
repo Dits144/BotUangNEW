@@ -19,9 +19,15 @@ test("dashboard owner proxy supports reduce and remove rental actions", () => {
   assert.match(ownerRoute, /"remove-rental": \{ path: "\/owner\/rentals\/remove"/);
 });
 
-test("bot API reduces and clears rental periods safely", () => {
+test("bot API reduces and removes rental records safely", () => {
   assert.match(botRoutes, /router\.post\('\/owner\/rentals\/reduce'/);
   assert.match(botRoutes, /currentExpire\.minus\(\{ days: daysToReduce \}\)/);
   assert.match(botRoutes, /router\.post\('\/owner\/rentals\/remove'/);
-  assert.match(botRoutes, /SET is_active = 0, start_at = NULL, expire_at = NULL/);
+  assert.match(botRoutes, /DELETE FROM group_rentals WHERE group_id = \?/);
+});
+
+test("owner list only shows rental records and activation automatically re-adds them", () => {
+  assert.match(botRoutes, /if \(!r && !includeUnrented\) continue/);
+  assert.match(botRoutes, /fetchMergedGroups\(sock, \{ includeUnrented: true \}\)/);
+  assert.match(botRoutes, /INSERT INTO group_rentals \(group_id, is_active, expire_at, updated_at\)/);
 });
