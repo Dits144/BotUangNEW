@@ -17,6 +17,7 @@ import {
 
 type SchedulerSettings = PrayerSettingsLike & {
   azan_location?: string | null;
+  azan_enabled?: boolean | null;
   weather_location?: string | null;
 };
 
@@ -140,7 +141,7 @@ export async function POST(request: Request) {
   const { data, error } = await supabase
     .from("group_settings")
     .select("*")
-    .eq("prayer_enabled", true);
+    .eq("azan_enabled", true);
 
   if (error) {
     return Response.json({ ok: false, message: error.message }, { status: 200 });
@@ -213,8 +214,9 @@ export async function POST(request: Request) {
           status: "sent",
         });
 
-        if (!logError) {
-          sent.push({ group_id: groupId, prayer, time: prayerTime });
+        sent.push({ group_id: groupId, prayer, time: prayerTime });
+        if (logError && !isMissingPrayerLogTable(logError.message)) {
+          failed.push({ group_id: groupId, reason: `Pesan terkirim, log gagal: ${logError.message}` });
         }
       }
 
@@ -250,4 +252,8 @@ export async function POST(request: Request) {
     skipped,
     checkedAt: new Date().toISOString(),
   });
+}
+
+function isMissingPrayerLogTable(message = "") {
+  return /prayer_reminder_logs.*(does not exist|schema cache)/i.test(message);
 }

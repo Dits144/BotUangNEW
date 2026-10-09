@@ -573,6 +573,46 @@ async function fetchBotGroupData({
   }
 }
 
+async function fetchGroupSettings(
+  groupId: string,
+  method: "GET" | "PUT" = "GET",
+  body?: Record<string, unknown>,
+): Promise<{ data: GroupSettings | null; error: { message: string } | null }> {
+  const auth = await supabase.auth.getSession();
+  const accessToken = auth.data.session?.access_token ?? "";
+  if (!accessToken) {
+    return { data: null, error: { message: "Session dashboard tidak valid" } };
+  }
+
+  try {
+    const response = await fetch(
+      `/api/settings?group_id=${encodeURIComponent(groupId)}`,
+      {
+        method,
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      },
+    );
+    const result = (await response.json()) as {
+      ok?: boolean;
+      data?: GroupSettings | null;
+      message?: string;
+    };
+    if (!response.ok || !result.ok) {
+      return {
+        data: null,
+        error: { message: result.message ?? "Setting grup tidak tersedia" },
+      };
+    }
+    return { data: result.data ?? null, error: null };
+  } catch {
+    return { data: null, error: { message: "Setting grup tidak tersedia" } };
+  }
+}
+
 export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -722,7 +762,7 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
         : supabase.from("group_rentals").select("*").eq("group_id", targetGroupId).maybeSingle(),
       preview
         ? Promise.resolve({ data: null, error: null })
-        : supabase.from("group_settings").select("*").eq("group_id", targetGroupId).maybeSingle(),
+        : fetchGroupSettings(targetGroupId),
       fetch(
         `/api/bot/status?group_id=${encodeURIComponent(targetGroupId)}&api_url=${encodeURIComponent(apiUrl)}`,
         {
@@ -742,6 +782,7 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
     ]);
 
     if (txResult.error) toast.error(txResult.error.message);
+    if (settingResult.error) toast.error(settingResult.error.message);
     const botParticipants = botParticipantResult.ok
       ? normalizeBotParticipants(botParticipantResult.data, targetGroupId)
       : null;
@@ -6719,6 +6760,7 @@ function SettingsPage({
   const [prayerStatus, setPrayerStatus] = useState<PrayerStatus | null>(null);
   const [prayerStatusLoading, setPrayerStatusLoading] = useState(false);
   const [testSending, setTestSending] = useState(false);
+  const [savingServices, setSavingServices] = useState(false);
   const [qrisPreviewUrl, setQrisPreviewUrl] = useState("");
   const [newPin, setNewPin] = useState("");
   const [months, setMonths] = useState("1");
@@ -6878,11 +6920,6 @@ function SettingsPage({
   }
 
   useEffect(() => {
-    if (!groupId || settingsSection !== "location") return;
-    void loadPrayerStatus();
-  }, [groupId, settingsSection, settings?.updated_at]);
-
-  useEffect(() => {
     supabase
       .from("owner_settings")
       .select("qris_image_url")
@@ -6895,21 +6932,48 @@ function SettingsPage({
       });
   }, []);
 
-  async function saveSettings(event: FormEvent) {
-    event.preventDefault();
+  async function persistSettings({
+    prayerEnabledValue = prayerEnabled,
+    successMessage = "Setting grup disimpan.",
+  }: {
+    prayerEnabledValue?: boolean;
+    successMessage?: string;
+  } = {}) {
+    const parsedLatitude = latitude.trim() ? Number(latitude) : null;
+    const parsedLongitude = longitude.trim() ? Number(longitude) : null;
+    const validCoordinates =
+      parsedLatitude !== null &&
+      parsedLongitude !== null &&
+      Number.isFinite(parsedLatitude) &&
+      Number.isFinite(parsedLongitude) &&
+      parsedLatitude >= -90 &&
+      parsedLatitude <= 90 &&
+      parsedLongitude >= -180 &&
+      parsedLongitude <= 180;
+
+    if (prayerEnabledValue && !validCoordinates) {
+      toast.error("Share lokasi atau isi latitude dan longitude yang valid untuk mengaktifkan azan.");
+      return false;
+    }
+    if (prayerEnabledValue && !Object.values(enabledPrayers).some(Boolean)) {
+      toast.error("Aktifkan minimal satu waktu salat.");
+      return false;
+    }
+
     const payload = {
-      group_id: groupId,
       header_text: header,
       location_name: locationName,
-      location_latitude: latitude ? Number(latitude) : null,
-      location_longitude: longitude ? Number(longitude) : null,
+      location_latitude: parsedLatitude,
+      location_longitude: parsedLongitude,
       location_timezone: timezone,
       weather_location: location,
-      azan_location: azanLocation,
+      azan_location: validCoordinates
+        ? `${parsedLatitude},${parsedLongitude}`
+        : azanLocation,
       emergency_location: emergencyLocation,
       weather_enabled: weatherEnabled,
-      azan_enabled: prayerEnabled,
-      prayer_enabled: prayerEnabled,
+      azan_enabled: prayerEnabledValue,
+      prayer_enabled: prayerEnabledValue,
       prayer_method: Number(prayerMethod),
       prayer_subuh_enabled: enabledPrayers.subuh,
       prayer_dzuhur_enabled: enabledPrayers.dzuhur,
@@ -6926,21 +6990,44 @@ function SettingsPage({
       spreadsheet_url: spreadsheetUrl,
       updated_at: new Date().toISOString(),
     };
-    const { error } = await supabase.from("group_settings").upsert(payload);
-    if (error) toast.error(error.message);
-    else {
-      toast.success("Setting grup disimpan.");
-      void fetchBotGroupData({
-        resource: "settings",
-        groupId,
-        apiUrl: botApiUrl,
-        token: sessionToken,
-        method: "POST",
-        body: payload,
-      });
-      void loadPrayerStatus();
-      onChanged();
+    const result = await fetchGroupSettings(groupId, "PUT", payload);
+    if (result.error) {
+      toast.error(result.error.message);
+      return false;
     }
+
+    if (prayerEnabledValue !== prayerEnabled) {
+      setFormField("prayerEnabled", prayerEnabledValue);
+    }
+    toast.success(successMessage);
+    void fetchBotGroupData({
+      resource: "settings",
+      groupId,
+      apiUrl: botApiUrl,
+      token: sessionToken,
+      method: "POST",
+      body: payload,
+    });
+    onChanged();
+    return true;
+  }
+
+  async function saveSettings(event: FormEvent) {
+    event.preventDefault();
+    setSavingServices(true);
+    const saved = await persistSettings();
+    setSavingServices(false);
+    if (saved && prayerEnabled) await loadPrayerStatus();
+  }
+
+  async function activateAndCheckPrayer() {
+    setPrayerStatusLoading(true);
+    const saved = await persistSettings({
+      prayerEnabledValue: true,
+      successMessage: "Pengingat azan diaktifkan dan lokasi disimpan.",
+    });
+    setPrayerStatusLoading(false);
+    if (saved) await loadPrayerStatus();
   }
 
   function fillBrowserLocation(target: "weather" | "azan" | "emergency") {
@@ -6985,9 +7072,20 @@ function SettingsPage({
     }
   }
 
+  useEffect(() => {
+    if (!groupId || settingsSection !== "location") return;
+    void loadPrayerStatus();
+  }, [groupId, settingsSection, settings?.updated_at]);
+
   async function sendPrayerTest() {
     setTestSending(true);
     try {
+      const saved = await persistSettings({
+        prayerEnabledValue: true,
+        successMessage: "Konfigurasi azan siap diuji.",
+      });
+      if (!saved) return;
+
       const auth = await supabase.auth.getSession();
       const accessToken = auth.data.session?.access_token ?? "";
       const response = await fetch("/api/prayer/test", {
@@ -7555,28 +7653,48 @@ function SettingsPage({
                     </Badge>
                   </div>
                   {prayerStatus?.configured ? (
-                    <div className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
-                      <div>
-                        <p className="text-xs text-[var(--muted)]">Location</p>
-                        <p className="font-medium">{prayerStatus.location || locationName || "-"}</p>
+                    <div className="mt-3 space-y-3">
+                      <div className="grid gap-2 text-sm sm:grid-cols-3">
+                        <div>
+                          <p className="text-xs text-[var(--muted)]">Lokasi</p>
+                          <p className="font-medium">{prayerStatus.location || locationName || "-"}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-[var(--muted)]">Zona waktu</p>
+                          <p className="font-medium">{prayerStatus.timezoneLabel ?? "WIB"}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-[var(--muted)]">Waktu berikutnya</p>
+                          <p className="font-semibold tabular-nums">
+                            {prayerStatus.nextPrayer
+                              ? `${prayerStatus.nextPrayer.key} ${prayerStatus.nextPrayer.time}`
+                              : "-"}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-xs text-[var(--muted)]">Timezone</p>
-                        <p className="font-medium">{prayerStatus.timezoneLabel ?? "WIB"}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-[var(--muted)]">Next Prayer</p>
-                        <p className="font-mono font-semibold tabular-nums">
-                          {prayerStatus.nextPrayer
-                            ? `${prayerStatus.nextPrayer.key} ${prayerStatus.nextPrayer.time}`
-                            : "-"}
-                        </p>
-                      </div>
+                      {prayerStatus.schedule ? (
+                        <div className="grid grid-cols-2 gap-2 border-t border-[var(--line)] pt-3 sm:grid-cols-5">
+                          {[
+                            ["subuh", "Subuh"],
+                            ["dzuhur", "Dzuhur"],
+                            ["ashar", "Ashar"],
+                            ["maghrib", "Maghrib"],
+                            ["isya", "Isya"],
+                          ].map(([key, label]) => (
+                            <div key={key} className="rounded-[10px] bg-[var(--card)] px-3 py-2">
+                              <p className="text-[11px] text-[var(--muted)]">{label}</p>
+                              <p className="mt-0.5 text-sm font-semibold tabular-nums">
+                                {prayerStatus.schedule?.[key] || "-"}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <Button type="button" variant="outline" onClick={() => loadPrayerStatus()} disabled={prayerStatusLoading}>
-                      {prayerStatusLoading ? "Mengecek..." : "Cek Jadwal"}
+                    <Button type="button" variant="outline" onClick={activateAndCheckPrayer} disabled={prayerStatusLoading || savingServices}>
+                      {prayerStatusLoading ? "Mengaktifkan..." : "Aktifkan & Cek Jadwal"}
                     </Button>
                     <Button type="button" variant="secondary" onClick={sendPrayerTest} disabled={testSending}>
                       {testSending ? "Mengirim..." : "Kirim Test Reminder"}
@@ -7597,7 +7715,9 @@ function SettingsPage({
               placeholder="Lokasi pantauan darurat/gempa"
               onUseLocation={() => fillBrowserLocation("emergency")}
             />
-            <Button className="w-full">Simpan Layanan</Button>
+            <Button className="w-full" disabled={savingServices}>
+              {savingServices ? "Menyimpan..." : "Simpan Layanan"}
+            </Button>
           </form>
         </section>
       ) : null}

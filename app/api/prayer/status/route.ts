@@ -94,12 +94,13 @@ export async function GET(request: Request) {
 
   const settings = data as (PrayerSettingsLike & {
     azan_location?: string | null;
+    azan_enabled?: boolean | null;
     weather_location?: string | null;
     prayer_last_check_at?: string | null;
     prayer_last_error?: string | null;
   }) | null;
 
-  if (!settings?.prayer_enabled) {
+  if (!(settings?.prayer_enabled ?? settings?.azan_enabled)) {
     return Response.json({
       ok: true,
       configured: false,

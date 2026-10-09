@@ -30,6 +30,7 @@ const { suggestCommand } = require('./utils/typo');
 const { handleClearAll } = require('./commands/adminTools');
 const { infoGroup }      = require('./commands/info');
 const { startApi }       = require('./api');
+const { startPrayerScheduler } = require('./utils/prayerScheduler');
 
 /* ── Pending confirmation sessions (yes/cancel) ── */
 let session;
@@ -151,6 +152,7 @@ async function start() {
 
   reminder.startReminderWorker(sock);
   startRentalWarningScheduler(sock);
+  startPrayerScheduler();
   startApi(sock);
 
   /* Lovable heartbeat */
