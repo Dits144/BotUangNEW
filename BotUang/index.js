@@ -14,7 +14,7 @@ const { DateTime } = require('luxon');
 
 const { OWNER_NUMBERS, AUTH_DIR, LOG_LEVEL, TIMEZONE } = require('./config');
 const { db, getOwnerNumbers, isRentalActive } = require('./db/database');
-const { normalizeJid, getSenderJid, isOwner }  = require('./utils/jid');
+const { normalizeJid, extractUserNumber, getSenderJid, isOwner } = require('./utils/jid');
 const { menuText }       = require('./commands/help');
 const { handleCalc }     = require('./commands/calc');
 const { handleInsights } = require('./commands/insights');
@@ -31,6 +31,17 @@ const { handleClearAll } = require('./commands/adminTools');
 const { infoGroup }      = require('./commands/info');
 const { startApi }       = require('./api');
 const { startPrayerScheduler } = require('./utils/prayerScheduler');
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS whatsapp_member_profiles (
+    group_id TEXT NOT NULL,
+    jid TEXT NOT NULL,
+    phone TEXT,
+    display_name TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (group_id, jid)
+  )
+`);
 
 /* ── Pending confirmation sessions (yes/cancel) ── */
 let session;
@@ -79,6 +90,37 @@ function inCooldown(senderId, key, ms = 1000) {
   if (now - (cooldown.get(k) || 0) < ms) return true;
   cooldown.set(k, now);
   return false;
+}
+
+function cacheWhatsAppMemberProfile(groupId, senderId, altSenderId, displayName) {
+  if (!groupId || !senderId || !displayName || displayName === 'Tanpa Nama') return;
+
+  const memberJid = senderId.endsWith('@lid')
+    ? senderId
+    : altSenderId.endsWith('@lid')
+      ? altSenderId
+      : senderId;
+  const phoneJid = !senderId.endsWith('@lid')
+    ? senderId
+    : altSenderId && !altSenderId.endsWith('@lid')
+      ? altSenderId
+      : '';
+  const phone = extractUserNumber(phoneJid);
+
+  db.prepare(`
+    INSERT INTO whatsapp_member_profiles (group_id, jid, phone, display_name, updated_at)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(group_id, jid) DO UPDATE SET
+      phone = CASE WHEN excluded.phone <> '' THEN excluded.phone ELSE whatsapp_member_profiles.phone END,
+      display_name = excluded.display_name,
+      updated_at = excluded.updated_at
+  `).run(
+    groupId,
+    memberJid,
+    phone,
+    displayName.trim(),
+    DateTime.now().setZone(TIMEZONE).toISO()
+  );
 }
 
 async function streamToBuffer(message, type) {
@@ -210,6 +252,7 @@ async function start() {
     const senderId   = normalizeJid(getSenderJid(msg));
     const altSenderId = normalizeJid(msg.key?.participantAlt || msg.key?.remoteJidAlt || '');
     const senderName = msg.pushName || 'Tanpa Nama';
+    cacheWhatsAppMemberProfile(groupId, senderId, altSenderId, senderName);
     if (senderName !== 'Tanpa Nama') {
       if (!sock.botuangContactNames) sock.botuangContactNames = new Map();
       sock.botuangContactNames.set(senderId, senderName);

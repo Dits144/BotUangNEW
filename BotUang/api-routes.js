@@ -23,6 +23,17 @@ db.exec(`
   );
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS whatsapp_member_profiles (
+    group_id TEXT NOT NULL,
+    jid TEXT NOT NULL,
+    phone TEXT,
+    display_name TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (group_id, jid)
+  )
+`);
+
 // Parse schedule string into reminder components (time, date, datetime)
 function parseSchedule(scheduleStr) {
   const str = scheduleStr.trim();
@@ -690,6 +701,11 @@ function getMemberRole(member) {
   return 'member';
 }
 
+function formatWhatsAppDisplayName(value) {
+  const name = String(value || '').trim().replace(/^@+/, '');
+  return name ? `@${name}` : '';
+}
+
 router.get('/groups/:groupId/participants', async (req, res) => {
   const groupId = req.params.groupId;
   const rows = db.prepare('SELECT * FROM participants WHERE group_id=? AND deleted_at IS NULL ORDER BY created_at ASC').all(groupId);
@@ -719,6 +735,18 @@ router.get('/groups/:groupId/participants', async (req, res) => {
       ORDER BY created_at DESC
     `).all(groupId);
     const namesByNumber = new Map();
+    const cachedProfiles = db.prepare(`
+      SELECT jid, phone, display_name
+      FROM whatsapp_member_profiles
+      WHERE group_id = ?
+    `).all(groupId);
+    const profilesByJid = new Map();
+    const profilesByNumber = new Map();
+    for (const profile of cachedProfiles) {
+      profilesByJid.set(profile.jid, profile);
+      const number = getWhatsAppNumber(profile.phone || profile.jid);
+      if (number) profilesByNumber.set(number, profile);
+    }
     if (sock.botuangContactNames instanceof Map) {
       for (const [jid, name] of sock.botuangContactNames.entries()) {
         const number = getWhatsAppNumber(jid);
@@ -742,24 +770,26 @@ router.get('/groups/:groupId/participants', async (req, res) => {
     const usedTrackedIds = new Set();
     const whatsappParticipants = (metadata.participants || []).map(member => {
       const jid = member.id || member.phoneNumber || '';
+      const jidNumber = getWhatsAppNumber(jid);
+      const cachedProfile = profilesByJid.get(jid) || profilesByNumber.get(jidNumber);
       const mappedPhoneJid = sock.botuangPhoneNumbers instanceof Map
         ? sock.botuangPhoneNumbers.get(jid)
         : '';
-      const phoneSource = member.phoneNumber || mappedPhoneJid || member.id;
+      const phoneSource = member.phoneNumber || mappedPhoneJid || cachedProfile?.phone || member.id;
       const phone = getWhatsAppNumber(phoneSource);
-      const phoneIsLid = !member.phoneNumber && !mappedPhoneJid && String(jid).endsWith('@lid');
-      const jidNumber = getWhatsAppNumber(jid);
+      const phoneIsLid = !member.phoneNumber && !mappedPhoneJid && !cachedProfile?.phone && String(jid).endsWith('@lid');
       const tracked = trackedByNumber.get(phone) || trackedByNumber.get(jidNumber);
       if (tracked) usedTrackedIds.add(tracked.id);
 
-      const observedName = namesByNumber.get(phone) || namesByNumber.get(jidNumber);
+      const observedName = cachedProfile?.display_name || namesByNumber.get(phone) || namesByNumber.get(jidNumber);
       const isBot = Boolean(botNumber && (phone === botNumber || jidNumber === botNumber));
       const fallbackName = phone
         ? phoneIsLid
           ? `Anggota ${phone.slice(-4)}`
           : `+${phone}`
         : 'Anggota WhatsApp';
-      const name = tracked?.name || member.notify || member.name || observedName || (isBot ? 'BotUang' : fallbackName);
+      const knownName = tracked?.name || member.notify || member.name || observedName || (isBot ? 'BotUang' : '');
+      const name = knownName ? formatWhatsAppDisplayName(knownName) : fallbackName;
       const role = getMemberRole(member);
       const data = {
         ...(tracked?.data || {}),

@@ -16,8 +16,11 @@ test("participants endpoint merges live WhatsApp members with tracked records", 
 test("bot remembers push names for participant display", () => {
   assert.match(botEntry, /botuangContactNames/);
   assert.match(botEntry, /botuangPhoneNumbers/);
+  assert.match(botEntry, /whatsapp_member_profiles/);
+  assert.match(botEntry, /cacheWhatsAppMemberProfile/);
   assert.match(apiRoutes, /sock\.botuangContactNames/);
   assert.match(apiRoutes, /sock\.botuangPhoneNumbers/);
+  assert.match(apiRoutes, /formatWhatsAppDisplayName/);
 });
 
 test("dashboard shows WhatsApp roles and safely creates contribution profiles", () => {
