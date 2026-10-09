@@ -36,7 +36,7 @@ test("canonical dashboard mode suppresses legacy Bot writes", () => {
   );
   assert.match(
     dashboard,
-    /return !USE_CANONICAL_SUPABASE_DATA && Boolean\(botApiUrl\)/,
+    /return !USE_CANONICAL_SUPABASE_DATA;/,
   );
   assert.match(dashboard, /if \(USE_CANONICAL_SUPABASE_DATA\) return supabaseItems/);
   assert.doesNotMatch(dashboard, /if \(botApiUrl(?:\s|\)|&&)/);

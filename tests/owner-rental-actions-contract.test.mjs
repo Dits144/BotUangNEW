@@ -28,6 +28,8 @@ test("bot API reduces and removes rental records safely", () => {
 
 test("owner list only shows rental records and activation automatically re-adds them", () => {
   assert.match(botRoutes, /if \(!r && !includeUnrented\) continue/);
+  assert.match(botRoutes, /if \(botStoreJids\.has\(jid\) && !r\) continue/);
+  assert.doesNotMatch(botRoutes, /if \(botStoreJids\.has\(jid\)\) continue/);
   assert.match(botRoutes, /fetchMergedGroups\(sock, \{ includeUnrented: true \}\)/);
   assert.match(botRoutes, /INSERT INTO group_rentals \(group_id, is_active, expire_at, updated_at\)/);
 });

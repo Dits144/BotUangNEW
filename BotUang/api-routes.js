@@ -150,9 +150,11 @@ async function fetchMergedGroups(sock, { includeUnrented = false } = {}) {
 
   // Process groups bot is currently participating in
   for (const jid of Object.keys(allGroups)) {
-    if (botStoreJids.has(jid)) continue; // Exclude active BotStore group!
     const meta = allGroups[jid];
     const r = rentalMap.get(jid);
+    // A BotUang rental is authoritative even when the same group also exists
+    // in BotStore. Only hide BotStore-only groups from this product's list.
+    if (botStoreJids.has(jid) && !r) continue;
     if (!r && !includeUnrented) continue;
     
     let is_active = false;
@@ -198,7 +200,6 @@ async function fetchMergedGroups(sock, { includeUnrented = false } = {}) {
 
   // Process groups that bot left or isn't in, but has rental record
   for (const [jid, r] of rentalMap.entries()) {
-    if (botStoreJids.has(jid)) continue; // Exclude active BotStore group!
     let is_active = false;
     let expire_at = r.expire_at;
     let remaining_days = 0;

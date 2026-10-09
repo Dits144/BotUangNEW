@@ -666,6 +666,7 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
     setActiveSection(section);
     setMenuOpen(false);
     if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
       window.history.pushState(
         null,
         "",
@@ -1385,17 +1386,30 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
                   {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                 </Button>
                 {groupId && !["owner", "overview", "transactions", "reports", "calculator", "help"].includes(activeSection) ? (
-                  <TransactionSheet
-                    groupId={groupId}
-                    sessionToken={sessionToken}
-                    botApiUrl={botApiUrl}
-                    onSaved={() => loadData()}
-                  />
+                  <>
+                    <span className="sm:hidden">
+                      <TransactionSheet
+                        compact
+                        groupId={groupId}
+                        sessionToken={sessionToken}
+                        botApiUrl={botApiUrl}
+                        onSaved={() => loadData()}
+                      />
+                    </span>
+                    <span className="hidden sm:inline-flex">
+                      <TransactionSheet
+                        groupId={groupId}
+                        sessionToken={sessionToken}
+                        botApiUrl={botApiUrl}
+                        onSaved={() => loadData()}
+                      />
+                    </span>
+                  </>
                 ) : null}
                 <button
                   type="button"
                   onClick={() => navigateDashboardSection("settings")}
-                  className="flex min-h-11 items-center gap-3 rounded-[14px] bg-[var(--card)] p-1.5 text-left shadow-[var(--soft-shadow)] transition hover:bg-[var(--panel)] xl:pr-3"
+                  className="hidden min-h-11 items-center gap-3 rounded-[14px] bg-[var(--card)] p-1.5 text-left shadow-[var(--soft-shadow)] transition hover:bg-[var(--panel)] sm:flex xl:pr-3"
                   aria-label="Buka profil dan pengaturan"
                 >
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f5c5ac] text-xs font-bold text-[#4d3124]">
@@ -6029,6 +6043,23 @@ function RemindersPage({
     const todayKey = toLocalDateKey(new Date());
     return INDONESIAN_HOLIDAYS.filter((holiday) => holiday.date >= todayKey).slice(0, 5);
   }, []);
+  const sortedReminders = useMemo(
+    () =>
+      [...reminders].sort((left, right) => {
+        const leftDate = getReminderDateKey(left) || "9999-12-31";
+        const rightDate = getReminderDateKey(right) || "9999-12-31";
+        return leftDate.localeCompare(rightDate) || left.remind_value.localeCompare(right.remind_value);
+      }),
+    [reminders],
+  );
+
+  function focusReminder(reminder: Reminder) {
+    const dateKey = getReminderDateKey(reminder);
+    if (!dateKey) return;
+    const date = new Date(`${dateKey}T12:00:00`);
+    setSelectedMonth(new Date(date.getFullYear(), date.getMonth(), 1));
+    setSelectedDateKey(dateKey);
+  }
 
   async function add(event: FormEvent) {
     event.preventDefault();
@@ -6147,7 +6178,7 @@ function RemindersPage({
         }
       />
 
-      <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1.65fr)_minmax(235px,0.8fr)_minmax(230px,0.75fr)]">
+      <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1.65fr)_minmax(270px,0.75fr)] min-[1440px]:grid-cols-[minmax(0,1.6fr)_minmax(235px,0.72fr)_minmax(235px,0.72fr)]">
         {/* Kalender Grid */}
         <div className="min-w-0 rounded-[18px] border border-[var(--line)] bg-[var(--card)] p-3 shadow-[var(--soft-shadow)] sm:p-4">
           <div className="mb-4 flex items-center justify-between gap-3">
@@ -6210,13 +6241,31 @@ function RemindersPage({
                     >
                       {day}
                     </span>
-                    {visibleEventCount > 2 ? <span className="text-[9px] text-[var(--muted)]">+{visibleEventCount - 2}</span> : null}
+                    {dayReminders.length ? (
+                      <span
+                        className="flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-500/15 px-1 text-[9px] font-bold text-emerald-700 dark:text-emerald-300"
+                        aria-label={`${dayReminders.length} reminder`}
+                      >
+                        {dayReminders.length}
+                      </span>
+                    ) : visibleEventCount > 2 ? (
+                      <span className="text-[9px] text-[var(--muted)]">+{visibleEventCount - 2}</span>
+                    ) : null}
                   </div>
                   <span className="mt-1 grid min-w-0 gap-0.5 overflow-hidden sm:mt-2">
-                    {holiday ? <span className="truncate rounded-[4px] bg-rose-500/10 px-1 text-[8px] font-semibold leading-4 text-rose-500 sm:text-[9px]">{holiday.name}</span> : null}
-                    {!holiday && isSunday ? <span className="truncate rounded-[4px] bg-rose-500/10 px-1 text-[8px] font-semibold leading-4 text-rose-500 sm:text-[9px]">Tanggal merah</span> : null}
-                    {!holiday ? dayReminders.slice(0, 1).map((reminder) => <span key={reminder.id} className="truncate rounded-[4px] bg-emerald-500/10 px-1 text-[8px] font-semibold leading-4 text-emerald-700 dark:text-emerald-300 sm:text-[9px]">{reminder.remind_text}</span>) : null}
-                    {!holiday && !dayReminders.length ? dayTasks.slice(0, 1).map(({ todo, details }) => <span key={todo.id} className="truncate rounded-[4px] bg-blue-500/10 px-1 text-[8px] font-semibold leading-4 text-blue-600 dark:text-blue-300 sm:text-[9px]">{details.title}</span>) : null}
+                    {dayReminders.slice(0, 2).map((reminder) => (
+                      <span
+                        key={reminder.id}
+                        title={reminder.remind_text}
+                        className="truncate rounded-[4px] bg-emerald-500/15 px-1 text-[8px] font-semibold leading-4 text-emerald-800 dark:text-emerald-200 sm:text-[9px]"
+                      >
+                        {reminder.remind_text}
+                      </span>
+                    ))}
+                    {!dayReminders.length && holiday ? <span title={holiday.name} className="truncate rounded-[4px] bg-rose-500/10 px-1 text-[8px] font-semibold leading-4 text-rose-500 sm:text-[9px]">{holiday.name}</span> : null}
+                    {!dayReminders.length && !holiday && isSunday ? <span className="truncate rounded-[4px] bg-rose-500/10 px-1 text-[8px] font-semibold leading-4 text-rose-500 sm:text-[9px]">Tanggal merah</span> : null}
+                    {!dayReminders.length && !holiday ? dayTasks.slice(0, 1).map(({ todo, details }) => <span key={todo.id} title={details.title} className="truncate rounded-[4px] bg-blue-500/10 px-1 text-[8px] font-semibold leading-4 text-blue-600 dark:text-blue-300 sm:text-[9px]">{details.title}</span>) : null}
+                    {dayReminders.length > 2 ? <span className="truncate px-1 text-[8px] font-semibold leading-4 text-[var(--muted)] sm:text-[9px]">+{dayReminders.length - 2} reminder</span> : null}
                   </span>
                 </button>
               );
@@ -6460,7 +6509,7 @@ function RemindersPage({
           </div>
         </div>
 
-        <div className="min-w-0 rounded-[18px] border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--soft-shadow)]">
+        <div className="min-w-0 rounded-[18px] border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--soft-shadow)] xl:col-span-2 min-[1440px]:col-span-1">
           <div className="flex items-start justify-between gap-3 border-b border-[var(--line)] pb-3">
             <div>
               <h3 className="text-base font-semibold">Daftar Reminder</h3>
@@ -6477,17 +6526,22 @@ function RemindersPage({
                 <Skeleton className="h-16" />
               </div>
             ) : reminders.length ? (
-              reminders.map((reminder) => (
+              sortedReminders.map((reminder) => (
                 <div key={`calendar-reminder-${reminder.id}`} className="group flex min-w-0 items-center gap-2 border-b border-[var(--line)] py-3 last:border-b-0">
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
                     <CalendarClock className="h-4 w-4" />
                   </span>
-                  <div className="min-w-0 flex-1">
+                  <button
+                    type="button"
+                    className="min-h-11 min-w-0 flex-1 rounded-[8px] px-1 text-left outline-none transition hover:bg-[var(--surface)] focus-visible:ring-2 focus-visible:ring-emerald-500"
+                    onClick={() => focusReminder(reminder)}
+                    aria-label={`Buka reminder ${reminder.remind_text} di kalender`}
+                  >
                     <p className="truncate text-sm font-semibold">{reminder.remind_text}</p>
                     <p className="mt-1 truncate text-[11px] text-[var(--muted)]">
                       {formatReminderTypeLabel(reminder.remind_type)} · {formatReminderScheduleValue(reminder.remind_type, reminder.remind_value)}
                     </p>
-                  </div>
+                  </button>
                   <Button
                     type="button"
                     variant="ghost"

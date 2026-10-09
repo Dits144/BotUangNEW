@@ -17,7 +17,9 @@ test("calendar matches the Fernly month and upcoming layout", () => {
   assert.match(dashboard, /upcomingHolidays\.map/);
   assert.match(dashboard, /Daftar Reminder/);
   assert.match(dashboard, /calendar-reminder-\$\{reminder\.id\}/);
-  assert.match(dashboard, /xl:grid-cols-\[minmax\(0,1\.65fr\)_minmax\(235px,0\.8fr\)_minmax\(230px,0\.75fr\)\]/);
+  assert.match(dashboard, /xl:grid-cols-\[minmax\(0,1\.65fr\)_minmax\(270px,0\.75fr\)\]/);
+  assert.match(dashboard, /min-\[1440px\]:grid-cols-\[minmax\(0,1\.6fr\)_minmax\(235px,0\.72fr\)_minmax\(235px,0\.72fr\)\]/);
+  assert.match(dashboard, /xl:col-span-2 min-\[1440px\]:col-span-1/);
   assert.match(dashboard, /Tanggal terpilih/);
   assert.match(dashboard, /border-l-\[3px\] border-emerald-600/);
 });
