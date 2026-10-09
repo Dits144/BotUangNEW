@@ -40,6 +40,17 @@ test("numeric bot task ids never reach Supabase UUID filters", () => {
   assert.match(dashboard, /Task bot belum dapat dipindahkan/);
 });
 
+test("bot writes use the server proxy when the browser has no persisted api URL", () => {
+  assert.match(
+    dashboard,
+    /function shouldWriteLegacyBot\(\)\s*\{[\s\S]*?return !USE_CANONICAL_SUPABASE_DATA;/,
+  );
+  assert.doesNotMatch(
+    dashboard,
+    /return !USE_CANONICAL_SUPABASE_DATA && Boolean\(botApiUrl\)/,
+  );
+});
+
 test("Kanban drag uses optimistic stages and Motion layout feedback", () => {
   assert.match(dashboard, /optimisticStages/);
   assert.match(dashboard, /layoutId={`task-\$\{item\.id\}`}/);

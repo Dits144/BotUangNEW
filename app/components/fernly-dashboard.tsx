@@ -513,8 +513,10 @@ function parseReminderSchedule(schedule?: string) {
 const USE_CANONICAL_SUPABASE_DATA =
   process.env.NEXT_PUBLIC_CANONICAL_DATA_SOURCE === "supabase";
 
-function shouldWriteLegacyBot(botApiUrl: string) {
-  return !USE_CANONICAL_SUPABASE_DATA && Boolean(botApiUrl);
+function shouldWriteLegacyBot() {
+  // The browser URL is optional after a normal login. The authenticated server
+  // proxy resolves BOT_API_URL and its trusted fallbacks for both reads and writes.
+  return !USE_CANONICAL_SUPABASE_DATA;
 }
 
 function isUuid(value: string | number) {
@@ -2960,7 +2962,7 @@ function AiAssistantSheet({
     setSaving(true);
     let botOk = false;
 
-    if (shouldWriteLegacyBot(botApiUrl)) {
+    if (shouldWriteLegacyBot()) {
       if (intent.action === "transaction") {
         const res = await fetchBotGroupData({
           resource: "transactions",
@@ -3019,7 +3021,7 @@ function AiAssistantSheet({
       }
     }
 
-    if (intent.action === "transaction" && shouldWriteLegacyBot(botApiUrl) && !botOk) {
+    if (intent.action === "transaction" && shouldWriteLegacyBot() && !botOk) {
       setSaving(false);
       toast.error("Transaksi belum disimpan karena bot WA tidak menerima data.");
       return;
@@ -3753,7 +3755,7 @@ function TransactionsView({
     let botOk = false;
     const targetGroupId = editTx.group_id || groupId;
 
-    if (shouldWriteLegacyBot(botApiUrl) && targetGroupId) {
+    if (shouldWriteLegacyBot() && targetGroupId) {
       const botRes = await fetchBotGroupData({
         resource: "transactions",
         id: editTx.id,
@@ -3791,7 +3793,7 @@ function TransactionsView({
     let botOk = false;
     const targetGroupId = item.group_id || groupId;
 
-    if (shouldWriteLegacyBot(botApiUrl) && targetGroupId) {
+    if (shouldWriteLegacyBot() && targetGroupId) {
       const botRes = await fetchBotGroupData({
         resource: "transactions",
         id: item.id,
@@ -4112,7 +4114,7 @@ function TransactionSheet({
     setSaving(true);
     let botOk = false;
 
-    if (shouldWriteLegacyBot(botApiUrl)) {
+    if (shouldWriteLegacyBot()) {
       const botRes = await fetchBotGroupData({
         resource: "transactions",
         groupId,
@@ -4129,7 +4131,7 @@ function TransactionSheet({
       botOk = Boolean(botRes.ok);
     }
 
-    if (shouldWriteLegacyBot(botApiUrl) && !botOk) {
+    if (shouldWriteLegacyBot() && !botOk) {
       setSaving(false);
       toast.error("Transaksi belum disimpan karena bot WA tidak menerima data.");
       return;
@@ -4274,7 +4276,7 @@ function ParticipantsPage({
   async function add(event: FormEvent) {
     event.preventDefault();
     let botOk = false;
-    if (shouldWriteLegacyBot(botApiUrl)) {
+    if (shouldWriteLegacyBot()) {
       const res = await fetchBotGroupData({
         resource: "participants",
         groupId,
@@ -4306,7 +4308,7 @@ function ParticipantsPage({
     if (!editParticipant) return;
     setSaving(true);
     let botOk = false;
-    if (shouldWriteLegacyBot(botApiUrl)) {
+    if (shouldWriteLegacyBot()) {
       const res = await fetchBotGroupData({
         resource: "participants",
         id: editParticipant.id,
@@ -4336,7 +4338,7 @@ function ParticipantsPage({
 
   async function mark(participant: Participant, status: "paid" | "unpaid") {
     let botOk = false;
-    if (shouldWriteLegacyBot(botApiUrl)) {
+    if (shouldWriteLegacyBot()) {
       const res = await fetchBotGroupData({
         resource: "participants",
         id: participant.id,
@@ -4366,7 +4368,7 @@ function ParticipantsPage({
 
   async function remove(participant: Participant) {
     let botOk = false;
-    if (shouldWriteLegacyBot(botApiUrl)) {
+    if (shouldWriteLegacyBot()) {
       const res = await fetchBotGroupData({
         resource: "participants",
         id: participant.id,
@@ -4705,7 +4707,7 @@ function TodosPage({
     });
     let botOk = false;
 
-    if (shouldWriteLegacyBot(botApiUrl)) {
+    if (shouldWriteLegacyBot()) {
       const res = await fetchBotGroupData({
         resource: "todos",
         groupId,
@@ -4749,7 +4751,7 @@ function TodosPage({
     let botMessage = "";
     const targetGroupId = todo.group_id || groupId;
 
-    if (shouldWriteLegacyBot(botApiUrl) && targetGroupId) {
+    if (shouldWriteLegacyBot() && targetGroupId) {
       const res = await fetchBotGroupData({
         resource: "todos",
         id: todo.id,
@@ -4835,7 +4837,7 @@ function TodosPage({
     let botMessage = "";
     const targetGroupId = editTodo.group_id || groupId;
 
-    if (shouldWriteLegacyBot(botApiUrl) && targetGroupId) {
+    if (shouldWriteLegacyBot() && targetGroupId) {
       const res = await fetchBotGroupData({
         resource: "todos",
         id: editTodo.id,
@@ -4882,7 +4884,7 @@ function TodosPage({
     let botMessage = "";
     const targetGroupId = todo.group_id || groupId;
 
-    if (shouldWriteLegacyBot(botApiUrl) && targetGroupId) {
+    if (shouldWriteLegacyBot() && targetGroupId) {
       const res = await fetchBotGroupData({
         resource: "todos",
         id: todo.id,
@@ -5636,7 +5638,7 @@ function RemindersPage({
     setSaving(true);
 
     try {
-      if (shouldWriteLegacyBot(botApiUrl)) {
+      if (shouldWriteLegacyBot()) {
         const data = await fetchBotGroupData({
           resource: "reminders",
           groupId,
@@ -5682,7 +5684,7 @@ function RemindersPage({
     let botOk = false;
     const targetGroupId = reminder.group_id || groupId;
 
-    if (shouldWriteLegacyBot(botApiUrl) && targetGroupId) {
+    if (shouldWriteLegacyBot() && targetGroupId) {
       const res = await fetchBotGroupData({
         resource: "reminders",
         id: reminder.id,
@@ -6068,7 +6070,7 @@ function CommandsPage({
     setSaving(true);
     let botOk = false;
 
-    if (shouldWriteLegacyBot(botApiUrl)) {
+    if (shouldWriteLegacyBot()) {
       const res = await fetchBotGroupData({
         resource: "commands",
         groupId,
@@ -6106,7 +6108,7 @@ function CommandsPage({
     let botOk = false;
     const targetGroupId = editCommand.group_id || groupId;
 
-    if (shouldWriteLegacyBot(botApiUrl) && targetGroupId) {
+    if (shouldWriteLegacyBot() && targetGroupId) {
       const res = await fetchBotGroupData({
         resource: "commands",
         id: editCommand.id,
@@ -6141,7 +6143,7 @@ function CommandsPage({
     let botOk = false;
     const targetGroupId = command.group_id || groupId;
 
-    if (shouldWriteLegacyBot(botApiUrl) && targetGroupId) {
+    if (shouldWriteLegacyBot() && targetGroupId) {
       const res = await fetchBotGroupData({
         resource: "commands",
         id: command.id,
