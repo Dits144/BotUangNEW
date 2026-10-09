@@ -9,12 +9,15 @@ import {
   ExternalLink,
   LogOut,
   Megaphone,
+  Minus,
+  Plus,
   Power,
   QrCode,
   RefreshCw,
   Search,
   Server,
   ShieldCheck,
+  Trash2,
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -287,26 +290,6 @@ export function OwnerDashboardPage({
     router.push("/login");
   }
 
-  function openGroupDashboard(group: OwnerGroup) {
-    const groupId = group.group_id ?? group.id ?? "";
-    if (!groupId) return;
-
-    const stored = window.localStorage.getItem(DASHBOARD_SESSION_KEY);
-    const session = stored ? JSON.parse(stored) : {};
-    window.localStorage.setItem(
-      DASHBOARD_SESSION_KEY,
-      JSON.stringify({
-        ...session,
-        role: "owner",
-        groupId,
-        groupName: group.group_name ?? group.name ?? groupId,
-        apiUrl,
-        connectedAt: new Date().toISOString(),
-      }),
-    );
-    router.push("/dashboard");
-  }
-
   async function runOwnerAction(
     label: string,
     body: Record<string, unknown>,
@@ -333,6 +316,27 @@ export function OwnerDashboardPage({
       action: active ? "activate" : "deactivate",
       group_id: targetGroupId,
       days: Number(days || 30),
+    });
+  }
+
+  function adjustRental(groupId: string, direction: "add" | "reduce") {
+    const rentalDays = Math.max(Number(days || 30), 1);
+    void runOwnerAction(`${direction}-rental:${groupId}`, {
+      action: direction === "add" ? "activate" : "reduce",
+      group_id: groupId,
+      days: rentalDays,
+    });
+  }
+
+  function removeRental(group: OwnerGroup) {
+    const groupId = group.group_id ?? group.id ?? "";
+    const groupName = group.group_name ?? group.name ?? groupId;
+    if (!groupId) return;
+    if (!window.confirm(`Hapus masa sewa untuk ${groupName}? Bot tetap berada di grup, tetapi akses sewanya dinonaktifkan.`)) return;
+
+    void runOwnerAction(`remove-rental:${groupId}`, {
+      action: "remove-rental",
+      group_id: groupId,
     });
   }
 
@@ -415,7 +419,7 @@ export function OwnerDashboardPage({
               <div>
                 <h2 className="font-semibold">Sewa Grup</h2>
                 <p className="mt-1 text-sm text-[var(--muted)]">
-                  Pilih grup untuk memperbarui sewa atau membuka dashboardnya.
+                  Tambah, kurangi, atau hapus masa sewa setiap grup.
                 </p>
               </div>
               <label className="relative block sm:w-72">
@@ -451,13 +455,37 @@ export function OwnerDashboardPage({
                       <Clock3 className="h-4 w-4 shrink-0" />
                       <span>Berakhir {formatDate(group.expire_at ?? group.expired_at)}</span>
                     </div>
-                    <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:justify-end">
-                      <Button size="sm" variant="outline" onClick={() => setTargetGroupId(groupId)}>
-                        Pilih Grup
+                    <div className="mt-4 grid grid-cols-3 gap-2">
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        className="h-auto min-h-11 min-w-0 gap-1 px-1 text-[10px] sm:px-2 sm:text-xs"
+                        disabled={busy === `remove-rental:${groupId}`}
+                        onClick={() => removeRental(group)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        {busy === `remove-rental:${groupId}` ? "Menghapus..." : "Hapus"}
                       </Button>
-                      <Button size="sm" onClick={() => openGroupDashboard(group)}>
-                        Buka
-                        <ExternalLink className="h-3.5 w-3.5" />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-auto min-h-11 min-w-0 gap-1 px-1 text-[10px] sm:px-2 sm:text-xs"
+                        disabled={busy === `reduce-rental:${groupId}`}
+                        onClick={() => adjustRental(groupId, "reduce")}
+                        title={`Kurangi ${Math.max(Number(days || 30), 1)} hari`}
+                      >
+                        <Minus className="h-3 w-3" />
+                        {busy === `reduce-rental:${groupId}` ? "Memproses..." : "Kurangi Sewa"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="h-auto min-h-11 min-w-0 gap-1 px-1 text-[10px] sm:px-2 sm:text-xs"
+                        disabled={busy === `add-rental:${groupId}`}
+                        onClick={() => adjustRental(groupId, "add")}
+                        title={`Tambah ${Math.max(Number(days || 30), 1)} hari`}
+                      >
+                        <Plus className="h-3 w-3" />
+                        {busy === `add-rental:${groupId}` ? "Memproses..." : "Tambah Sewa"}
                       </Button>
                     </div>
                   </article>

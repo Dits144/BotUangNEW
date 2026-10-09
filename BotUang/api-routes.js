@@ -1062,6 +1062,52 @@ router.post('/owner/rentals/deactivate', (req, res) => {
   res.json({ success: true, message: 'Rental deactivated successfully' });
 });
 
+router.post('/owner/rentals/reduce', (req, res) => {
+  const { group_id, days } = req.body;
+  if (!group_id) return res.status(400).json({ error: 'group_id is required' });
+
+  const daysToReduce = Math.max(Number(days) || 30, 1);
+  const existing = db.prepare('SELECT * FROM group_rentals WHERE group_id = ?').get(group_id);
+  if (!existing || !existing.expire_at) {
+    return res.status(404).json({ error: 'Rental period not found' });
+  }
+
+  const now = DateTime.now().setZone(TIMEZONE);
+  const currentExpire = DateTime.fromISO(existing.expire_at).setZone(TIMEZONE);
+  if (!currentExpire.isValid) {
+    return res.status(400).json({ error: 'Rental expiry is invalid' });
+  }
+
+  const newExpire = currentExpire.minus({ days: daysToReduce });
+  const isActive = newExpire > now ? 1 : 0;
+  db.prepare(`
+    UPDATE group_rentals
+    SET is_active = ?, expire_at = ?, updated_at = ?
+    WHERE group_id = ?
+  `).run(isActive, newExpire.toISO(), nowIso(), group_id);
+
+  res.json({
+    success: true,
+    message: `Masa sewa dikurangi ${daysToReduce} hari sampai ${newExpire.toISO()}`
+  });
+});
+
+router.post('/owner/rentals/remove', (req, res) => {
+  const { group_id } = req.body;
+  if (!group_id) return res.status(400).json({ error: 'group_id is required' });
+
+  const result = db.prepare(`
+    UPDATE group_rentals
+    SET is_active = 0, start_at = NULL, expire_at = NULL, updated_at = ?
+    WHERE group_id = ?
+  `).run(nowIso(), group_id);
+
+  if (!result.changes) {
+    return res.status(404).json({ error: 'Rental not found' });
+  }
+  res.json({ success: true, message: 'Masa sewa grup berhasil dihapus' });
+});
+
 router.post('/owner/broadcast', async (req, res) => {
   const { message, group_ids } = req.body;
   if (!message) return res.status(400).json({ error: 'message is required' });

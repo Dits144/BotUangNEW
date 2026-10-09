@@ -13,6 +13,8 @@ import { createSupabaseAdminClient } from "@/app/lib/supabase-server";
 type OwnerAction =
   | "activate"
   | "deactivate"
+  | "reduce"
+  | "remove-rental"
   | "broadcast"
   | "broadcast-numbers"
   | "approve-rental"
@@ -310,6 +312,8 @@ export async function POST(request: Request) {
   const actionMap: Record<OwnerAction, { path: string; method: "POST" }> = {
     activate: { path: "/owner/rentals/activate", method: "POST" },
     deactivate: { path: "/owner/rentals/deactivate", method: "POST" },
+    reduce: { path: "/owner/rentals/reduce", method: "POST" },
+    "remove-rental": { path: "/owner/rentals/remove", method: "POST" },
     broadcast: { path: "/owner/broadcast", method: "POST" },
     "broadcast-numbers": { path: "/owner/broadcast-numbers", method: "POST" },
     "approve-rental": {
