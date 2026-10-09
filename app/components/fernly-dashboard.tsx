@@ -6652,7 +6652,14 @@ type SettingsFormState = {
 type SettingsFormAction =
   | { type: "reset"; value: SettingsFormState }
   | { type: "set"; field: keyof SettingsFormState; value: unknown }
-  | { type: "set-prayer"; prayer: keyof EnabledPrayers; value: boolean };
+  | { type: "set-prayer"; prayer: keyof EnabledPrayers; value: boolean }
+  | {
+      type: "set-location";
+      target: "weather" | "azan" | "emergency";
+      latitude: string;
+      longitude: string;
+      coordinatePair: string;
+    };
 
 function getSettingsFormState(settings: GroupSettings | null): SettingsFormState {
   return {
@@ -6702,7 +6709,26 @@ function settingsFormReducer(
       },
     };
   }
+  if (action.type === "set-location") {
+    return {
+      ...state,
+      latitude: action.latitude,
+      longitude: action.longitude,
+      ...(action.target === "weather" ? { location: action.coordinatePair } : {}),
+      ...(action.target === "azan" ? { azanLocation: action.coordinatePair } : {}),
+      ...(action.target === "emergency"
+        ? { emergencyLocation: action.coordinatePair }
+        : {}),
+    };
+  }
   return { ...state, [action.field]: action.value } as SettingsFormState;
+}
+
+function parseCoordinateInput(value: string) {
+  const normalized = value.trim().replace(",", ".");
+  if (!normalized) return null;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function SettingsPage({
@@ -6761,6 +6787,8 @@ function SettingsPage({
   const [prayerStatusLoading, setPrayerStatusLoading] = useState(false);
   const [testSending, setTestSending] = useState(false);
   const [savingServices, setSavingServices] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const sharedLocationRef = useRef<{ latitude: string; longitude: string } | null>(null);
   const [qrisPreviewUrl, setQrisPreviewUrl] = useState("");
   const [newPin, setNewPin] = useState("");
   const [months, setMonths] = useState("1");
@@ -6939,8 +6967,10 @@ function SettingsPage({
     prayerEnabledValue?: boolean;
     successMessage?: string;
   } = {}) {
-    const parsedLatitude = latitude.trim() ? Number(latitude) : null;
-    const parsedLongitude = longitude.trim() ? Number(longitude) : null;
+    const latitudeValue = latitude.trim() || sharedLocationRef.current?.latitude || "";
+    const longitudeValue = longitude.trim() || sharedLocationRef.current?.longitude || "";
+    const parsedLatitude = parseCoordinateInput(latitudeValue);
+    const parsedLongitude = parseCoordinateInput(longitudeValue);
     const validCoordinates =
       parsedLatitude !== null &&
       parsedLongitude !== null &&
@@ -7036,17 +7066,36 @@ function SettingsPage({
       return;
     }
 
+    setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        const value = `${position.coords.latitude.toFixed(5)},${position.coords.longitude.toFixed(5)}`;
-        setFormField("latitude", position.coords.latitude.toFixed(6));
-        setFormField("longitude", position.coords.longitude.toFixed(6));
-        if (target === "weather") setFormField("location", value);
-        if (target === "azan") setFormField("azanLocation", value);
-        if (target === "emergency") setFormField("emergencyLocation", value);
-        toast.success("Lokasi browser diisi.");
+        const latitudeValue = position.coords.latitude.toFixed(6);
+        const longitudeValue = position.coords.longitude.toFixed(6);
+        const coordinatePair = `${latitudeValue},${longitudeValue}`;
+        sharedLocationRef.current = {
+          latitude: latitudeValue,
+          longitude: longitudeValue,
+        };
+        dispatchForm({
+          type: "set-location",
+          target,
+          latitude: latitudeValue,
+          longitude: longitudeValue,
+          coordinatePair,
+        });
+        setLocating(false);
+        toast.success("Lokasi berhasil dibaca. Koordinat siap disimpan.");
       },
-      () => toast.error("Izin lokasi ditolak atau tidak tersedia."),
+      (error) => {
+        setLocating(false);
+        const message =
+          error.code === error.PERMISSION_DENIED
+            ? "Izin lokasi ditolak. Izinkan Location untuk dashboardits.tech dari pengaturan browser."
+            : error.code === error.TIMEOUT
+              ? "Pengambilan lokasi terlalu lama. Coba lagi atau isi koordinat manual."
+              : "Lokasi perangkat tidak tersedia. Isi latitude dan longitude secara manual.";
+        toast.error(message);
+      },
       { enableHighAccuracy: true, timeout: 10_000 },
     );
   }
@@ -7555,9 +7604,14 @@ function SettingsPage({
                     <option value="Asia/Makassar">Asia/Makassar - WITA</option>
                     <option value="Asia/Jayapura">Asia/Jayapura - WIT</option>
                   </select>
-                  <Button type="button" variant="outline" onClick={() => fillBrowserLocation("azan")}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => fillBrowserLocation("azan")}
+                    disabled={locating}
+                  >
                     <MapPin className="h-4 w-4" />
-                    Share lokasi
+                    {locating ? "Mengambil lokasi..." : "Share lokasi"}
                   </Button>
                 </div>
               </div>
@@ -7693,7 +7747,7 @@ function SettingsPage({
                     </div>
                   ) : null}
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <Button type="button" variant="outline" onClick={activateAndCheckPrayer} disabled={prayerStatusLoading || savingServices}>
+                    <Button type="button" variant="outline" onClick={activateAndCheckPrayer} disabled={prayerStatusLoading || savingServices || locating}>
                       {prayerStatusLoading ? "Mengaktifkan..." : "Aktifkan & Cek Jadwal"}
                     </Button>
                     <Button type="button" variant="secondary" onClick={sendPrayerTest} disabled={testSending}>
@@ -7715,7 +7769,7 @@ function SettingsPage({
               placeholder="Lokasi pantauan darurat/gempa"
               onUseLocation={() => fillBrowserLocation("emergency")}
             />
-            <Button className="w-full" disabled={savingServices}>
+            <Button className="w-full" disabled={savingServices || locating}>
               {savingServices ? "Menyimpan..." : "Simpan Layanan"}
             </Button>
           </form>

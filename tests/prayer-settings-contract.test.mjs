@@ -12,6 +12,9 @@ test("prayer activation persists settings before checking the schedule", () => {
   assert.match(dashboard, /prayerEnabledValue: true/);
   assert.match(dashboard, /Aktifkan & Cek Jadwal/);
   assert.match(dashboard, /fetchGroupSettings\(groupId, "PUT", payload\)/);
+  assert.match(dashboard, /sharedLocationRef/);
+  assert.match(dashboard, /Mengambil lokasi\.\.\./);
+  assert.match(dashboard, /parseCoordinateInput/);
 });
 
 test("settings API authorizes group access and writes through the server client", () => {
