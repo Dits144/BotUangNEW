@@ -6147,7 +6147,7 @@ function RemindersPage({
         }
       />
 
-      <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
+      <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1.65fr)_minmax(235px,0.8fr)_minmax(230px,0.75fr)]">
         {/* Kalender Grid */}
         <div className="min-w-0 rounded-[18px] border border-[var(--line)] bg-[var(--card)] p-3 shadow-[var(--soft-shadow)] sm:p-4">
           <div className="mb-4 flex items-center justify-between gap-3">
@@ -6455,6 +6455,56 @@ function RemindersPage({
                 ) : (
                   <EmptyState title="Semua tugas selesai" description="Tidak ada tugas tertunda yang jatuh tempo." />
                 )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="min-w-0 rounded-[18px] border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--soft-shadow)]">
+          <div className="flex items-start justify-between gap-3 border-b border-[var(--line)] pb-3">
+            <div>
+              <h3 className="text-base font-semibold">Daftar Reminder</h3>
+              <p className="mt-1 text-xs text-[var(--muted)]">Semua pengingat grup aktif</p>
+            </div>
+            <span className="shrink-0 text-xs font-semibold tabular-nums text-[var(--income)]">{reminders.length}</span>
+          </div>
+
+          <div className="mt-3 grid max-h-[560px] gap-1 overflow-y-auto pr-1">
+            {loading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-16" />
+                <Skeleton className="h-16" />
+                <Skeleton className="h-16" />
+              </div>
+            ) : reminders.length ? (
+              reminders.map((reminder) => (
+                <div key={`calendar-reminder-${reminder.id}`} className="group flex min-w-0 items-center gap-2 border-b border-[var(--line)] py-3 last:border-b-0">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+                    <CalendarClock className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold">{reminder.remind_text}</p>
+                    <p className="mt-1 truncate text-[11px] text-[var(--muted)]">
+                      {formatReminderTypeLabel(reminder.remind_type)} · {formatReminderScheduleValue(reminder.remind_type, reminder.remind_value)}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-11 w-11 shrink-0 text-rose-500 hover:bg-rose-500/10 hover:text-rose-500"
+                    onClick={() => remove(reminder)}
+                    aria-label={`Hapus reminder ${reminder.remind_text}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))
+            ) : (
+              <div className="py-10 text-center">
+                <CalendarClock className="mx-auto h-6 w-6 text-[var(--muted)]" />
+                <p className="mt-3 text-sm font-semibold">Belum ada reminder</p>
+                <p className="mt-1 text-xs leading-5 text-[var(--muted)]">Reminder baru akan langsung muncul di kolom ini.</p>
               </div>
             )}
           </div>
