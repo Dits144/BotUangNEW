@@ -17,6 +17,15 @@ test("dashboard bell exposes rental expiry notifications", () => {
   assert.match(dashboard, /days > 3/);
   assert.match(dashboard, /<SheetTitle>Notifikasi<\/SheetTitle>/);
   assert.match(dashboard, /botuang\.notification\.seen/);
+  assert.match(dashboard, /rotate: \[0, -12, 10, -7, 5, 0\]/);
+  assert.match(dashboard, /<FadeUp variant="compact" delay=\{0\.05\} className="mt-5">/);
+});
+
+test("overview project and member headers use compact Fernly actions", () => {
+  assert.match(dashboard, /<Plus className="h-4 w-4" \/>\s+New/);
+  assert.match(dashboard, /<Plus className="h-4 w-4" \/>\s+Add/);
+  assert.doesNotMatch(dashboard, /Buka Board/);
+  assert.doesNotMatch(dashboard, /Kelola Semua/);
 });
 
 test("signup confirmation returns to production and reports active account", () => {

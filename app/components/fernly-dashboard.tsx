@@ -618,6 +618,7 @@ async function fetchGroupSettings(
 export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
+  const reduceMotion = useReducedMotion();
   const [activeSection, setActiveSection] = useState<DashboardSection>(() =>
     resolveSectionFromPath(pathname),
   );
@@ -1301,20 +1302,43 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
                       aria-label={`Notifikasi${notificationCount ? `, ${notificationCount} baru` : ""}`}
                       className="relative inline-flex rounded-full"
                     >
-                      <Bell className="h-5 w-5" />
+                      <motion.span
+                        className="flex items-center justify-center"
+                        animate={
+                          notificationCount && !reduceMotion
+                            ? { rotate: [0, -12, 10, -7, 5, 0], scale: [1, 1.08, 1] }
+                            : { rotate: 0, scale: 1 }
+                        }
+                        transition={{
+                          duration: reduceMotion ? 0 : 0.55,
+                          ease: [0.22, 1, 0.36, 1],
+                        }}
+                      >
+                        <Bell className="h-5 w-5" />
+                      </motion.span>
                       {notificationCount ? (
-                        <span className="absolute right-0 top-0 flex h-4 min-w-4 -translate-y-1/4 translate-x-1/4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white">
+                        <motion.span
+                          initial={reduceMotion ? false : { opacity: 0, scale: 0.7, y: 3 }}
+                          animate={{ opacity: 1, scale: 1, y: 0 }}
+                          transition={{
+                            duration: reduceMotion ? 0 : 0.3,
+                            ease: [0.22, 1, 0.36, 1],
+                          }}
+                          className="absolute right-0 top-0 flex h-4 min-w-4 -translate-y-1/4 translate-x-1/4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white"
+                        >
                           {notificationCount}
-                        </span>
+                        </motion.span>
                       ) : null}
                     </Button>
                   </SheetTrigger>
                   <SheetContent>
-                    <SheetTitle>Notifikasi</SheetTitle>
-                    <SheetDescription className="mt-1">
-                      Pembaruan penting untuk grup aktif.
-                    </SheetDescription>
-                    <div className="mt-5">
+                    <FadeUp variant="compact">
+                      <SheetTitle>Notifikasi</SheetTitle>
+                      <SheetDescription className="mt-1">
+                        Pembaruan penting untuk grup aktif.
+                      </SheetDescription>
+                    </FadeUp>
+                    <FadeUp variant="compact" delay={0.05} className="mt-5">
                       {rentalExpiryAlert ? (
                         <div className="border-l-2 border-amber-500 py-1 pl-4">
                           <div className="flex items-start justify-between gap-3">
@@ -1348,7 +1372,7 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
                           </p>
                         </div>
                       )}
-                    </div>
+                    </FadeUp>
                   </SheetContent>
                 </Sheet>
                 <Button
@@ -2009,9 +2033,15 @@ function Overview({
           <DashboardPanel>
             <div className="flex items-center justify-between gap-3 border-b border-[var(--line)] pb-3">
               <h2 className="text-base font-semibold">Proyek</h2>
-              <button type="button" onClick={() => onNavigate("todos")} className="text-xs font-semibold text-[var(--income)] hover:underline">
-                Buka Board
-              </button>
+              <Button
+                type="button"
+                size="sm"
+                className="h-9 gap-1.5 px-3.5 text-xs font-semibold"
+                onClick={() => onNavigate("todos")}
+              >
+                <Plus className="h-4 w-4" />
+                New
+              </Button>
             </div>
             <div className="mt-3 space-y-2.5">
               {openTodos.length ? openTodos.map((todo) => (
@@ -2054,9 +2084,15 @@ function Overview({
               <h2 className="text-[17px] font-semibold">Anggota Grup</h2>
               <p className="text-xs text-[var(--muted)]">Anggota yang tersinkron dari grup aktif</p>
             </div>
-            <button type="button" onClick={() => onNavigate("participants")} className="text-xs font-semibold text-[var(--income)] hover:underline">
-              Kelola Semua
-            </button>
+            <Button
+              type="button"
+              size="sm"
+              className="h-9 gap-1.5 px-3.5 text-xs font-semibold"
+              onClick={() => onNavigate("participants")}
+            >
+              <Plus className="h-4 w-4" />
+              Add
+            </Button>
           </div>
           {loading ? (
             <div className="mt-4 space-y-2"><Skeleton className="h-12" /><Skeleton className="h-12" /></div>
