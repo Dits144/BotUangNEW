@@ -480,6 +480,36 @@ function normalizeBotTodos(data: unknown, groupId: string): Todo[] | null {
   });
 }
 
+function normalizeBotTransactions(data: unknown, groupId: string): Transaction[] | null {
+  if (!Array.isArray(data)) return null;
+
+  return data.map((item) => {
+    const tx = item as {
+      id?: string | number;
+      group_id?: string;
+      type?: "income" | "expense";
+      amount?: number | string;
+      note?: string;
+      date?: string;
+      created_at?: string;
+      sender_id?: string;
+      sender_name?: string;
+    };
+    return {
+      id: String(tx.id ?? (groupId + "-" + (tx.date || Date.now()))),
+      group_id: tx.group_id ?? groupId,
+      type: tx.type === "expense" ? "expense" : "income",
+      amount: Number(tx.amount) || 0,
+      note: tx.note ?? null,
+      sender_id: tx.sender_id ?? null,
+      sender_name: tx.sender_name ?? null,
+      created_at: tx.created_at ?? tx.date ?? new Date().toISOString(),
+      edited_at: null,
+      deleted_at: null,
+    };
+  });
+}
+
 function normalizeBotCommands(data: unknown, groupId: string): Command[] | null {
   if (!Array.isArray(data)) return null;
 
@@ -733,6 +763,7 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
       rentalResult,
       settingResult,
       botResult,
+      botTransactionResult,
       botParticipantResult,
       botTodoResult,
       botReminderResult,
@@ -782,6 +813,7 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
       )
         .then((response) => response.json())
         .catch(() => ({ ok: false, message: "Status bot tidak tersedia" })),
+      loadBotResource("transactions"),
       loadBotResource("participants"),
       loadBotResource("todos"),
       loadBotResource("reminders"),
@@ -790,6 +822,9 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
 
     if (txResult.error) toast.error(txResult.error.message);
     if (settingResult.error) toast.error(settingResult.error.message);
+    const botTransactions = botTransactionResult.ok
+      ? normalizeBotTransactions(botTransactionResult.data, targetGroupId)
+      : null;
     const botParticipants = botParticipantResult.ok
       ? normalizeBotParticipants(botParticipantResult.data, targetGroupId)
       : null;
@@ -803,7 +838,8 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
       ? normalizeBotCommands(botCommandResult.data, targetGroupId)
       : null;
 
-    setTransactions(((txResult.data ?? []) as Transaction[]).filter(isConfirmedTransaction));
+    const supabaseTxList = ((txResult.data ?? []) as Transaction[]).filter(isConfirmedTransaction);
+    setTransactions(resolveDataList(botTransactions, supabaseTxList));
     setParticipants(
       resolveDataList(botParticipants, (participantResult.data ?? []) as Participant[]),
     );
