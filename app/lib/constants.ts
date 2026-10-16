@@ -6,12 +6,13 @@ export const SUPABASE_ANON_KEY =
   "sb_publishable_qBDNFMAgvB_MjhgqF8PCGg_rO-9bo42";
 
 export const DEFAULT_BOT_API_URL =
-  "https://shoppers-rebates-font-headphones.trycloudflare.com";
+  "https://expressions-bay-attributes-cruise.trycloudflare.com";
 export const BOT_API_URL = process.env.BOT_API_URL ?? DEFAULT_BOT_API_URL;
-export const BOT_API_TOKEN = process.env.BOT_API_TOKEN ?? "";
+export const BOT_API_TOKEN = process.env.BOT_API_TOKEN ?? "KunciRahasiaBotUangSaya12345";
 
 export const TRUSTED_BOT_API_ORIGINS = [
   DEFAULT_BOT_API_URL,
+  "https://shoppers-rebates-font-headphones.trycloudflare.com",
   "https://api.dashboardits.tech",
 ];
 

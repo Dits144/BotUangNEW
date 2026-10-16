@@ -28,7 +28,7 @@ export function getServerBotToken(candidate?: string | null) {
     candidate ||
     process.env.BOT_API_TOKEN ||
     process.env.LOVABLE_API_KEY ||
-    ""
+    "KunciRahasiaBotUangSaya12345"
   );
 }
 
