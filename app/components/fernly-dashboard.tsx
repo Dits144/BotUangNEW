@@ -1074,6 +1074,56 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
     };
   }, [currentUser.email]);
 
+  // Realtime live polling: background sync every 4 seconds without showing full-page skeleton
+  useEffect(() => {
+    if (preview || !groupId) return;
+
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        loadData(groupId, sessionToken, botApiUrl);
+      }
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [preview, groupId, sessionToken, botApiUrl]);
+
+  // Realtime Supabase broadcast/changes listener
+  useEffect(() => {
+    if (preview || !groupId) return;
+
+    const channel = supabase
+      .channel(`realtime-group-${groupId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "transactions",
+          filter: `group_id=eq.${groupId}`,
+        },
+        () => {
+          loadData(groupId, sessionToken, botApiUrl);
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "todos",
+          filter: `group_id=eq.${groupId}`,
+        },
+        () => {
+          loadData(groupId, sessionToken, botApiUrl);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [preview, groupId, sessionToken, botApiUrl]);
+
   useEffect(() => {
     if (!loading && activeSection === "owner" && role !== "owner") {
       const frame = window.requestAnimationFrame(() => {
