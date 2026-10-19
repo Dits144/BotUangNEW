@@ -691,6 +691,8 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
   const [dashboardNotificationPreferences, setDashboardNotificationPreferences] =
     useState<NotificationPreferences>(defaultNotificationPreferences);
   const loggingOutRef = useRef(false);
+  const hasLoadedInitialDataRef = useRef(false);
+  const isFetchingRef = useRef(false);
 
   function navigateDashboardSection(section: DashboardSection) {
     setActiveSection(section);
@@ -729,23 +731,29 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
     targetGroupId = groupId,
     authToken = sessionToken,
     apiUrl = botApiUrl,
+    options?: { silent?: boolean; forceLoading?: boolean },
   ) {
     if (!targetGroupId) {
       setBotStatus({ ok: false, message: "Pilih atau hubungkan grup dulu" });
       setLoading(false);
       return;
     }
-    const hasExistingData =
-      transactions.length > 0 ||
-      participants.length > 0 ||
-      todos.length > 0 ||
-      reminders.length > 0 ||
-      commands.length > 0 ||
-      Boolean(rental) ||
-      Boolean(settings);
 
-    if (!hasExistingData) setLoading(true);
-    const loadBotResource = (resource: string) =>
+    if (isFetchingRef.current) {
+      return;
+    }
+
+    const isSilent = Boolean(options?.silent);
+    const shouldShowLoading =
+      !isSilent && (!hasLoadedInitialDataRef.current || Boolean(options?.forceLoading));
+
+    if (shouldShowLoading) {
+      setLoading(true);
+    }
+
+    isFetchingRef.current = true;
+    try {
+      const loadBotResource = (resource: string) =>
       preview
         ? Promise.resolve({ ok: true, data: [] } satisfies BotGroupDataResponse)
         : fetchBotGroupData({
@@ -820,8 +828,10 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
       loadBotResource("commands"),
     ]);
 
-    if (txResult.error) toast.error(txResult.error.message);
-    if (settingResult.error) toast.error(settingResult.error.message);
+    if (!isSilent) {
+      if (txResult.error) toast.error(txResult.error.message);
+      if (settingResult.error) toast.error(settingResult.error.message);
+    }
     const botTransactions = botTransactionResult.ok
       ? normalizeBotTransactions(botTransactionResult.data, targetGroupId)
       : null;
@@ -857,7 +867,11 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
     setSettings((settingResult.data as GroupSettings | null) ?? null);
     setBotStatus(botResult as BotStatus);
     if (rentalData?.group_name) setGroupName(rentalData.group_name);
-    setLoading(false);
+    } finally {
+      isFetchingRef.current = false;
+      hasLoadedInitialDataRef.current = true;
+      setLoading(false);
+    }
   }
 
   async function loadAccessibleGroups() {
@@ -921,8 +935,9 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
     setRental(null);
     setSettings(null);
     setBotStatus(null);
+    hasLoadedInitialDataRef.current = false;
     setLoading(true);
-    loadData(group.group_id, sessionToken, botApiUrl);
+    loadData(group.group_id, sessionToken, botApiUrl, { forceLoading: true });
   }
 
   useEffect(() => {
@@ -1074,15 +1089,15 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
     };
   }, [currentUser.email]);
 
-  // Realtime live polling: background sync every 4 seconds without showing full-page skeleton
+  // Realtime live polling: background sync every 8 seconds without showing full-page skeleton
   useEffect(() => {
     if (preview || !groupId) return;
 
     const interval = setInterval(() => {
       if (typeof document !== "undefined" && document.visibilityState === "visible") {
-        loadData(groupId, sessionToken, botApiUrl);
+        loadData(groupId, sessionToken, botApiUrl, { silent: true });
       }
-    }, 4000);
+    }, 8000);
 
     return () => clearInterval(interval);
   }, [preview, groupId, sessionToken, botApiUrl]);
@@ -1102,7 +1117,7 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
           filter: `group_id=eq.${groupId}`,
         },
         () => {
-          loadData(groupId, sessionToken, botApiUrl);
+          loadData(groupId, sessionToken, botApiUrl, { silent: true });
         }
       )
       .on(
@@ -1114,7 +1129,19 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
           filter: `group_id=eq.${groupId}`,
         },
         () => {
-          loadData(groupId, sessionToken, botApiUrl);
+          loadData(groupId, sessionToken, botApiUrl, { silent: true });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "reminders",
+          filter: `group_id=eq.${groupId}`,
+        },
+        () => {
+          loadData(groupId, sessionToken, botApiUrl, { silent: true });
         }
       )
       .subscribe();
@@ -1479,7 +1506,7 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
                         groupId={groupId}
                         sessionToken={sessionToken}
                         botApiUrl={botApiUrl}
-                        onSaved={() => loadData()}
+                        onSaved={() => loadData(groupId, sessionToken, botApiUrl, { silent: true })}
                       />
                     </span>
                     <span className="hidden sm:inline-flex">
@@ -1487,7 +1514,7 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
                         groupId={groupId}
                         sessionToken={sessionToken}
                         botApiUrl={botApiUrl}
-                        onSaved={() => loadData()}
+                        onSaved={() => loadData(groupId, sessionToken, botApiUrl, { silent: true })}
                       />
                     </span>
                   </>
@@ -1545,7 +1572,7 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
                   reminders={reminders}
                   participants={participants}
                   onNavigate={navigateDashboardSection}
-                  onSaved={() => loadData()}
+                  onSaved={() => loadData(groupId, sessionToken, botApiUrl, { silent: true })}
                 />
               ) : null}
               {groupId && activeSection === "transactions" ? (
@@ -1564,7 +1591,7 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
                   transactionTypeFilter={transactionTypeFilter}
                   setTransactionTypeFilter={setTransactionTypeFilter}
                   onExport={exportTransactions}
-                  onSaved={() => loadData()}
+                  onSaved={() => loadData(groupId, sessionToken, botApiUrl, { silent: true })}
                 />
               ) : null}
               {groupId && activeSection === "reports" ? (
@@ -1580,7 +1607,7 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
                   sessionToken={sessionToken}
                   botApiUrl={botApiUrl}
                   participants={participants}
-                  onChanged={() => loadData()}
+                  onChanged={() => loadData(groupId, sessionToken, botApiUrl, { silent: true })}
                 />
               ) : null}
               {groupId && activeSection === "todos" ? (
@@ -1591,7 +1618,7 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
                   sessionToken={sessionToken}
                   botApiUrl={botApiUrl}
                   todos={todos}
-                  onChanged={() => loadData()}
+                  onChanged={() => loadData(groupId, sessionToken, botApiUrl, { silent: true })}
                 />
               ) : null}
               {groupId && activeSection === "reminders" ? (
@@ -1602,7 +1629,7 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
                   botApiUrl={botApiUrl}
                   reminders={reminders}
                   todos={todos}
-                  onChanged={() => loadData()}
+                  onChanged={() => loadData(groupId, sessionToken, botApiUrl, { silent: true })}
                 />
               ) : null}
               {groupId && activeSection === "commands" ? (
@@ -1612,7 +1639,7 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
                   sessionToken={sessionToken}
                   botApiUrl={botApiUrl}
                   commands={commands}
-                  onChanged={() => loadData()}
+                  onChanged={() => loadData(groupId, sessionToken, botApiUrl, { silent: true })}
                 />
               ) : null}
               {groupId && activeSection === "settings" ? (
@@ -1629,7 +1656,7 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
                   theme={theme}
                   onThemeChange={applyTheme}
                   onCurrentUserChange={setCurrentUser}
-                  onChanged={() => loadData()}
+                  onChanged={() => loadData(groupId, sessionToken, botApiUrl, { silent: true })}
                 />
               ) : null}
               {groupId && activeSection === "calculator" ? <CalculatorPage /> : null}
@@ -1647,7 +1674,7 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
                 botApiUrl={botApiUrl}
                 summary={summary}
                 transactions={transactions}
-                onSaved={() => loadData()}
+                onSaved={() => loadData(groupId, sessionToken, botApiUrl, { silent: true })}
               />
             </>
           ) : null}
@@ -1663,7 +1690,7 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
         transactions={transactions}
         sessionToken={sessionToken}
         botApiUrl={botApiUrl}
-        onSaved={() => loadData()}
+        onSaved={() => loadData(groupId, sessionToken, botApiUrl, { silent: true })}
         onNavigate={navigateDashboardSection}
       />
       <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
@@ -2088,7 +2115,7 @@ function Overview({
               8 periode
             </span>
           </div>
-          {loading ? (
+          {loading && !monthlyChart.length ? (
             <Skeleton className="h-64" />
           ) : monthlyChart.length ? (
             <div className="h-64">
@@ -2194,7 +2221,7 @@ function Overview({
               Add
             </Button>
           </div>
-          {loading ? (
+          {loading && !participants.length ? (
             <div className="mt-4 space-y-2"><Skeleton className="h-12" /><Skeleton className="h-12" /></div>
           ) : participants.length ? (
             <div className="mt-3 divide-y divide-[var(--line)]">
@@ -6381,7 +6408,7 @@ function RemindersPage({
             </h2>
 
             <div className="mt-4 grid max-h-[300px] gap-2 overflow-y-auto pr-1">
-              {loading ? <Skeleton className="h-24" /> : null}
+              {loading && !selectedAgenda.reminders.length && !selectedAgenda.tasks.length ? <Skeleton className="h-24" /> : null}
               {!loading && selectedAgenda.holiday ? (
                 <div className="rounded-[12px] border-l-[3px] border-rose-500 bg-[var(--panel)] px-3 py-3">
                   <p className="text-sm font-semibold">{selectedAgenda.holiday.name}</p>
@@ -6485,7 +6512,7 @@ function RemindersPage({
 
           <div className="flex-1 overflow-y-auto max-h-[460px] pr-1">
             {activeTab === "reminders" && (
-              loading ? (
+              loading && !reminders.length ? (
                 <Skeleton className="h-32" />
               ) : reminders.length ? (
                 <div className="divide-y divide-[var(--line)]">
@@ -6605,7 +6632,7 @@ function RemindersPage({
           </div>
 
           <div className="mt-3 grid max-h-[560px] gap-1 overflow-y-auto pr-1">
-            {loading ? (
+            {loading && !reminders.length ? (
               <div className="space-y-2">
                 <Skeleton className="h-16" />
                 <Skeleton className="h-16" />
@@ -6834,7 +6861,7 @@ function CommandsPage({
         <Input className="pl-9" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cari command" />
       </label>
       <div>
-        {loading ? (
+        {loading && !commands.length ? (
           <Skeleton className="h-32" />
         ) : visibleCommands.length ? (
           <StaggerContainer className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" delay={0.1} stagger={0.07}>
