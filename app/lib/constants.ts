@@ -5,16 +5,11 @@ export const SUPABASE_ANON_KEY =
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
   "sb_publishable_qBDNFMAgvB_MjhgqF8PCGg_rO-9bo42";
 
-export const DEFAULT_BOT_API_URL =
-  "https://expressions-bay-attributes-cruise.trycloudflare.com";
+export const DEFAULT_BOT_API_URL = "https://api.dashboardits.tech";
 export const BOT_API_URL = process.env.BOT_API_URL ?? DEFAULT_BOT_API_URL;
 export const BOT_API_TOKEN = process.env.BOT_API_TOKEN ?? "KunciRahasiaBotUangSaya12345";
 
-export const TRUSTED_BOT_API_ORIGINS = [
-  DEFAULT_BOT_API_URL,
-  "https://shoppers-rebates-font-headphones.trycloudflare.com",
-  "https://api.dashboardits.tech",
-];
+export const TRUSTED_BOT_API_ORIGINS = [DEFAULT_BOT_API_URL];
 
 export const DASHBOARD_SESSION_KEY = "botuang.dashboard.session";
 export const AUTH_REDIRECT_KEY = "botuang.auth.redirect";
