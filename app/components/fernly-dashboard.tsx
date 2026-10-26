@@ -564,6 +564,17 @@ function resolveDataList<T>(botItems: T[] | null, supabaseItems: T[]): T[] {
   return botItems ?? supabaseItems ?? [];
 }
 
+function mergeReminderLists(botItems: Reminder[] | null, supabaseItems: Reminder[]): Reminder[] {
+  if (USE_CANONICAL_SUPABASE_DATA) return supabaseItems;
+  if (!botItems) return supabaseItems;
+  const keys = new Set(botItems.map((item) =>
+    `${item.group_id}|${item.remind_type}|${item.remind_value}|${item.remind_text.trim().toLowerCase()}`,
+  ));
+  return [...botItems, ...supabaseItems.filter((item) => !keys.has(
+    `${item.group_id}|${item.remind_type}|${item.remind_value}|${item.remind_text.trim().toLowerCase()}`,
+  ))];
+}
+
 async function fetchBotGroupData({
   resource,
   groupId,
@@ -857,7 +868,7 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
       resolveDataList(botTodos, (todoResult.data ?? []) as Todo[]),
     );
     setReminders(
-      resolveDataList(botReminders, (reminderResult.data ?? []) as Reminder[]),
+      mergeReminderLists(botReminders, (reminderResult.data ?? []) as Reminder[]),
     );
     setCommands(
       resolveDataList(botCommands, (commandResult.data ?? []) as Command[]),
@@ -3293,24 +3304,29 @@ function AiAssistantSheet({
     setIntent(null);
     setEditMode(false);
     setLoading(true);
-    const response = await fetch("/api/ai/parse", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: prompt }),
-    }).then((item) => item.json() as Promise<{
-      ok?: boolean;
-      message?: string;
-      intent?: BotAiIntent;
-    }>);
-    setLoading(false);
-
-    if (!response.ok || !response.intent) {
-      toast.error(response.message ?? "AI belum memahami perintah.");
-      return;
+    try {
+      const request = await fetch("/api/ai/parse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: prompt }),
+        signal: AbortSignal.timeout(7000),
+      });
+      const response = (await request.json()) as {
+        ok?: boolean;
+        message?: string;
+        intent?: BotAiIntent;
+      };
+      if (!request.ok || !response.ok || !response.intent) {
+        toast.error(response.message ?? "AI belum memahami perintah.");
+        return;
+      }
+      if (response.message) toast.message(response.message);
+      setIntent(response.intent);
+    } catch {
+      toast.error("AI terlalu lama merespons atau koneksi terputus. Coba lagi.");
+    } finally {
+      setLoading(false);
     }
-
-    if (response.message) toast.message(response.message);
-    setIntent(response.intent);
   }
 
   async function saveIntent() {
@@ -3330,6 +3346,15 @@ function AiAssistantSheet({
     if (intent.action === "reminder" && !(intent.remind_text ?? intent.note).trim()) {
       toast.error("Teks reminder wajib diisi.");
       return;
+    }
+    if (intent.action === "reminder") {
+      const scheduleError = validateReminderSchedule(
+        intent.remind_type ?? "time", intent.remind_value ?? "",
+      );
+      if (scheduleError) {
+        toast.error(scheduleError);
+        return;
+      }
     }
     if (intent.action === "todo" && !(intent.todo_text ?? intent.note).trim()) {
       toast.error("Todo wajib diisi.");
@@ -3406,6 +3431,11 @@ function AiAssistantSheet({
       toast.error("Transaksi belum disimpan karena bot WA tidak menerima data.");
       return;
     }
+    if (intent.action === "reminder" && !botOk && shouldWriteLegacyBot()) {
+      setSaving(false);
+      toast.error("Reminder belum disimpan di bot WA. Periksa koneksi bot lalu coba lagi.");
+      return;
+    }
 
     const { error } =
       intent.action === "transaction"
@@ -3421,13 +3451,15 @@ function AiAssistantSheet({
               : new Date().toISOString(),
           })
         : intent.action === "reminder"
-          ? await supabase.from("reminders").insert({
-              group_id: groupId,
-              remind_type: intent.remind_type ?? "time",
-              remind_value: intent.remind_value ?? "",
-              remind_text: intent.remind_text ?? intent.note,
-              created_by: "AI Dashboard",
-            })
+          ? shouldWriteLegacyBot()
+            ? { error: null }
+            : await supabase.from("reminders").insert({
+                group_id: groupId,
+                remind_type: intent.remind_type ?? "time",
+                remind_value: intent.remind_value ?? "",
+                remind_text: intent.remind_text ?? intent.note,
+                created_by: "AI Dashboard",
+              })
           : intent.action === "todo"
             ? await supabase.from("todos").insert({
                 group_id: groupId,
@@ -3445,7 +3477,11 @@ function AiAssistantSheet({
       return;
     }
 
-    toast.success("Aksi AI disimpan.");
+    if (intent.action === "reminder" && !shouldWriteLegacyBot()) {
+      toast.warning("Reminder tersimpan di dashboard, tetapi belum terjadwal di bot WA.");
+    } else {
+      toast.success("Aksi AI disimpan.");
+    }
     setSavedIntent(intent);
     setPrompt("");
     setIntent(null);
@@ -5814,6 +5850,28 @@ function TodosPage({
 
 type ReminderScheduleType = "time" | "date" | "datetime";
 
+function validateReminderSchedule(type: string, value: string): string | null {
+  if (!isReminderScheduleType(type)) return "Jenis jadwal reminder tidak valid.";
+  const date = toDateInputValue(value);
+  const time = toTimeInputValue(value);
+  if (time) {
+    const [hours, minutes] = time.split(":").map(Number);
+    if (hours > 23 || minutes > 59) return "Jam reminder tidak valid.";
+  }
+  if ((type === "date" || type === "datetime") && !date) return "Tanggal reminder wajib diisi.";
+  if ((type === "time" || type === "datetime") && !time) return "Jam reminder wajib diisi.";
+  if (date) {
+    const parsed = new Date(`${date}T00:00:00+07:00`);
+    if (Number.isNaN(parsed.getTime()) || parsed.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }) !== date) {
+      return "Tanggal reminder tidak valid.";
+    }
+  }
+  if (type === "datetime" && date && time && Date.parse(`${date}T${time}:00+07:00`) <= Date.now()) {
+    return "Jadwal reminder sudah lewat. Pilih waktu yang akan datang.";
+  }
+  return null;
+}
+
 function isReminderScheduleType(value: string): value is ReminderScheduleType {
   return value === "time" || value === "date" || value === "datetime";
 }
@@ -5830,7 +5888,7 @@ function toReminderDateValue(value: string) {
 
 function toDateInputValue(value: string) {
   const trimmed = value.trim();
-  const isoMatch = trimmed.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
+  const isoMatch = trimmed.match(/(?:^|\s)(\d{4})-(\d{2})-(\d{2})(?=T|\s|$)/);
   if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
 
   const localMatch = trimmed.match(/\b(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?\b/);
@@ -5844,7 +5902,8 @@ function toDateInputValue(value: string) {
 }
 
 function toTimeInputValue(value: string) {
-  const match = value.match(/\b(\d{1,2}):(\d{2})\b/);
+  const match = value.match(/(?:T|\s|^)(\d{1,2}):(\d{2})(?::\d{2})?(?:[+-]\d{2}:\d{2})?$/)
+    ?? value.match(/(?:^|\s)(\d{1,2}):(\d{2})(?=&|\s|$)/);
   if (!match) return "";
   return `${match[1].padStart(2, "0")}:${match[2]}`;
 }
@@ -5852,7 +5911,8 @@ function toTimeInputValue(value: string) {
 function buildReminderValue(type: ReminderScheduleType, dateValue: string, timeValue: string) {
   if (type === "time") return timeValue;
   if (type === "date") return toReminderDateValue(dateValue);
-  return [toReminderDateValue(dateValue), timeValue].filter(Boolean).join(" ");
+  if (!dateValue || !timeValue) return "";
+  return `${dateValue}T${timeValue}:00+07:00`;
 }
 
 function formatReminderTypeLabel(type: string) {
@@ -6176,6 +6236,11 @@ function RemindersPage({
 
   async function add(event: FormEvent) {
     event.preventDefault();
+    const scheduleError = validateReminderSchedule(type, value);
+    if (scheduleError) {
+      toast.error(scheduleError);
+      return;
+    }
     setSaving(true);
 
     try {

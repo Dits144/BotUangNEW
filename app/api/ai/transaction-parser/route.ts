@@ -22,29 +22,38 @@ type ParsedIntent = {
   confidence?: number;
 };
 
-function getGeminiModels() {
-  const configured = process.env.GOOGLE_AI_MODEL?.trim();
-  return [
-    configured,
-    "gemini-3.8-flash",
-    "gemini-3.6-flash",
-    "gemini-3.5-flash",
-  ].filter((model, index, models): model is string =>
-    Boolean(model && models.indexOf(model) === index),
-  );
+function getGeminiModel() {
+  // A single low-latency model avoids serial retries across multiple providers.
+  return process.env.GOOGLE_AI_MODEL?.trim() || "gemini-3.5-flash-lite";
 }
 
 function parseMoney(value: string) {
-  const cleaned = value.toLowerCase().replace(",", ".");
-  const match = cleaned.match(/(\d+(?:\.\d+)?)\s*(jt|juta|rb|ribu|k)?/);
-  if (!match) return 0;
+  const normalized = value.toLowerCase()
+    .replace(/\bjam\s+\d{1,2}(?:[:.]\d{2})?(?:\s*(?:pagi|siang|sore|malam))?\b/g, " ")
+    .replace(/\b(?:tanggal\s*)?\d{1,2}\s+(?:jan(?:uari)?|feb(?:ruari)?|mar(?:et)?|apr(?:il)?|mei|jun(?:i)?|jul(?:i)?|agu(?:stus)?|sep(?:tember)?|okt(?:ober)?|nov(?:ember)?|des(?:ember)?)(?:\s+\d{4})?\b/g, " ")
+    .replace(/\b(?:tanggal\s*)?\d{4}-\d{1,2}-\d{1,2}\b|\b(?:tanggal\s*)?\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/g, " ");
+  const match = normalized.match(/(?:^|[^\w:/.])(rp\.?\s*)?(\d{1,3}(?:[.,]\d{3})+|\d+(?:[.,]\d+)?)\s*(jt|juta|rb|ribu|k)?\b/i);
+  if (!match) return null;
+  const [, rupiah, raw, suffix] = match;
+  if (!rupiah && !suffix && !/\b(bayar|beli|pengeluaran|pemasukan|masuk|masukin|income|expense|donasi|iuran|kas|terima|catat|sewa|biaya|harga|habis|keluar)\b/i.test(value)) return null;
+  const grouped = /^\d{1,3}(?:[.,]\d{3})+$/.test(raw);
+  const amount = Number(grouped ? raw.replace(/[.,]/g, "") : raw.replace(",", "."));
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  const multiplier = suffix === "jt" || suffix === "juta" ? 1_000_000
+    : suffix === "rb" || suffix === "ribu" || suffix === "k" ? 1_000 : 1;
+  return { amount: amount * multiplier, raw: match[0].trim() };
+}
 
-  const amount = Number(match[1]);
-  const suffix = match[2];
-  if (!Number.isFinite(amount)) return 0;
-  if (suffix === "jt" || suffix === "juta") return amount * 1_000_000;
-  if (suffix === "rb" || suffix === "ribu" || suffix === "k") return amount * 1_000;
-  return amount;
+function jakartaToday(now = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(now);
+}
+
+function addCalendarDays(dateKey: string, days: number) {
+  const day = new Date(`${dateKey}T00:00:00.000Z`);
+  day.setUTCDate(day.getUTCDate() + days);
+  return day.toISOString().slice(0, 10);
 }
 
 function parseLocalIntent(text: string, today: string) {
@@ -60,17 +69,8 @@ function parseLocalIntent(text: string, today: string) {
     });
   }
 
-  if (/\b(rekap|ringkasan|summary|laporan)\b/.test(lower)) {
-    return validateIntent({
-      action: "query",
-      query_type: "summary",
-      note: text,
-      date: today,
-      confidence: 0.7,
-    });
-  }
-
-  if (/\b(pengeluaran|keluar|expense)\b/.test(lower) && /\b(berapa|total|bulan ini|minggu ini|hari ini)\b/.test(lower)) {
+  if (/\b(pengeluaran|keluar|expense)\b/.test(lower) && /\b(berapa|total|rekap|ringkasan|laporan|bulan ini|minggu ini|hari ini)\b/.test(lower)
+    && (!parseMoney(text) || /\b(berapa|total|rekap|ringkasan|laporan)\b/.test(lower))) {
     return validateIntent({
       action: "query",
       query_type: "expense",
@@ -80,7 +80,8 @@ function parseLocalIntent(text: string, today: string) {
     });
   }
 
-  if (/\b(pemasukan|masuk|income)\b/.test(lower) && /\b(berapa|total|bulan ini|minggu ini|hari ini)\b/.test(lower)) {
+  if (/\b(pemasukan|masuk|income)\b/.test(lower) && /\b(berapa|total|bulan ini|minggu ini|hari ini)\b/.test(lower)
+    && (!parseMoney(text) || /\b(berapa|total)\b/.test(lower))) {
     return validateIntent({
       action: "query",
       query_type: "income",
@@ -88,6 +89,10 @@ function parseLocalIntent(text: string, today: string) {
       date: today,
       confidence: 0.7,
     });
+  }
+
+  if (/\b(rekap|ringkasan|summary|laporan)\b/.test(lower)) {
+    return validateIntent({ action: "query", query_type: "summary", note: text, date: today, confidence: 0.7 });
   }
 
   if (/^(todo\+|todo|tugas|task)\b/.test(lower) || /\b(todo|tugas|task)\b/.test(lower)) {
@@ -104,30 +109,58 @@ function parseLocalIntent(text: string, today: string) {
     });
   }
 
-  if (/^r\s+/i.test(text) || /\b(reminder|ingatkan|jadwal|rapat)\b/.test(lower)) {
-    const time = lower.match(/(\d{1,2}[:.]\d{2})/)?.[1]?.replace(".", ":");
-    const explicitDate = lower.match(/(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)/)?.[1];
-    const tomorrow = new Date(`${today}T00:00:00.000Z`);
-    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-    const date = /\bbesok\b/.test(lower)
-      ? tomorrow.toISOString().slice(0, 10)
-      : explicitDate;
+  const timeMatch = lower.match(/\bjam\s*(\d{1,2})(?:[:.](\d{2}))?\s*(pagi|siang|sore|malam)?\b/)
+    ?? lower.match(/\b(\d{1,2})[:.](\d{2})\b/);
+  let hour = -1;
+  let minute = 0;
+  if (timeMatch) {
+    const rawHour = Number(timeMatch[1]);
+    minute = timeMatch[2] ? Number(timeMatch[2]) : 0;
+    const modifier = (timeMatch[3] ?? "").toLowerCase();
+    if (modifier === "malam" && rawHour < 12) hour = rawHour + 12;
+    else if (modifier === "sore" && rawHour < 12 && rawHour >= 1) hour = rawHour + 12;
+    else if (modifier === "siang" && rawHour <= 5 && rawHour >= 1) hour = rawHour + 12;
+    else hour = rawHour;
+  }
+  const time = hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59
+    ? `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`
+    : "";
+  const explicitReminder = /^r\s+/i.test(text) || /\b(reminder|ingatkan|pengingat|jangan lupa)\b/.test(lower);
+  const financialAction = /\b(bayar|beli|pengeluaran|pemasukan|transfer|rp\.?|ribu|juta)\b/.test(lower);
+  const reminderLanguage = explicitReminder || (!financialAction && /\b(jadwal|rapat|acara)\b/.test(lower));
+  const contextualSchedule = Boolean(time) && /\b(besok|lusa|hari ini|nanti)\b/.test(lower)
+    && !financialAction;
+  if (reminderLanguage || contextualSchedule) {
+    const explicitDate = lower.match(/\b(\d{4}-\d{2}-\d{2})\b/)?.[1]
+      ?? (() => {
+        const match = lower.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/);
+        if (!match) return "";
+        const year = match[3] ? (match[3].length === 2 ? `20${match[3]}` : match[3]) : today.slice(0, 4);
+        return `${year}-${match[2].padStart(2, "0")}-${match[1].padStart(2, "0")}`;
+      })();
+    const date = /\blusa\b/.test(lower) ? addCalendarDays(today, 2)
+      : /\bbesok\b/.test(lower) ? addCalendarDays(today, 1)
+      : /\bhari ini\b/.test(lower) ? today : explicitDate;
     const textAfterAt = text.includes("@") ? text.split("@").slice(1).join("@") : "";
     const remindText = (textAfterAt || text)
       .replace(/^r\s+/i, "")
-      .replace(/\b(tolong|buat|bikin|tambah|reminder|ingatkan|jadwal)\b/gi, "")
-      .replace(/\b(besok|hari ini|nanti|jam)\b/gi, "")
-      .replace(/(\d{1,2}[:.]\d{2})/g, "")
-      .replace(/(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)/g, "")
-      .trim();
+      .replace(/\b(tolong|buat|bikin|tambah|reminder|ingatkan|jadwal|pengingat)\b/gi, "")
+      .replace(/\b(besok|lusa|hari ini|nanti|jam|pagi|siang|sore|malam|jangan lupa)\b/gi, "")
+      .replace(/\b\d{1,2}(?:[:.]\d{2})?\b/g, "")
+      .replace(/\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/g, "")
+      .replace(/\s+/g, " ").trim();
+    // One-off reminders use ISO+WIB, accepted by the bot's Luxon scheduler.
+    const remindValue = date && time ? `${date}T${time}:00+07:00`
+      : date ? `${date.slice(8, 10)}/${date.slice(5, 7)}/${date.slice(0, 4)}` : time;
+    if (!remindValue) return null;
     return validateIntent({
       action: "reminder",
       remind_type: date && time ? "datetime" : date ? "date" : "time",
-      remind_value: [date, time].filter(Boolean).join(" ") || time || date || "",
+      remind_value: remindValue,
       remind_text: remindText || text,
       note: remindText || text,
       date: today,
-      confidence: 0.55,
+      confidence: 0.75,
     });
   }
 
@@ -148,22 +181,22 @@ function parseLocalIntent(text: string, today: string) {
     });
   }
 
-  const amount = parseMoney(text);
-  if (amount > 0) {
+  const money = parseMoney(text);
+  if (money) {
     const isIncome =
       text.trim().startsWith("+") ||
       (/\b(pemasukan|masuk|masukin|income|donasi|iuran|kas masuk|terima|plus)\b/.test(lower) &&
         !/\b(pengeluaran|keluar|expense|beli|bayar|minus|-)\b/.test(lower));
     const note = text
-      .replace(/[-+]?\s*\d+(?:[.,]\d+)?\s*(jt|juta|rb|ribu|k)?/i, "")
+      .replace(money.raw, "")
       .replace(/\b(pemasukan|pengeluaran|income|expense|masuk|masukin|keluar|beli|bayar|catat|tambahkan|tambah|buat|plus|minus)\b/gi, "")
       .trim();
     return validateIntent({
       action: "transaction",
       type: isIncome ? "income" : "expense",
-      amount,
+      amount: money.amount,
       note: note || text,
-      date: today,
+      date: /\bkemarin\b/.test(lower) ? addCalendarDays(today, -1) : today,
       confidence: 0.6,
     });
   }
@@ -299,7 +332,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = jakartaToday();
   const localIntent = parseLocalIntent(text, today);
 
   if (localIntent) {
@@ -337,12 +370,12 @@ export async function POST(request: Request) {
 
   try {
     let lastError = "";
-
-    for (const model of getGeminiModels()) {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-        {
+    const model = getGeminiModel();
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+      {
         method: "POST",
+        signal: AbortSignal.timeout(4500),
         headers: {
           "Content-Type": "application/json",
           "x-goog-api-key": apiKey,
@@ -355,29 +388,19 @@ export async function POST(request: Request) {
           },
         }),
       },
-      );
+    );
 
-      const data = (await response.json().catch(() => ({}))) as GeminiResponse & {
-        error?: { message?: string };
-      };
-
-      if (!response.ok) {
-        lastError = data.error?.message ?? `Gemini ${model} gagal (${response.status})`;
-        const denied = response.status === 403 || /denied|permission/i.test(lastError);
-        if (denied) break;
-        continue;
-      }
-
+    const data = (await response.json().catch(() => ({}))) as GeminiResponse & {
+      error?: { message?: string };
+    };
+    if (!response.ok) {
+      lastError = data.error?.message ?? `Gemini ${model} gagal (${response.status})`;
+    } else {
       const output = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
       const parsed = JSON.parse(extractJson(output)) as ParsedIntent;
       const intent = validateIntent(parsed);
-
-      if (!intent) {
-        lastError = `Gemini ${model} tidak menghasilkan intent valid.`;
-        continue;
-      }
-
-      return Response.json({ ok: true, intent, source: "gemini", model }, { status: 200 });
+      if (intent) return Response.json({ ok: true, intent, source: "gemini", model }, { status: 200 });
+      lastError = `Gemini ${model} tidak menghasilkan intent valid.`;
     }
 
     console.warn("[AI parser] Gemini fallback:", lastError);
