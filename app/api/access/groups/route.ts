@@ -1,4 +1,5 @@
 import { resolveTrustedBotApiUrl } from "@/app/lib/bot-api";
+import { fetchBotOwnerResource } from "@/app/lib/bot-owner-data";
 import {
   createSupabaseAdminClient,
   createSupabaseServerClient,
@@ -201,6 +202,95 @@ export async function GET(request: Request) {
         is_active: rental.is_active,
         expire_at: rental.expire_at,
       });
+    }
+  }
+
+  // Fetch live groups from bot API (finance.sqlite + live Baileys)
+  const botGroupsRes = await fetchBotOwnerResource("groups").catch(() => null);
+  const botGroups = (
+    botGroupsRes && botGroupsRes.ok && Array.isArray(botGroupsRes.data)
+      ? botGroupsRes.data
+      : []
+  ) as Array<{
+    group_id?: string;
+    id?: string;
+    group_name?: string;
+    name?: string;
+    is_active?: boolean;
+    expire_at?: string;
+  }>;
+
+  const botMap = new Map<string, { name: string; is_active?: boolean; expire_at?: string }>();
+  for (const bg of botGroups) {
+    const gid = bg.group_id ?? bg.id;
+    if (gid) {
+      botMap.set(gid, {
+        name: bg.group_name ?? bg.name ?? "",
+        is_active: bg.is_active,
+        expire_at: bg.expire_at,
+      });
+    }
+  }
+
+  // Enrich user groups with live names from bot runtime
+  for (const [gid, row] of collected.entries()) {
+    const botInfo = botMap.get(gid);
+    const isGeneric =
+      !row.group_name ||
+      row.group_name.trim().toLowerCase() === "grup keuangan" ||
+      row.group_name.trim().toLowerCase() === "grup whatsapp" ||
+      row.group_name.trim().toLowerCase() === "grup botuang";
+
+    if (botInfo?.name && (isGeneric || botInfo.name !== row.group_name)) {
+      row.group_name = botInfo.name;
+    }
+    if (botInfo?.is_active !== undefined) {
+      row.is_active = botInfo.is_active;
+    }
+    if (botInfo?.expire_at) {
+      row.expire_at = botInfo.expire_at;
+    }
+  }
+
+  // For owner role, also ensure all active bot groups are in collected
+  if (platformRole === "owner") {
+    for (const bg of botGroups) {
+      const gid = bg.group_id ?? bg.id;
+      if (!gid) continue;
+      const existing = collected.get(gid);
+      const name = bg.group_name ?? bg.name ?? existing?.group_name ?? "Grup WhatsApp";
+      collected.set(gid, {
+        group_id: gid,
+        group_name: name,
+        role: "owner",
+        is_active: typeof bg.is_active === "boolean" ? bg.is_active : true,
+        expire_at: bg.expire_at ?? existing?.expire_at ?? null,
+      });
+    }
+  }
+
+  // Background sync authoritative names to Supabase
+  if (admin) {
+    for (const [gid, row] of collected.entries()) {
+      if (row.group_name && row.group_name.toLowerCase() !== "grup keuangan" && row.group_name.toLowerCase() !== "grup whatsapp") {
+        void admin
+          .from("user_group_access")
+          .update({ group_name: row.group_name })
+          .eq("group_id", gid);
+
+        void admin
+          .from("group_rentals")
+          .upsert(
+            {
+              group_id: gid,
+              group_name: row.group_name,
+              is_active: row.is_active ?? true,
+              expire_at: row.expire_at,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "group_id" },
+          );
+      }
     }
   }
 

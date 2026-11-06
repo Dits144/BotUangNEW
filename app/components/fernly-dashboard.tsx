@@ -26,6 +26,7 @@ import {
   CheckSquare,
   ChevronLeft,
   ChevronRight,
+  ChevronsUpDown,
   CircleDollarSign,
   Clock,
   CloudSun,
@@ -376,8 +377,25 @@ function getNavItem(key: DashboardSection) {
   return navItems.find((item) => item.key === key);
 }
 
+function getCleanGroupName(groupName?: string, groupId?: string): string {
+  if (
+    groupName &&
+    groupName.trim().toLowerCase() !== "grup keuangan" &&
+    groupName.trim().toLowerCase() !== "grup whatsapp" &&
+    groupName.trim().toLowerCase() !== "grup botuang"
+  ) {
+    return groupName;
+  }
+  if (groupId === "120363427961159443@g.us") return "Pemasukan DitsStore";
+  if (groupId === "120363427301916965@g.us") return "Manage Keuangan Radit";
+  if (groupId === "120363414001969770@g.us") return "Tabungan Dira";
+  if (groupId === "120363428798929277@g.us") return "Keuangan Fadlan";
+  return groupName || "Grup WhatsApp";
+}
+
 function displayGroupName(groupName: string, groupId?: string) {
-  const value = groupName || groupId || "Grup BotUang";
+  const clean = getCleanGroupName(groupName, groupId);
+  const value = clean || groupId || "Grup BotUang";
   if (value.includes("@g.us")) return "Grup WhatsApp";
   if (value.length > 34) return `${value.slice(0, 31)}...`;
   return value;
@@ -698,6 +716,7 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
   >("all");
   const [theme, setTheme] = useState<"dark" | "light">("light");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [groupPickerOpen, setGroupPickerOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [dashboardNotificationPreferences, setDashboardNotificationPreferences] =
     useState<NotificationPreferences>(defaultNotificationPreferences);
@@ -873,11 +892,34 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
     setCommands(
       resolveDataList(botCommands, (commandResult.data ?? []) as Command[]),
     );
-    const rentalData = (rentalResult.data as Rental | null) ?? null;
+    const botRental = (botResult as { rental?: Rental | null })?.rental ?? null;
+    const rentalData = (rentalResult.data as Rental | null) ?? botRental;
     setRental(rentalData);
     setSettings((settingResult.data as GroupSettings | null) ?? null);
     setBotStatus(botResult as BotStatus);
-    if (rentalData?.group_name) setGroupName(rentalData.group_name);
+
+    const liveGroupName =
+      rentalData?.group_name ??
+      (botResult as { group_name?: string })?.group_name ??
+      getCleanGroupName(groupName, targetGroupId);
+
+    if (liveGroupName) {
+      const cleanLive = getCleanGroupName(liveGroupName, targetGroupId);
+      setGroupName(cleanLive);
+      setGroups((prev) =>
+        prev.map((g) =>
+          g.group_id === targetGroupId ? { ...g, group_name: cleanLive } : g,
+        ),
+      );
+      const stored = window.localStorage.getItem(DASHBOARD_SESSION_KEY);
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          parsed.groupName = cleanLive;
+          window.localStorage.setItem(DASHBOARD_SESSION_KEY, JSON.stringify(parsed));
+        } catch (_) {}
+      }
+    }
     } finally {
       isFetchingRef.current = false;
       hasLoadedInitialDataRef.current = true;
@@ -920,24 +962,43 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
       }
     }
 
-    const nextGroups = Array.from(collected.values());
+    const nextGroups = Array.from(collected.values()).map((g) => ({
+      ...g,
+      group_name: getCleanGroupName(g.group_name, g.group_id),
+    }));
     setGroups(nextGroups);
+    if (groupId) {
+      const activeGroup = nextGroups.find((g) => g.group_id === groupId);
+      const cleaned = getCleanGroupName(activeGroup?.group_name ?? groupName, groupId);
+      if (cleaned && cleaned !== groupName) {
+        setGroupName(cleaned);
+        const stored = window.localStorage.getItem(DASHBOARD_SESSION_KEY);
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            parsed.groupName = cleaned;
+            window.localStorage.setItem(DASHBOARD_SESSION_KEY, JSON.stringify(parsed));
+          } catch (_) {}
+        }
+      }
+    }
     return nextGroups;
   }
 
   function selectGroup(group: AccessibleGroup) {
+    const cleanName = getCleanGroupName(group.group_name, group.group_id);
     const stored = window.localStorage.getItem(DASHBOARD_SESSION_KEY);
     const session = stored ? JSON.parse(stored) : {};
     const nextSession = {
       ...session,
       groupId: group.group_id,
-      groupName: group.group_name ?? "Grup WhatsApp",
+      groupName: cleanName,
       role,
     };
 
     window.localStorage.setItem(DASHBOARD_SESSION_KEY, JSON.stringify(nextSession));
     setGroupId(group.group_id);
-    setGroupName(group.group_name ?? "Grup WhatsApp");
+    setGroupName(cleanName);
     setTransactions([]);
     setParticipants([]);
     setTodos([]);
@@ -1050,11 +1111,16 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
         return;
       }
 
+      const initialName = getCleanGroupName(
+        activeGroup.group_name ?? session.groupName ?? "Grup WhatsApp",
+        activeGroup.group_id,
+      );
+
       const nextSession = {
         ...session,
         role: platformRole,
         groupId: activeGroup.group_id,
-        groupName: activeGroup.group_name ?? "Grup WhatsApp",
+        groupName: initialName,
         userName: authUserName,
         userEmail: authUserEmail,
       };
@@ -1349,10 +1415,10 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
                 <Menu className="h-5 w-5" />
               </Button>
               <div className="min-w-0 flex-1 xl:hidden">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <span
                     className={cn(
-                      "h-2.5 w-2.5 shrink-0 rounded-full",
+                      "h-2 w-2 shrink-0 rounded-full",
                       botStatus === null
                         ? "bg-amber-400"
                         : botStatus.ok
@@ -1360,32 +1426,102 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
                           : "bg-rose-400",
                     )}
                   />
-                  <p className="truncate text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
-                    {displayGroupName(groupName, groupId)}
-                  </p>
+                  {activeSection !== "owner" && groups.length > 0 ? (
+                    <Sheet open={groupPickerOpen} onOpenChange={setGroupPickerOpen}>
+                      <SheetTrigger asChild>
+                        <button
+                          type="button"
+                          className="inline-flex max-w-[210px] items-center gap-1 truncate rounded-full border border-[var(--line)] bg-[var(--card)] px-2.5 py-0.5 text-xs font-semibold text-[var(--foreground)] shadow-xs transition hover:bg-[var(--panel)] active:scale-[0.98]"
+                          aria-label="Pilih grup aktif"
+                        >
+                          <span className="truncate">{displayGroupName(groupName, groupId)}</span>
+                          <ChevronsUpDown className="h-3 w-3 shrink-0 text-[var(--muted)]" />
+                        </button>
+                      </SheetTrigger>
+                      <SheetContent className="sm:max-w-md">
+                        <SheetTitle className="text-base font-semibold">Pilih Grup WhatsApp</SheetTitle>
+                        <SheetDescription className="mt-1 text-xs text-[var(--muted)]">
+                          Pilih grup untuk mengelola kas, transaksi, dan pengingat.
+                        </SheetDescription>
+                        <div className="mt-4 space-y-2">
+                          {groups.map((group) => {
+                            const isSelected = group.group_id === groupId;
+                            const isGroupActive = group.is_active !== false;
+                            return (
+                              <button
+                                key={group.group_id}
+                                type="button"
+                                onClick={() => {
+                                  selectGroup(group);
+                                  setGroupPickerOpen(false);
+                                }}
+                                className={cn(
+                                  "flex w-full items-center justify-between gap-3 rounded-[16px] border p-3 text-left transition active:scale-[0.99]",
+                                  isSelected
+                                    ? "border-emerald-500 bg-emerald-500/10 text-[var(--foreground)] dark:bg-emerald-500/15"
+                                    : "border-[var(--line)] bg-[var(--card)] hover:bg-[var(--panel)]",
+                                )}
+                              >
+                                <div className="flex min-w-0 items-center gap-3">
+                                  <div
+                                    className={cn(
+                                      "flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] text-xs font-bold",
+                                      isSelected
+                                        ? "bg-emerald-500 text-white"
+                                        : "bg-[var(--panel)] text-[var(--muted)]",
+                                    )}
+                                  >
+                                    {(getCleanGroupName(group.group_name, group.group_id) || "G")[0].toUpperCase()}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="truncate text-sm font-semibold">
+                                      {getCleanGroupName(group.group_name, group.group_id)}
+                                    </p>
+                                    <p className="truncate text-[11px] text-[var(--muted)]">
+                                      ID: {group.group_id.split("@")[0]}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="flex shrink-0 items-center gap-2">
+                                  {isGroupActive ? (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+                                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                      Aktif
+                                    </span>
+                                  ) : (
+                                    <span className="rounded-full bg-zinc-500/10 px-2 py-0.5 text-[10px] font-medium text-[var(--muted)]">
+                                      Nonaktif
+                                    </span>
+                                  )}
+                                  {isSelected ? (
+                                    <Check className="h-4 w-4 text-emerald-500" />
+                                  ) : null}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div className="mt-5 border-t border-[var(--line)] pt-4">
+                          <Link
+                            href="/connect"
+                            onClick={() => setGroupPickerOpen(false)}
+                            className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--line)] py-2.5 text-xs font-medium text-[var(--muted)] transition hover:border-emerald-500 hover:text-emerald-500"
+                          >
+                            <Plus className="h-4 w-4" />
+                            Hubungkan Grup Lain
+                          </Link>
+                        </div>
+                      </SheetContent>
+                    </Sheet>
+                  ) : (
+                    <p className="truncate text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+                      {displayGroupName(groupName, groupId)}
+                    </p>
+                  )}
                 </div>
                 <p className="truncate text-base font-semibold sm:text-lg">
                   {visibleNavItems.find((item) => item.key === activeSection)?.label}
                 </p>
-                {activeSection !== "owner" && groups.length > 1 ? (
-                  <select
-                    value={groupId}
-                    onChange={(event) => {
-                      const selected = groups.find(
-                        (group) => group.group_id === event.target.value,
-                      );
-                      if (selected) selectGroup(selected);
-                    }}
-                    className="mt-2 min-h-10 w-full max-w-xs rounded-[11px] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm xl:hidden"
-                    aria-label="Pilih grup aktif"
-                  >
-                    {groups.map((group) => (
-                      <option key={group.group_id} value={group.group_id}>
-                        {group.group_name ?? "Grup WhatsApp"}
-                      </option>
-                    ))}
-                  </select>
-                ) : null}
               </div>
               <div className="hidden min-w-[280px] max-w-[390px] flex-1 items-center rounded-[14px] border border-[var(--line)] bg-[var(--card)] px-3 shadow-[var(--soft-shadow)] xl:flex">
                 <Search className="h-4 w-4 text-[var(--muted)]" />
@@ -1564,7 +1700,7 @@ export function FernlyDashboard({ preview = false }: { preview?: boolean }) {
           <AnimatePresence mode="wait">
             <FernlyPage
               key={activeSection}
-              className="mt-3 min-h-[calc(100vh-108px)] w-full rounded-[22px] bg-[var(--surface)] p-3 md:min-h-[calc(100vh-98px)] md:rounded-[26px] md:p-5"
+              className="mt-3 min-h-[calc(100vh-108px)] w-full rounded-[22px] bg-[var(--surface)] p-3 pb-28 md:min-h-[calc(100vh-98px)] md:rounded-[26px] md:p-5 xl:pb-6"
             >
               {!loading && !groupId && !["owner", "help"].includes(activeSection) ? (
                 <NoGroupsEmptyState />
@@ -1789,11 +1925,11 @@ function Brand({
             {groups.length ? (
               groups.map((group) => (
                 <option key={group.group_id} value={group.group_id}>
-                  {group.group_name ?? "Grup WhatsApp"}
+                  {getCleanGroupName(group.group_name, group.group_id)}
                 </option>
               ))
             ) : (
-              <option value={groupId}>{groupName || "Grup WhatsApp"}</option>
+              <option value={groupId}>{getCleanGroupName(groupName, groupId)}</option>
             )}
           </select>
           {groupId ? (
