@@ -1,5 +1,6 @@
 import { resolveTrustedBotApiUrl } from "@/app/lib/bot-api";
 import { fetchBotOwnerResource } from "@/app/lib/bot-owner-data";
+import { getCleanGroupName } from "@/app/lib/group-utils";
 import {
   createSupabaseAdminClient,
   createSupabaseServerClient,
@@ -232,18 +233,11 @@ export async function GET(request: Request) {
     }
   }
 
-  // Enrich user groups with live names from bot runtime
+  // Enrich user groups with live names from bot runtime or known mapping
   for (const [gid, row] of collected.entries()) {
     const botInfo = botMap.get(gid);
-    const isGeneric =
-      !row.group_name ||
-      row.group_name.trim().toLowerCase() === "grup keuangan" ||
-      row.group_name.trim().toLowerCase() === "grup whatsapp" ||
-      row.group_name.trim().toLowerCase() === "grup botuang";
-
-    if (botInfo?.name && (isGeneric || botInfo.name !== row.group_name)) {
-      row.group_name = botInfo.name;
-    }
+    const resolvedName = botInfo?.name || getCleanGroupName(row.group_name, gid);
+    row.group_name = resolvedName;
     if (botInfo?.is_active !== undefined) {
       row.is_active = botInfo.is_active;
     }
@@ -471,11 +465,13 @@ export async function POST(request: Request) {
     );
   }
 
+  const cleanGroupName = getCleanGroupName(groupName, groupId);
+
   const access = await admin.from("user_group_access").upsert(
     {
       user_id: user.userId,
       group_id: groupId,
-      group_name: groupName,
+      group_name: cleanGroupName,
       role,
       updated_at: new Date().toISOString(),
       last_selected_at: new Date().toISOString(),
@@ -495,7 +491,7 @@ export async function POST(request: Request) {
       ok: true,
       group: {
         group_id: groupId,
-        group_name: groupName,
+        group_name: cleanGroupName,
         role,
       },
     },

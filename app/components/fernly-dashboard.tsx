@@ -74,6 +74,7 @@ import {
 import { toast } from "sonner";
 import { DASHBOARD_SESSION_KEY } from "@/app/lib/constants";
 import { daysLeft, formatDate, formatRupiah } from "@/app/lib/format";
+import { getCleanGroupName, displayGroupName } from "@/app/lib/group-utils";
 import { resolveDashboardImage, uploadDashboardImage } from "@/app/lib/image-upload";
 import { supabase } from "@/app/lib/supabase";
 import { cn } from "@/app/lib/utils";
@@ -375,30 +376,6 @@ const navGroups = [
 
 function getNavItem(key: DashboardSection) {
   return navItems.find((item) => item.key === key);
-}
-
-function getCleanGroupName(groupName?: string, groupId?: string): string {
-  if (
-    groupName &&
-    groupName.trim().toLowerCase() !== "grup keuangan" &&
-    groupName.trim().toLowerCase() !== "grup whatsapp" &&
-    groupName.trim().toLowerCase() !== "grup botuang"
-  ) {
-    return groupName;
-  }
-  if (groupId === "120363427961159443@g.us") return "Pemasukan DitsStore";
-  if (groupId === "120363427301916965@g.us") return "Manage Keuangan Radit";
-  if (groupId === "120363414001969770@g.us") return "Tabungan Dira";
-  if (groupId === "120363428798929277@g.us") return "Keuangan Fadlan";
-  return groupName || "Grup WhatsApp";
-}
-
-function displayGroupName(groupName: string, groupId?: string) {
-  const clean = getCleanGroupName(groupName, groupId);
-  const value = clean || groupId || "Grup BotUang";
-  if (value.includes("@g.us")) return "Grup WhatsApp";
-  if (value.length > 34) return `${value.slice(0, 31)}...`;
-  return value;
 }
 
 function getBotStatusDisplay(botStatus: BotStatus | null) {

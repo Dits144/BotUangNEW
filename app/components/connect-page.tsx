@@ -7,6 +7,7 @@ import { LockKeyhole, LogIn, MessageCircle, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { AUTH_REDIRECT_KEY, DASHBOARD_SESSION_KEY } from "@/app/lib/constants";
 import { resolveTrustedBotApiUrl } from "@/app/lib/bot-api";
+import { getCleanGroupName } from "@/app/lib/group-utils";
 import { supabase } from "@/app/lib/supabase";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
@@ -113,11 +114,12 @@ export function ConnectPage() {
           data
             ? {
                 ...(data as Omit<RentalRow, "has_pin">),
+                group_name: getCleanGroupName(data.group_name, queryGroup),
                 has_pin: Boolean(validation.hasPin),
               }
             : {
             group_id: queryGroup,
-            group_name: validation.groupName ?? queryGroup,
+            group_name: getCleanGroupName(validation.groupName, queryGroup),
             has_pin: Boolean(validation.hasPin),
             is_active: null,
             expire_at: null,
@@ -169,7 +171,7 @@ export function ConnectPage() {
 
       setRental({
         ...(data as Omit<RentalRow, "has_pin">),
-        group_name: info.group?.group_name ?? data.group_name,
+        group_name: getCleanGroupName(info.group?.group_name ?? data.group_name, queryGroup),
         has_pin: Boolean(info.group?.has_pin),
       });
       setLoading(false);
@@ -249,7 +251,7 @@ export function ConnectPage() {
       },
       body: JSON.stringify({
         group_id: rental.group_id || groupId,
-        group_name: rental.group_name ?? botGate.groupName,
+        group_name: getCleanGroupName(rental.group_name ?? botGate.groupName, rental.group_id || groupId),
         token,
         password: pin,
         api_url: apiUrl,
@@ -266,7 +268,10 @@ export function ConnectPage() {
       toast.error(linked.message ?? "Akses grup belum bisa disimpan ke akun.");
       return;
     }
-    const linkedGroupName = linked.group?.group_name ?? rental.group_name ?? "Grup WhatsApp";
+    const linkedGroupName = getCleanGroupName(
+      linked.group?.group_name ?? rental.group_name,
+      rental.group_id || groupId,
+    );
 
     window.localStorage.setItem(
       DASHBOARD_SESSION_KEY,
@@ -364,7 +369,7 @@ export function ConnectPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="rounded-2xl border border-white/[0.08] bg-white/[0.035] p-4">
               <p className="text-sm text-zinc-400">Grup</p>
-              <p className="mt-1 font-semibold">{rental?.group_name ?? "Grup WhatsApp"}</p>
+              <p className="mt-1 font-semibold">{getCleanGroupName(rental?.group_name, rental?.group_id)}</p>
               <p className="mt-2 flex items-center gap-2 text-sm text-zinc-400">
                 <ShieldCheck className="h-4 w-4 text-emerald-300" />
                 {tokenFlow ? "Token WhatsApp tervalidasi" : "PIN grup diperlukan untuk menghubungkan akun"}
